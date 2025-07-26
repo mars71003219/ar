@@ -1,0 +1,10 @@
+#data
+**/output/
+**/data/
+**/checkpoints/
+**/work_dirs/
+
+**/__pycache__/
+**/*.pkl
+**/*.pth
+**/*nohup*

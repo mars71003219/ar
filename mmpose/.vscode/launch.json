@@ -1,0 +1,47 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                // ------------- train.py settings -------------
+                // "/workspace/mmpose/configs/body_2d_keypoint/rtmo/crowdpose/rtmo-m_16x8_crowdpose_finetune_3phase-640x640.py",
+                // "--amp",
+                // "--resume"
+                // ------------- bottomup_demo.py settings  -------------
+                // "/workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py",
+                // "/workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth",
+                // "--show",
+                // "--show-dir",
+                // "/workspace/mmpose/tools/results",
+                // ------------- inferencer_demo.py settings -------------
+                // "/aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000",
+                "/aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000/train/Fight/0_DzLlklZa0_4.avi",
+                "--pose2d",
+                "/workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py",
+                "--pose2d-weights",
+                "/workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth",
+                "--show-progress",
+                "--show",
+                "--draw-bbox",
+                "--bbox-thr",
+                "0.3",
+                "--nms-thr",
+                "0.35",
+                "--kpt-thr",
+                "0.9"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1"
+            }
+        }
+    ]
+}

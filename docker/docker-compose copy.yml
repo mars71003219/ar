@@ -1,0 +1,38 @@
+version: "3"
+
+services:
+  mmaction2:
+    image: mmaction2:v120 
+    container_name: mmaction2
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    restart: always
+    network_mode: host
+    shm_size: "4gb"
+    env_file: .env
+    volumes:
+      - ${ANALYSIS_HOME_DIR}:/workspace
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ${HOME_DIR}/.Xauthority:/root/.Xauthority
+      - /run/user/1000/pulse:/run/user/1000/pulse
+      - /dev/snd:/dev/snd
+      - ${HOME_DIR}/HDD:/data
+    devices:
+      - /dev/snd:/dev/snd
+    environment:
+      - XAUTHORITY=${HOME_DIR}/.Xauthority
+      - USER=${USER}
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - DISPLAY=${DISPLAY}
+      - "QT_X11_NO_MITSHM=1"
+      - FORCE_CUDA="1"
+      - MMCV_WITH_OPS=1
+      - CUDA_LAUNCH_BLOCKING=1
+      - TORCH_USE_CUDA_DSA=1
+
+    command: sleep infinity
