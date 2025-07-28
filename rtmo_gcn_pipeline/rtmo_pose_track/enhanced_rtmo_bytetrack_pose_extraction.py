@@ -473,7 +473,7 @@ class AdaptiveRegionImportance:
 class EnhancedFightInvolvementScorer:
     """개선된 싸움 참여도 점수 계산기"""
     
-    def __init__(self, img_shape, enable_adaptive=True):
+    def __init__(self, img_shape, enable_adaptive=True, weights=None):
         self.img_shape = img_shape
         self.enable_adaptive = enable_adaptive
         
@@ -481,6 +481,24 @@ class EnhancedFightInvolvementScorer:
         
         if enable_adaptive:
             self.adaptive_analyzer = AdaptiveRegionImportance()
+
+        # 가중치 설정
+        if weights and len(weights) == 5:
+            self.weights = {
+                'movement': weights[0],
+                'position': weights[1],
+                'interaction': weights[2],
+                'temporal_consistency': weights[3],
+                'persistence': weights[4]
+            }
+        else:
+            self.weights = {
+                'movement': 0.30,
+                'position': 0.35,
+                'interaction': 0.20,
+                'temporal_consistency': 0.10,
+                'persistence': 0.05
+            }
     
     def calculate_enhanced_fight_score(self, track_data, all_tracks_data=None):
         """개선된 복합 점수 계산"""
@@ -509,11 +527,11 @@ class EnhancedFightInvolvementScorer:
         
         # 최종 가중 점수 계산
         composite_score = (
-            movement_score * 0.30 +
-            position_score * 0.35 +
-            interaction_score * 0.20 +
-            temporal_consistency * 0.10 +
-            persistence_score * 0.05
+            movement_score * self.weights['movement'] +
+            position_score * self.weights['position'] +
+            interaction_score * self.weights['interaction'] +
+            temporal_consistency * self.weights['temporal_consistency'] +
+            persistence_score * self.weights['persistence']
         )
         
         return {
@@ -936,7 +954,7 @@ def apply_advanced_interpolation(keypoints, scores, confidence_threshold=0.3):
 
 
 def create_enhanced_annotation(pose_results, video_path, pose_model, 
-                             min_track_length=10, quality_threshold=0.3):
+                             min_track_length=10, quality_threshold=0.3, weights=None):
     """개선된 어노테이션 생성 (모든 객체 랭킹)"""
     if not pose_results:
         return None, "No pose results"
@@ -950,8 +968,8 @@ def create_enhanced_annotation(pose_results, video_path, pose_model,
     # 2. 이미지 크기 추출
     img_shape = pose_results[0].img_shape
     
-    # 3. 개선된 점수 계산기 초기화
-    scorer = EnhancedFightInvolvementScorer(img_shape, enable_adaptive=True)
+    # 3. 개선된 점수 계산기 초기화 (가중치 전달)
+    scorer = EnhancedFightInvolvementScorer(img_shape, enable_adaptive=True, weights=weights)
     
     # 4. 각 Track ID에 대해 복합 점수 계산
     scored_tracks = []
@@ -1449,8 +1467,10 @@ def process_single_video(video_path, args, failure_logger):
         annotation, status_message = create_enhanced_annotation(
             pose_results, video_path, pose_model,
             min_track_length=args.min_track_length,
-            quality_threshold=args.quality_threshold
+            quality_threshold=args.quality_threshold,
+            weights=args.weights  # 가중치 전달
         )
+
         
         if annotation is None:
             failure_logger.log_failure(video_path, status_message)
@@ -1529,6 +1549,12 @@ def parse_args():
     # Performance parameters
     parser.add_argument('--num-workers', type=int, default=None,
                        help='Number of parallel workers (default: auto)')
+    
+    # Composite score weights
+    parser.add_argument('--weights', type=float, nargs=5, 
+                       default=[0.30, 0.35, 0.20, 0.10, 0.05],
+                       metavar=('W_MV', 'W_POS', 'W_INT', 'W_CONS', 'W_PERS'),
+                       help='Weights for composite score in order: movement, position, interaction, temporal_consistency, persistence')
     
     return parser.parse_args()
 

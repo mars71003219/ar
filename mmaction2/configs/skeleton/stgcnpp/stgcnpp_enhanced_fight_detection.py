@@ -33,14 +33,14 @@ model = dict(
 dataset_type = 'PoseDataset'  # 표준 dataset으로 임시 변경
 
 # 데이터 경로 설정
-# data_root = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/'
-# ann_file_train = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_enhanced_train.pkl'
-# ann_file_val = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_enhanced_val.pkl'
-# ann_file_test = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_enhanced_test.pkl'
 data_root = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/'
-ann_file_train = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_standard_train.pkl'
-ann_file_val = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_standard_val.pkl'
-ann_file_test = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_standard_test.pkl'
+ann_file_train = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_enhanced_train.pkl'
+ann_file_val = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_enhanced_val.pkl'
+ann_file_test = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_enhanced_test.pkl'
+# data_root = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/'
+# ann_file_train = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_standard_train.pkl'
+# ann_file_val = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_standard_val.pkl'
+# ann_file_test = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_standard_test.pkl'
 # ============================================================================
 # Enhanced Pipeline Configuration
 # ============================================================================
@@ -60,7 +60,7 @@ train_pipeline = [
     dict(type='PoseDecode'),
     
     # Final formatting
-    dict(type='FormatGCNInput', num_person=1),
+    dict(type='FormatGCNInput', num_person=2),
     dict(type='PackActionInputs')
 ]
 
@@ -79,7 +79,7 @@ val_pipeline = [
     dict(type='PoseDecode'),
     
     # Final formatting
-    dict(type='FormatGCNInput', num_person=1),
+    dict(type='FormatGCNInput', num_person=2),
     dict(type='PackActionInputs')
 ]
 
@@ -98,7 +98,7 @@ test_pipeline = [
     dict(type='PoseDecode'),
     
     # Final formatting
-    dict(type='FormatGCNInput', num_person=1),
+    dict(type='FormatGCNInput', num_person=2),
     dict(type='PackActionInputs')
 ]
 

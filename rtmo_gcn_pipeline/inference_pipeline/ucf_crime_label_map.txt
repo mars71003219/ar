@@ -1,0 +1,2 @@
+Fight: 1
+Normal: 0

@@ -117,6 +117,10 @@ def parse_main_args():
     # 데모 모드 설정
     parser.add_argument('--demo-count', type=int, default=10,
                        help='데모 모드에서 처리할 비디오 수')
+
+    # 복합 점수 가중치 설정
+    parser.add_argument('--weights', type=float, nargs='+', default=[0.35, 0.20, 0.30, 0.10, 0.05],
+                       help='복합 점수 가중치 (movement, position, interaction, temporal_consistency, persistence 순서)')
     
     return parser.parse_args()
 
@@ -165,7 +169,8 @@ def run_single_mode(args):
             '--track-high-thresh', str(args.track_high_thresh),
             '--track-low-thresh', str(args.track_low_thresh),
             '--track-max-disappeared', str(args.track_max_disappeared),
-            '--track-min-hits', str(args.track_min_hits)
+            '--track-min-hits', str(args.track_min_hits),
+            '--weights', *[str(w) for w in args.weights]  # 가중치 인자 추가
         ]
         
         single_main()
