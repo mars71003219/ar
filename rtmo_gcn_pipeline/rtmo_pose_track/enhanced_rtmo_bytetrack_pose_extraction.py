@@ -13,21 +13,14 @@ Enhanced STGCN++ Dataset Annotation Generator
 """
 
 import os
-import logging
 import glob
-import time
 import pickle
-from argparse import ArgumentParser
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict
 from datetime import datetime
-from concurrent.futures import ProcessPoolExecutor, as_completed
-import multiprocessing as mp
 
 import cv2
-import mmcv
-import mmengine
 import numpy as np
 from tqdm import tqdm
 from scipy.optimize import linear_sum_assignment
@@ -35,6 +28,7 @@ from scipy.interpolate import interp1d
 
 from mmpose.apis import inference_bottomup, init_model
 from mmpose.registry import VISUALIZERS
+
 
 
 # =============================================================================
@@ -1414,271 +1408,200 @@ def setup_video_writer(output_path, input_ext, fps, width, height):
 
 
 # =============================================================================
-# Main Processing Functions
+# Enhanced RTMO Pose Extractor Class
 # =============================================================================
 
-def process_single_video(video_path, args, failure_logger):
-    """단일 비디오 처리"""
-    try:
-        print(f"\nProcessing: {video_path}")
+class EnhancedRTMOPoseExtractor:
+    """개선된 RTMO 포즈 추출기 클래스"""
+    
+    def __init__(self, config_path, checkpoint_path, device='cuda:0', 
+                 save_overlay=True, num_person=5, overlay_fps=30):
+        """
+        Args:
+            config_path: RTMO 설정 파일 경로
+            checkpoint_path: RTMO 체크포인트 파일 경로
+            device: 추론에 사용할 디바이스
+            save_overlay: 오버레이 비디오 저장 여부
+            num_person: 오버레이에 표시할 최대 인물 수
+            overlay_fps: 오버레이 비디오 FPS
+        """
+        self.config_path = config_path
+        self.checkpoint_path = checkpoint_path
+        self.device = device
+        self.save_overlay = save_overlay
+        self.num_person = num_person
+        self.overlay_fps = overlay_fps
         
-        # CUDA 메모리 정리 (멀티프로세싱 환경에서 안정성 향상)
+        # 기본 파라미터 설정
+        self.score_thr = 0.3
+        self.nms_thr = 0.35
+        self.min_track_length = 10
+        self.quality_threshold = 0.3
+        
+        # ByteTrack 파라미터
+        self.track_high_thresh = 0.6
+        self.track_low_thresh = 0.1
+        self.track_max_disappeared = 30
+        self.track_min_hits = 3
+        
+        # 복합 점수 가중치
+        self.weights = [0.30, 0.35, 0.20, 0.10, 0.05]
+        
+    
+    
+    def process_single_video(self, video_path, output_root, failure_logger=None):
+        """단일 비디오 처리"""
         try:
-            import torch
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-        except:
-            pass
-        
-        # ByteTracker 초기화
-        tracker = ByteTracker(
-            high_thresh=args.track_high_thresh,
-            low_thresh=args.track_low_thresh,
-            max_disappeared=args.track_max_disappeared,
-            min_hits=args.track_min_hits
-        )
-        
-        # 모델 초기화
-        pose_model = init_model(args.config, args.checkpoint, device=args.device)
-        
-        # 모델 설정 적용
-        if hasattr(pose_model.cfg, 'model'):
-            if hasattr(pose_model.cfg.model, 'test_cfg'):
-                pose_model.cfg.model.test_cfg.score_thr = args.score_thr
-                pose_model.cfg.model.test_cfg.nms_thr = args.nms_thr
-            else:
-                pose_model.cfg.model.test_cfg = dict(score_thr=args.score_thr, nms_thr=args.nms_thr)
-        
-        if hasattr(pose_model, 'head') and hasattr(pose_model.head, 'test_cfg'):
-            pose_model.head.test_cfg.score_thr = args.score_thr
-            pose_model.head.test_cfg.nms_thr = args.nms_thr
-        
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            failure_logger.log_failure(video_path, "Cannot open video file")
-            return False
+            print(f"\nProcessing: {video_path}")
+            print(f"Using PyTorch inference")
             
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        video_fps = cap.get(cv2.CAP_PROP_FPS)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        
-        pose_results = []
-        save_overlay = getattr(args, 'save_overlayfile', False)
-        
-        # Step 1: 포즈 추정 및 트래킹
-        print(f"Running pose estimation and tracking... (save_overlay={save_overlay})")
-        frame_count = 0
-        pbar = tqdm(total=total_frames, desc="Processing frames")
-
-        while True:
-            success, frame = cap.read()
-            if not success:
-                break
-
-            # 포즈 추정
-            batch_pose_results = inference_bottomup(pose_model, frame)
-            pose_result = batch_pose_results[0]
+            # CUDA 메모리 정리 (멀티프로세싱 환경에서 안정성 향상)
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except:
+                pass
             
-            # Detection 결과 생성
-            detections = create_detection_results(pose_result)
-            
-            # ByteTrack으로 트래킹 수행
-            active_tracks = tracker.update(detections)
-            
-            # 포즈 결과에 트래킹 ID 할당
-            pose_result = assign_track_ids_from_bytetrack(pose_result, active_tracks)
-            
-            pose_results.append(pose_result)
-            frame_count += 1
-            pbar.update(1)
-
-        cap.release()
-        pbar.close()
-        
-        if not pose_results:
-            failure_logger.log_failure(video_path, "No pose results generated")
-            return False
-        
-        # Step 2: 개선된 어노테이션 생성
-        print("Creating enhanced annotation...")
-        annotation, status_message = create_enhanced_annotation(
-            pose_results, video_path, pose_model,
-            min_track_length=args.min_track_length,
-            quality_threshold=args.quality_threshold,
-            weights=args.weights  # 가중치 전달
-        )
-
-        
-        if annotation is None:
-            failure_logger.log_failure(video_path, status_message)
-            return False
-        
-        # Step 3: 결과 저장
-        if os.path.isfile(args.input):
-            input_root = os.path.dirname(args.input)
-        else:
-            input_root = args.input
-        
-        pkl_output_path = get_output_path(
-            video_path, input_root, args.output_root, 
-            '_enhanced_stgcn_annotation.pkl'
-        )
-        
-        with open(pkl_output_path, 'wb') as f:
-            pickle.dump(annotation, f)
-        
-        print(f'Enhanced annotation saved: {pkl_output_path}')
-        print(f'Total persons: {annotation["total_persons"]}')
-        print(f'Quality threshold: {annotation["quality_threshold"]}')
-        
-        # Step 4: 오버레이 비디오 생성 (옵션) - 스트리밍 방식
-        save_overlay = getattr(args, 'save_overlayfile', False)
-        print(f"Debug: save_overlayfile = {save_overlay}")
-        
-        if save_overlay:
-            print("Creating overlay visualization video...")
-            
-            # 상위 num_person개 트랙 ID 추출 (복합 점수 기준 정렬)
-            num_person = getattr(args, 'num_person', 2)  # 기본값: 2명
-            top_track_ids = []
-            
-            if 'keypoint' in annotation and annotation['keypoint']:
-                # 트랙별 평균 복합점수 계산
-                track_scores = {}
-                for frame_data in annotation['keypoint']:
-                    if isinstance(frame_data, list) and len(frame_data) > 0:
-                        for person_data in frame_data:
-                            if len(person_data) >= 3:  # [keypoints, scores, track_id] 구조 확인
-                                track_id = person_data[2] if len(person_data) > 2 else -1
-                                # track_id가 numpy array인 경우 스칼라 값으로 추출
-                                if isinstance(track_id, np.ndarray):
-                                    track_id = track_id.item() if track_id.size == 1 else track_id[0]
-                                # 정수형으로 변환
-                                track_id = int(track_id) if track_id is not None else -1
-                                if track_id >= 0:
-                                    # 복합 점수는 보통 추가 정보로 저장되거나 점수에서 계산
-                                    # 여기서는 keypoint 점수의 평균을 사용
-                                    if len(person_data) > 1 and person_data[1] is not None:
-                                        avg_score = np.mean(person_data[1]) if isinstance(person_data[1], np.ndarray) else 0
-                                        if track_id not in track_scores:
-                                            track_scores[track_id] = []
-                                        track_scores[track_id].append(avg_score)
-                
-                # 트랙별 평균 점수 계산 및 상위 선택
-                if track_scores:
-                    track_avg_scores = {tid: np.mean(scores) for tid, scores in track_scores.items()}
-                    # 점수 높은 순으로 정렬하여 상위 num_person개 선택
-                    sorted_tracks = sorted(track_avg_scores.items(), key=lambda x: x[1], reverse=True)
-                    top_track_ids = [tid for tid, _ in sorted_tracks[:num_person]]
-                    print(f"Top {num_person} track IDs selected: {top_track_ids}")
-            
-            success = create_overlay_video_streaming(
-                video_path, input_root, args.output_root,
-                pose_results, video_fps, width, height, pose_model, top_track_ids
+            # ByteTracker 초기화
+            tracker = ByteTracker(
+                high_thresh=self.track_high_thresh,
+                low_thresh=self.track_low_thresh,
+                max_disappeared=self.track_max_disappeared,
+                min_hits=self.track_min_hits
             )
-            if success:
-                print("Overlay video creation completed successfully")
+            
+            # 모델 초기화
+            pose_model = init_model(self.config_path, self.checkpoint_path, device=self.device)
+            
+            # 모델 설정 적용
+            if hasattr(pose_model.cfg, 'model'):
+                if hasattr(pose_model.cfg.model, 'test_cfg'):
+                    pose_model.cfg.model.test_cfg.score_thr = self.score_thr
+                    pose_model.cfg.model.test_cfg.nms_thr = self.nms_thr
+                else:
+                    pose_model.cfg.model.test_cfg = dict(score_thr=self.score_thr, nms_thr=self.nms_thr)
+            
+            if hasattr(pose_model, 'head') and hasattr(pose_model.head, 'test_cfg'):
+                pose_model.head.test_cfg.score_thr = self.score_thr
+                pose_model.head.test_cfg.nms_thr = self.nms_thr
+        
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                if failure_logger:
+                    failure_logger.log_failure(video_path, "Cannot open video file")
+                return False
+                
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            video_fps = cap.get(cv2.CAP_PROP_FPS) if cap.get(cv2.CAP_PROP_FPS) > 0 else self.overlay_fps
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
+            pose_results = []
+        
+            # Step 1: 포즈 추정 및 트래킹
+            print(f"Running pose estimation and tracking... (save_overlay={self.save_overlay})")
+            frame_count = 0
+            pbar = tqdm(total=total_frames, desc="Processing frames")
+
+            while True:
+                success, frame = cap.read()
+                if not success:
+                    break
+
+                # 포즈 추정 (PyTorch)
+                batch_pose_results = inference_bottomup(pose_model, frame)
+                pose_result = batch_pose_results[0]
+                
+                # Detection 결과 생성
+                detections = create_detection_results(pose_result)
+                
+                # ByteTrack으로 트래킹 수행
+                active_tracks = tracker.update(detections)
+                
+                # 포즈 결과에 트래킹 ID 할당
+                pose_result = assign_track_ids_from_bytetrack(pose_result, active_tracks)
+                
+                pose_results.append(pose_result)
+                frame_count += 1
+                pbar.update(1)
+
+            cap.release()
+            pbar.close()
+            
+            if not pose_results:
+                if failure_logger:
+                    failure_logger.log_failure(video_path, "No pose results generated")
+                return False
+            
+            # Step 2: 개선된 어노테이션 생성
+            print("Creating enhanced annotation...")
+            annotation, status_message = create_enhanced_annotation(
+                pose_results, video_path, pose_model,
+                min_track_length=self.min_track_length,
+                quality_threshold=self.quality_threshold,
+                weights=self.weights
+            )
+
+            
+            if annotation is None:
+                if failure_logger:
+                    failure_logger.log_failure(video_path, status_message)
+                return False
+            
+            # Step 3: 결과 저장
+            video_name = os.path.splitext(os.path.basename(video_path))[0]
+            pkl_output_path = os.path.join(output_root, f"{video_name}_enhanced_stgcn_annotation.pkl")
+            
+            os.makedirs(os.path.dirname(pkl_output_path), exist_ok=True)
+            
+            with open(pkl_output_path, 'wb') as f:
+                pickle.dump(annotation, f)
+            
+            print(f'Enhanced annotation saved: {pkl_output_path}')
+            print(f'Total persons: {annotation["total_persons"]}')
+            print(f'Quality threshold: {annotation["quality_threshold"]}')
+            
+            # Step 4: 오버레이 비디오 생성 (옵션) - 스트리밍 방식
+            if self.save_overlay:
+                print("Creating overlay visualization video...")
+                
+                # 상위 num_person개 트랙 ID 추출 (복합 점수 기준 정렬)
+                top_track_ids = []
+            
+                if 'persons' in annotation and annotation['persons']:
+                    # 복합 점수 기준으로 상위 선택
+                    person_scores = []
+                    for key, person_data in annotation['persons'].items():
+                        track_id = person_data.get('track_id', -1)
+                        composite_score = person_data.get('composite_score', 0)
+                        person_scores.append((track_id, composite_score))
+                    
+                    # 점수 높은 순으로 정렬하여 상위 num_person개 선택
+                    sorted_persons = sorted(person_scores, key=lambda x: x[1], reverse=True)
+                    top_track_ids = [tid for tid, _ in sorted_persons[:self.num_person]]
+                    print(f"Top {self.num_person} track IDs selected: {top_track_ids}")
+                
+                success = create_overlay_video_streaming(
+                    video_path, os.path.dirname(video_path), output_root,
+                    pose_results, video_fps, width, height, pose_model, top_track_ids
+                )
+                if success:
+                    print("Overlay video creation completed successfully")
+                else:
+                    print("Warning: Overlay video creation failed")
             else:
-                print("Warning: Overlay video creation failed")
-        else:
-            print("Overlay video generation skipped (save_overlayfile=False)")
-        
-        return True
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        failure_logger.log_failure(video_path, f"Processing error: {str(e)}")
-        return False
+                print("Overlay video generation skipped (save_overlay=False)")
+            
+            return pkl_output_path
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            if failure_logger:
+                failure_logger.log_failure(video_path, f"Processing error: {str(e)}")
+            return None
 
 
-def parse_args():
-    """인자 파싱"""
-    parser = ArgumentParser(description='Enhanced RTMO pose estimation with advanced scoring')
-    parser.add_argument('config', help='RTMO config file')
-    parser.add_argument('checkpoint', help='RTMO checkpoint file')
-    parser.add_argument('--input', type=str,
-                       default='/aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000',
-                       help='Video file path or directory')
-    parser.add_argument('--output-root', type=str,
-                       default='/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output', help='Output directory')
-    parser.add_argument('--save-overlayfile', action='store_true', default=True,
-                       help='Save overlay visualization video file')
-    parser.add_argument('--device', default='cuda:0', help='Device for inference')
-    parser.add_argument('--score-thr', type=float, default=0.3, help='Detection score threshold')
-    parser.add_argument('--nms-thr', type=float, default=0.35, help='NMS threshold')
-    
-    # Enhanced parameters
-    parser.add_argument('--min-track-length', type=int, default=10, 
-                       help='Minimum track length for inclusion')
-    parser.add_argument('--quality-threshold', type=float, default=0.3, 
-                       help='Minimum track quality threshold')
-    parser.add_argument('--num-person', type=int, default=2,
-                       help='Number of top-ranked persons to highlight in overlay (default: 2)')
-    
-    # ByteTrack parameters
-    parser.add_argument('--track-high-thresh', type=float, default=0.6)
-    parser.add_argument('--track-low-thresh', type=float, default=0.1)
-    parser.add_argument('--track-max-disappeared', type=int, default=30)
-    parser.add_argument('--track-min-hits', type=int, default=3)
-    
-    # Performance parameters
-    parser.add_argument('--num-workers', type=int, default=None,
-                       help='Number of parallel workers (default: auto)')
-    
-    # Composite score weights
-    parser.add_argument('--weights', type=float, nargs=5, 
-                       default=[0.30, 0.35, 0.20, 0.10, 0.05],
-                       metavar=('W_MV', 'W_POS', 'W_INT', 'W_CONS', 'W_PERS'),
-                       help='Weights for composite score in order: movement, position, interaction, temporal_consistency, persistence')
-    
-    return parser.parse_args()
+# 이 파일은 클래스로만 사용됩니다. 메인 진입점은 extract_pose_to_pkl_main.py입니다.
 
-
-def main():
-    """메인 함수"""
-    args = parse_args()
-    
-    if args.output_root:
-        mmengine.mkdir_or_exist(args.output_root)
-    
-    # 실패 로그 초기화
-    failure_log_path = os.path.join(args.output_root, 'enhanced_failed_videos.txt')
-    failure_logger = FailureLogger(failure_log_path)
-    
-    # 비디오 파일 목록 수집
-    video_files = find_video_files(args.input)
-    if not video_files:
-        print(f"No video files found in {args.input}")
-        return
-    
-    print(f"Found {len(video_files)} video files to process")
-    print(f"Enhanced features enabled:")
-    print(f"  - 5-region position scoring")
-    print(f"  - Adaptive region weight learning") 
-    print(f"  - Composite scoring system")
-    print(f"  - Advanced interpolation")
-    print(f"  - Quality-based filtering")
-    print(f"  - Failure case logging")
-    
-    # 순차 처리 (병렬 처리는 다음 구현에서)
-    success_count = 0
-    for video_idx, video_path in enumerate(video_files):
-        print(f"\n=== Processing video {video_idx + 1}/{len(video_files)} ===")
-        
-        success = process_single_video(video_path, args, failure_logger)
-        if success:
-            success_count += 1
-        
-        print(f"Progress: {video_idx + 1}/{len(video_files)} ({success_count} successful)")
-    
-    print(f"\n=== Processing Complete ===")
-    print(f"Total videos: {len(video_files)}")
-    print(f"Successful: {success_count}")
-    print(f"Failed: {len(video_files) - success_count}")
-    print(f"Failure log: {failure_log_path}")
-
-
-if __name__ == '__main__':
-    main()

@@ -11,34 +11,35 @@ import numpy as np
 from tqdm import tqdm
 from collections import defaultdict
 import cv2
-import subprocess
 import psutil
 import atexit
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
+from enhanced_rtmo_bytetrack_pose_extraction import EnhancedRTMOPoseExtractor, FailureLogger
+
+# CUDA multiprocessing 설정 - spawn 방식 사용
+mp.set_start_method('spawn', force=True)
 
 class UnifiedPoseProcessor:
     """통합 포즈 처리기 - 비디오에서 최종 STGCN 데이터까지 원스톱"""
     
-    def __init__(self, detector_config, detector_checkpoint, action_config, action_checkpoint,
-                 clip_len=100, num_person=5, segment_persons=2):
+    def __init__(self, detector_config, detector_checkpoint, 
+                 clip_len=100, num_person=5, save_overlay=True, overlay_fps=30):
         """
         Args:
             detector_config: RTMO 검출기 설정 파일
-            detector_checkpoint: RTMO 검출기 체크포인트
-            action_config: STGCN 액션 인식 설정 파일
-            action_checkpoint: STGCN 액션 인식 체크포인트
+            detector_checkpoint: RTMO 검출기 체크포인트 (PTH 파일)
             clip_len: 세그먼트 길이 (프레임)
-            num_person: 추적할 최대 인물 수
-            segment_persons: 세그먼트당 선택할 인물 수
+            num_person: 오버레이 표시할 최대 인물 수 (모든 인물은 저장됨)
+            save_overlay: 오버레이 비디오 저장 여부
+            overlay_fps: 오버레이 비디오 FPS
         """
         self.detector_config = detector_config
         self.detector_checkpoint = detector_checkpoint
-        self.action_config = action_config
-        self.action_checkpoint = action_checkpoint
         self.clip_len = clip_len
         self.num_person = num_person
-        self.segment_persons = segment_persons
+        self.save_overlay = save_overlay
+        self.overlay_fps = overlay_fps
         
         # 멀티프로세싱 리소스 정리
         atexit.register(self._cleanup_multiprocessing_resources)
@@ -98,31 +99,26 @@ class UnifiedPoseProcessor:
             return None
     
     def _extract_basic_poses(self, video_path, output_dir):
-        """기존 스크립트를 사용하여 기본 포즈 추출"""
+        """새로운 클래스를 사용하여 기본 포즈 추출"""
         try:
-            cmd = [
-                'python3', 'enhanced_rtmo_bytetrack_pose_extraction.py',
-                '--source-video', video_path,
-                '--detector-config', self.detector_config,
-                '--detector-checkpoint', self.detector_checkpoint,
-                '--action-config', self.action_config,
-                '--action-checkpoint', self.action_checkpoint,
-                '--output-root', output_dir,
-                '--num-person', str(self.num_person),
-                '--device', 'cuda:0'
-            ]
+            # 실패 로거 초기화
+            failure_log_path = os.path.join(output_dir, 'enhanced_failed_videos.txt')
+            failure_logger = FailureLogger(failure_log_path)
             
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.path.dirname(__file__))
+            # Enhanced RTMO 포즈 추출기 초기화
+            extractor = EnhancedRTMOPoseExtractor(
+                config_path=self.detector_config,
+                checkpoint_path=self.detector_checkpoint,
+                device='cuda:0',
+                save_overlay=self.save_overlay,
+                num_person=self.num_person,
+                overlay_fps=self.overlay_fps
+            )
             
-            if result.returncode != 0:
-                print(f"Pose extraction error: {result.stderr}")
-                return None
+            # 단일 비디오 처리
+            pkl_path = extractor.process_single_video(video_path, output_dir, failure_logger)
             
-            # 생성된 PKL 파일 경로 찾기
-            video_name = os.path.splitext(os.path.basename(video_path))[0]
-            pkl_path = os.path.join(output_dir, f"{video_name}_enhanced_stgcn_annotation.pkl")
-            
-            return pkl_path if os.path.exists(pkl_path) else None
+            return pkl_path
             
         except Exception as e:
             print(f"Exception in pose extraction: {str(e)}")
