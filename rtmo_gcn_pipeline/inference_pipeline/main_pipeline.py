@@ -87,6 +87,10 @@ class EndToEndPipeline:
             point_radius=INFERENCE_CONFIG['overlay']['point_radius']
         )
         
+        # MMPose 시각화기 초기화 (pose_model 사용)
+        if hasattr(self.pose_estimator, 'model'):
+            self.overlay_generator.init_visualizer_with_pose_model(self.pose_estimator.model)
+        
         logger.info("파이프라인 구성 요소 초기화 완료")
     
     def process_single_video(self, video_path: str, ground_truth_label: Optional[int] = None,

@@ -16,6 +16,17 @@ from fight_tracker import FightPrioritizedTracker
 
 logger = logging.getLogger(__name__)
 
+# MMPose imports for better visualization
+try:
+    from mmpose.registry import VISUALIZERS
+    from mmpose.structures import PoseDataSample
+    from mmengine.structures import InstanceData
+    MMPOSE_AVAILABLE = True
+    logger.info("MMPose import 성공 - 고품질 시각화 사용 가능")
+except ImportError as e:
+    MMPOSE_AVAILABLE = False
+    logger.warning(f"MMPose import 실패: {e} - 기본 시각화로 fallback")
+
 class VideoOverlayGenerator:
     """
     ByteTrack 기반 비디오 오버레이 생성기
@@ -72,6 +83,10 @@ class VideoOverlayGenerator:
         # 단일 트래커 인스턴스 (오버레이용)
         self.tracker = None
         
+        # MMPose 시각화기 (더 예쁜 오버레이용)
+        self.visualizer = None
+        self._init_mmpose_visualizer()
+        
         # 키포인트 이름 (COCO 17-point)
         self.keypoint_names = [
             'nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear',
@@ -81,6 +96,41 @@ class VideoOverlayGenerator:
         ]
         
         logger.info("ByteTrack 기반 비디오 오버레이 생성기 초기화 완료")
+    
+    def _init_mmpose_visualizer(self):
+        """MMPose 시각화기 초기화 (rtmo_pose_track 스타일 적용)"""
+        if not MMPOSE_AVAILABLE:
+            return
+            
+        try:
+            # MMPose 시각화기는 pose_model이 필요하므로 나중에 초기화
+            # pose_model.cfg.visualizer를 사용해야 함
+            self.visualizer = None  # 나중에 pose_model과 함께 초기화
+            logger.info("MMPose 시각화기 설정 준비 완료 - pose_model 연결 대기 중")
+            
+        except Exception as e:
+            logger.warning(f"MMPose 시각화기 설정 실패: {e}")
+            self.visualizer = None
+    
+    def init_visualizer_with_pose_model(self, pose_model):
+        """pose_model을 사용한 MMPose 시각화기 초기화 (rtmo_pose_track 방식)"""
+        if not MMPOSE_AVAILABLE or pose_model is None:
+            return False
+            
+        try:
+            # MMPose 시각화기 직접 생성 (registry 충돌 방지)
+            from mmpose.visualization import PoseLocalVisualizer
+            
+            # 시각화기 직접 초기화 (설정 최소화)
+            self.visualizer = PoseLocalVisualizer()
+            self.visualizer.set_dataset_meta(pose_model.dataset_meta)
+            logger.info("MMPose 시각화기 직접 초기화 완료")
+            return True
+            
+        except Exception as e:
+            logger.warning(f"MMPose 시각화기 초기화 실패: {e}")
+            self.visualizer = None
+            return False
     
     def create_overlay_with_bytetrack(self, video_path: str, pose_results: List[Tuple],
                                     classification_result: Dict, output_path: str,
@@ -215,7 +265,7 @@ class VideoOverlayGenerator:
     def _draw_all_tracks_with_ids(self, image: np.ndarray, tracks: List, 
                                  stgcn_track_ids: Set[int], score_threshold: float = 0.3) -> np.ndarray:
         """
-        모든 트랙을 Track ID와 함께 그리기 (STGCN 입력 객체는 형광색, 나머지는 파란색)
+        모든 트랙을 Track ID와 함께 그리기 (MMPose 시각화 + STGCN 입력 객체 구분)
         
         Args:
             image: 입력 이미지
@@ -226,23 +276,12 @@ class VideoOverlayGenerator:
         Returns:
             트랙이 그려진 이미지
         """
-        overlay_image = image.copy()
+        # 트랙 데이터 준비
+        keypoints_list = []
+        scores_list = []
+        track_ids = []
         
         for track in tracks:
-            track_id = track.track_id
-            is_stgcn_input = track_id in stgcn_track_ids
-            
-            # 색상 선택
-            if is_stgcn_input:
-                joint_color = self.stgcn_joint_color  # 연녹색 형광
-                skeleton_color = self.stgcn_skeleton_color
-                text_bg_color = (0, 200, 100)  # 형광 배경
-            else:
-                joint_color = self.other_joint_color  # 파란색
-                skeleton_color = self.other_skeleton_color
-                text_bg_color = (200, 50, 0)  # 파란 배경
-            
-            # 키포인트 그리기
             if track.keypoints is not None:
                 keypoints = track.keypoints
                 if len(keypoints.shape) == 3:
@@ -254,21 +293,154 @@ class VideoOverlayGenerator:
                 elif keypoint_scores is None:
                     keypoint_scores = np.ones(17) * track.score  # 바운딩 박스 신뢰도 사용
                 
-                overlay_image = self._draw_single_person_with_color(
-                    overlay_image, keypoints, keypoint_scores, score_threshold,
-                    joint_color, skeleton_color
+                keypoints_list.append(keypoints)
+                scores_list.append(keypoint_scores)
+                track_ids.append(track.track_id)
+        
+        # MMPose 시각화 또는 기본 시각화 사용
+        if keypoints_list:
+            return self._draw_with_mmpose_visualizer(image, keypoints_list, scores_list, stgcn_track_ids, track_ids)
+        else:
+            return image.copy()
+    
+    def _draw_with_mmpose_visualizer(self, image: np.ndarray, keypoints_list: List[np.ndarray], 
+                                   scores_list: List[np.ndarray], stgcn_track_ids: Set[int],
+                                   track_ids: List[int]) -> np.ndarray:
+        """
+        MMPose 시각화기를 사용한 예쁜 오버레이 생성 (STGCN 입력 객체 구분)
+        
+        Args:
+            image: 입력 이미지
+            keypoints_list: 키포인트 리스트 [(17, 2), ...]
+            scores_list: 점수 리스트 [(17,), ...]
+            stgcn_track_ids: STGCN 입력으로 선택된 Track ID 집합
+            track_ids: Track ID 리스트
+            
+        Returns:
+            시각화된 이미지
+        """
+        if not MMPOSE_AVAILABLE or self.visualizer is None:
+            # Fallback to basic visualization
+            return self._draw_all_tracks_with_ids_basic(image, keypoints_list, scores_list, stgcn_track_ids, track_ids)
+        
+        try:
+            # STGCN 입력 객체와 기타 객체 분리
+            stgcn_keypoints = []
+            stgcn_scores = []
+            other_keypoints = []
+            other_scores = []
+            
+            for i, (kpts, scores, track_id) in enumerate(zip(keypoints_list, scores_list, track_ids)):
+                if track_id in stgcn_track_ids:
+                    stgcn_keypoints.append(kpts)
+                    stgcn_scores.append(scores)
+                else:
+                    other_keypoints.append(kpts)
+                    other_scores.append(scores)
+            
+            overlay_image = image.copy()
+            
+            # 1. 기타 객체들 먼저 그리기 (파란색)
+            if other_keypoints:
+                other_data_sample = self._create_pose_data_sample(other_keypoints, other_scores, use_stgcn_colors=False)
+                self.visualizer.add_datasample(
+                    'other_objects',
+                    overlay_image,
+                    data_sample=other_data_sample,
+                    draw_gt=False,
+                    draw_heatmap=False,
+                    draw_bbox=False,
+                    show_kpt_idx=False,
+                    skeleton_style='mmpose'
                 )
-                
-                # Track ID 표시 (머리 부근에)
-                head_point = self._get_head_position(keypoints, keypoint_scores, score_threshold)
+                overlay_image = self.visualizer.get_image()
+            
+            # 2. STGCN 입력 객체 그리기 (연녹색 형광)
+            if stgcn_keypoints:
+                stgcn_data_sample = self._create_pose_data_sample(stgcn_keypoints, stgcn_scores, use_stgcn_colors=True)
+                self.visualizer.add_datasample(
+                    'stgcn_objects',
+                    overlay_image,
+                    data_sample=stgcn_data_sample,
+                    draw_gt=False,
+                    draw_heatmap=False,
+                    draw_bbox=False,
+                    show_kpt_idx=False,
+                    skeleton_style='mmpose'
+                )
+                overlay_image = self.visualizer.get_image()
+            
+            # 3. Track ID 라벨 추가
+            for i, (kpts, track_id) in enumerate(zip(keypoints_list, track_ids)):
+                is_stgcn_input = track_id in stgcn_track_ids
+                head_point = self._get_head_position(kpts, scores_list[i], 0.3)
                 if head_point is not None:
-                    self._draw_track_id_label(overlay_image, head_point, track_id, text_bg_color, is_stgcn_input)
+                    bg_color = (0, 200, 100) if is_stgcn_input else (200, 50, 0)
+                    self._draw_track_id_label(overlay_image, head_point, track_id, bg_color, is_stgcn_input)
+            
+            return overlay_image
+            
+        except Exception as e:
+            logger.warning(f"MMPose 시각화 실패, 기본 시각화로 대체: {e}")
+            return self._draw_all_tracks_with_ids_basic(image, keypoints_list, scores_list, stgcn_track_ids, track_ids)
+    
+    def _create_pose_data_sample(self, keypoints_list: List[np.ndarray], scores_list: List[np.ndarray], 
+                                use_stgcn_colors: bool = False) -> PoseDataSample:
+        """MMPose용 PoseDataSample 생성"""
+        data_sample = PoseDataSample()
+        
+        if keypoints_list:
+            # keypoints: (N, 17, 3) 형태로 변환 (x, y, visibility)
+            keypoints_3d = []
+            for kpts, scores in zip(keypoints_list, scores_list):
+                # (17, 2) + (17,) -> (17, 3)
+                kpts_with_vis = np.concatenate([kpts, scores.reshape(-1, 1)], axis=1)
+                keypoints_3d.append(kpts_with_vis)
+            
+            keypoints_array = np.array(keypoints_3d)  # (N, 17, 3)
+            
+            # InstanceData 생성
+            pred_instances = InstanceData()
+            pred_instances.keypoints = keypoints_array
+            pred_instances.keypoint_scores = np.array([scores for scores in scores_list])
+            
+            # STGCN 입력 객체는 특별한 색상 사용
+            if use_stgcn_colors:
+                # 연녹색 형광 설정을 위한 메타데이터 (임시)
+                pred_instances.track_id = [999] * len(keypoints_list)  # 특별한 ID로 표시
+            
+            data_sample.pred_instances = pred_instances
+        
+        return data_sample
+    
+    def _draw_all_tracks_with_ids_basic(self, image: np.ndarray, keypoints_list: List[np.ndarray], 
+                                      scores_list: List[np.ndarray], stgcn_track_ids: Set[int],
+                                      track_ids: List[int]) -> np.ndarray:
+        """기본 시각화 방식 (MMPose 사용 불가시 Fallback)"""
+        overlay_image = image.copy()
+        
+        for i, (kpts, scores, track_id) in enumerate(zip(keypoints_list, scores_list, track_ids)):
+            is_stgcn_input = track_id in stgcn_track_ids
+            
+            # 색상 선택
+            if is_stgcn_input:
+                joint_color = self.stgcn_joint_color
+                skeleton_color = self.stgcn_skeleton_color
+                text_bg_color = (0, 200, 100)
             else:
-                # 키포인트가 없으면 바운딩 박스 중심에 Track ID 표시
-                bbox = track.bbox
-                center_x = int((bbox[0] + bbox[2]) / 2)
-                center_y = int((bbox[1] + bbox[3]) / 2)
-                self._draw_track_id_label(overlay_image, (center_x, center_y), track_id, text_bg_color, is_stgcn_input)
+                joint_color = self.other_joint_color
+                skeleton_color = self.other_skeleton_color
+                text_bg_color = (200, 50, 0)
+            
+            # 키포인트 그리기
+            overlay_image = self._draw_single_person_with_color(
+                overlay_image, kpts, scores, 0.3, joint_color, skeleton_color
+            )
+            
+            # Track ID 표시
+            head_point = self._get_head_position(kpts, scores, 0.3)
+            if head_point is not None:
+                self._draw_track_id_label(overlay_image, head_point, track_id, text_bg_color, is_stgcn_input)
         
         return overlay_image
     

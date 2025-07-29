@@ -3274,3 +3274,254 @@
 2025-07-28 14:11:06,926 - __main__ - INFO - 5. 리소스 정리 중...
 2025-07-28 14:11:06,926 - main_pipeline - INFO - 파이프라인 리소스 정리 중...
 2025-07-28 14:11:06,936 - main_pipeline - INFO - 리소스 정리 완료
+2025-07-28 14:35:49,325 - __main__ - INFO - === STGCN++ Violence Detection Inference Pipeline ===
+2025-07-28 14:35:49,325 - __main__ - INFO - 1. 설정 검증 중...
+2025-07-28 14:35:49,326 - __main__ - INFO - 2. 입력 데이터 준비 중...
+2025-07-28 14:35:49,327 - __main__ - INFO - 비디오 파일 수집 완료: 1개
+2025-07-28 14:35:49,327 - __main__ - INFO - 어노테이션 로드 완료: 100개 항목
+2025-07-28 14:35:49,328 - __main__ - INFO - 어노테이션 매칭 완료: 1/1개
+2025-07-28 14:35:49,328 - __main__ - INFO - 라벨 매핑 로드 완료: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:35:49,328 - __main__ - INFO - 라벨 매핑: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:35:49,328 - __main__ - INFO - 3. 파이프라인 초기화 중...
+2025-07-28 14:35:49,328 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 중...
+2025-07-28 14:35:49,328 - pose_estimator - INFO - RTMO-m 모델 로딩 중...
+2025-07-28 14:35:50,459 - pose_estimator - INFO - RTMO-m 모델 로딩 완료
+2025-07-28 14:35:50,460 - fight_tracker - INFO - Fight-우선 트래커 초기화 (ByteTrack 통합): 640x480
+2025-07-28 14:35:50,460 - action_classifier - INFO - STGCN++ 모델 로딩 중...
+2025-07-28 14:35:51,046 - action_classifier - INFO - STGCN++ 모델 로딩 완료
+2025-07-28 14:35:51,046 - video_overlay - INFO - ByteTrack 기반 비디오 오버레이 생성기 초기화 완료
+2025-07-28 14:35:51,046 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 완료
+2025-07-28 14:35:51,047 - __main__ - INFO - === 단일 비디오 모드 실행 ===
+2025-07-28 14:37:22,979 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 14:37:30,169 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 14:37:30,296 - video_overlay - INFO - 오버레이 비디오 생성 시작: 1105프레임
+2025-07-28 14:37:34,559 - video_overlay - INFO - 오버레이 비디오 생성 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/overlays/Fighting033_x264_bytetrack_overlay.mp4
+2025-07-28 14:37:34,565 - main_pipeline - INFO - 비디오 처리 완료: Fighting033_x264.mp4 (103.52초)
+2025-07-28 14:37:34,573 - __main__ - INFO - 단일 비디오 처리 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/Fighting033_x264_result.json
+2025-07-28 14:37:34,573 - __main__ - INFO - === 파이프라인 실행 완료 ===
+2025-07-28 14:37:34,573 - __main__ - INFO - 5. 리소스 정리 중...
+2025-07-28 14:37:34,573 - main_pipeline - INFO - 파이프라인 리소스 정리 중...
+2025-07-28 14:37:34,583 - main_pipeline - INFO - 리소스 정리 완료
+2025-07-28 14:38:34,621 - __main__ - INFO - === STGCN++ Violence Detection Inference Pipeline ===
+2025-07-28 14:38:34,622 - __main__ - INFO - 1. 설정 검증 중...
+2025-07-28 14:38:34,624 - __main__ - INFO - 2. 입력 데이터 준비 중...
+2025-07-28 14:38:34,625 - __main__ - INFO - 비디오 파일 수집 완료: 1개
+2025-07-28 14:38:34,626 - __main__ - INFO - 어노테이션 로드 완료: 100개 항목
+2025-07-28 14:38:34,626 - __main__ - INFO - 어노테이션 매칭 완료: 1/1개
+2025-07-28 14:38:34,626 - __main__ - INFO - 라벨 매핑 로드 완료: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:38:34,626 - __main__ - INFO - 라벨 매핑: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:38:34,626 - __main__ - INFO - 3. 파이프라인 초기화 중...
+2025-07-28 14:38:34,626 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 중...
+2025-07-28 14:38:34,626 - pose_estimator - INFO - RTMO-m 모델 로딩 중...
+2025-07-28 14:38:35,869 - pose_estimator - INFO - RTMO-m 모델 로딩 완료
+2025-07-28 14:38:35,869 - fight_tracker - INFO - Fight-우선 트래커 초기화 (ByteTrack 통합): 640x480
+2025-07-28 14:38:35,869 - action_classifier - INFO - STGCN++ 모델 로딩 중...
+2025-07-28 14:38:36,517 - action_classifier - INFO - STGCN++ 모델 로딩 완료
+2025-07-28 14:38:36,517 - video_overlay - INFO - ByteTrack 기반 비디오 오버레이 생성기 초기화 완료
+2025-07-28 14:38:36,518 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 완료
+2025-07-28 14:38:36,518 - __main__ - INFO - === 단일 비디오 모드 실행 ===
+2025-07-28 14:40:08,060 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 14:40:15,161 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 14:40:15,285 - video_overlay - INFO - 오버레이 비디오 생성 시작: 1105프레임
+2025-07-28 14:40:18,917 - video_overlay - INFO - 오버레이 비디오 생성 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/overlays/Fighting033_x264_bytetrack_overlay.mp4
+2025-07-28 14:40:18,920 - main_pipeline - INFO - 비디오 처리 완료: Fighting033_x264.mp4 (102.40초)
+2025-07-28 14:40:18,929 - __main__ - INFO - 단일 비디오 처리 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/Fighting033_x264_result.json
+2025-07-28 14:40:18,930 - __main__ - INFO - === 파이프라인 실행 완료 ===
+2025-07-28 14:40:18,930 - __main__ - INFO - 5. 리소스 정리 중...
+2025-07-28 14:40:18,930 - main_pipeline - INFO - 파이프라인 리소스 정리 중...
+2025-07-28 14:40:18,940 - main_pipeline - INFO - 리소스 정리 완료
+2025-07-28 14:43:16,780 - __main__ - INFO - === STGCN++ Violence Detection Inference Pipeline ===
+2025-07-28 14:43:16,780 - __main__ - INFO - 1. 설정 검증 중...
+2025-07-28 14:43:16,782 - __main__ - INFO - 2. 입력 데이터 준비 중...
+2025-07-28 14:43:16,784 - __main__ - INFO - 비디오 파일 수집 완료: 1개
+2025-07-28 14:43:16,785 - __main__ - INFO - 어노테이션 로드 완료: 100개 항목
+2025-07-28 14:43:16,785 - __main__ - INFO - 어노테이션 매칭 완료: 1/1개
+2025-07-28 14:43:16,785 - __main__ - INFO - 라벨 매핑 로드 완료: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:43:16,785 - __main__ - INFO - 라벨 매핑: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:43:16,785 - __main__ - INFO - 3. 파이프라인 초기화 중...
+2025-07-28 14:43:16,786 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 중...
+2025-07-28 14:43:16,786 - pose_estimator - INFO - RTMO-m 모델 로딩 중...
+2025-07-28 14:43:18,561 - pose_estimator - INFO - RTMO-m 모델 로딩 완료
+2025-07-28 14:43:18,561 - fight_tracker - INFO - Fight-우선 트래커 초기화 (ByteTrack 통합): 640x480
+2025-07-28 14:43:18,561 - action_classifier - INFO - STGCN++ 모델 로딩 중...
+2025-07-28 14:43:19,097 - action_classifier - INFO - STGCN++ 모델 로딩 완료
+2025-07-28 14:43:19,108 - video_overlay - WARNING - MMPose 시각화기 초기화 실패: 'PoseLocalVisualizer is not in the mmaction::visualizer registry. Please check whether the value of `PoseLocalVisualizer` is correct or it was registered as expected. More details can be found at https://mmengine.readthedocs.io/en/latest/advanced_tutorials/config.html#import-the-custom-module'
+2025-07-28 14:43:19,108 - video_overlay - INFO - ByteTrack 기반 비디오 오버레이 생성기 초기화 완료
+2025-07-28 14:43:19,108 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 완료
+2025-07-28 14:43:19,108 - __main__ - INFO - === 단일 비디오 모드 실행 ===
+2025-07-28 14:44:54,275 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 14:45:01,366 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 14:45:01,491 - video_overlay - INFO - 오버레이 비디오 생성 시작: 1105프레임
+2025-07-28 14:45:05,927 - video_overlay - INFO - 오버레이 비디오 생성 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/overlays/Fighting033_x264_bytetrack_overlay.mp4
+2025-07-28 14:45:05,930 - main_pipeline - INFO - 비디오 처리 완료: Fighting033_x264.mp4 (106.82초)
+2025-07-28 14:45:05,938 - __main__ - INFO - 단일 비디오 처리 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/Fighting033_x264_result.json
+2025-07-28 14:45:05,938 - __main__ - INFO - === 파이프라인 실행 완료 ===
+2025-07-28 14:45:05,938 - __main__ - INFO - 5. 리소스 정리 중...
+2025-07-28 14:45:05,939 - main_pipeline - INFO - 파이프라인 리소스 정리 중...
+2025-07-28 14:45:05,949 - main_pipeline - INFO - 리소스 정리 완료
+2025-07-28 14:49:21,266 - __main__ - INFO - === STGCN++ Violence Detection Inference Pipeline ===
+2025-07-28 14:49:21,266 - __main__ - INFO - 1. 설정 검증 중...
+2025-07-28 14:49:21,267 - __main__ - INFO - 2. 입력 데이터 준비 중...
+2025-07-28 14:49:21,268 - __main__ - INFO - 비디오 파일 수집 완료: 1개
+2025-07-28 14:49:21,269 - __main__ - INFO - 어노테이션 로드 완료: 100개 항목
+2025-07-28 14:49:21,269 - __main__ - INFO - 어노테이션 매칭 완료: 1/1개
+2025-07-28 14:49:21,269 - __main__ - INFO - 라벨 매핑 로드 완료: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:49:21,270 - __main__ - INFO - 라벨 매핑: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:49:21,270 - __main__ - INFO - 3. 파이프라인 초기화 중...
+2025-07-28 14:49:21,270 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 중...
+2025-07-28 14:49:21,270 - pose_estimator - INFO - RTMO-m 모델 로딩 중...
+2025-07-28 14:49:22,322 - pose_estimator - INFO - RTMO-m 모델 로딩 완료
+2025-07-28 14:49:22,323 - fight_tracker - INFO - Fight-우선 트래커 초기화 (ByteTrack 통합): 640x480
+2025-07-28 14:49:22,323 - action_classifier - INFO - STGCN++ 모델 로딩 중...
+2025-07-28 14:49:22,855 - action_classifier - INFO - STGCN++ 모델 로딩 완료
+2025-07-28 14:49:22,857 - video_overlay - INFO - MMPose 시각화기 설정 준비 완료 - pose_model 연결 대기 중
+2025-07-28 14:49:22,857 - video_overlay - INFO - ByteTrack 기반 비디오 오버레이 생성기 초기화 완료
+2025-07-28 14:49:22,859 - video_overlay - WARNING - MMPose 시각화기 초기화 실패: 'PoseLocalVisualizer is not in the mmaction::visualizer registry. Please check whether the value of `PoseLocalVisualizer` is correct or it was registered as expected. More details can be found at https://mmengine.readthedocs.io/en/latest/advanced_tutorials/config.html#import-the-custom-module'
+2025-07-28 14:49:22,863 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 완료
+2025-07-28 14:49:22,863 - __main__ - INFO - === 단일 비디오 모드 실행 ===
+2025-07-28 14:51:02,755 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 14:51:10,533 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 14:51:10,696 - video_overlay - INFO - 오버레이 비디오 생성 시작: 1105프레임
+2025-07-28 14:51:14,437 - video_overlay - INFO - 오버레이 비디오 생성 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/overlays/Fighting033_x264_bytetrack_overlay.mp4
+2025-07-28 14:51:14,439 - main_pipeline - INFO - 비디오 처리 완료: Fighting033_x264.mp4 (111.57초)
+2025-07-28 14:51:14,450 - __main__ - INFO - 단일 비디오 처리 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/Fighting033_x264_result.json
+2025-07-28 14:51:14,450 - __main__ - INFO - === 파이프라인 실행 완료 ===
+2025-07-28 14:51:14,450 - __main__ - INFO - 5. 리소스 정리 중...
+2025-07-28 14:51:14,450 - main_pipeline - INFO - 파이프라인 리소스 정리 중...
+2025-07-28 14:51:14,461 - main_pipeline - INFO - 리소스 정리 완료
+2025-07-28 14:55:35,307 - __main__ - INFO - === STGCN++ Violence Detection Inference Pipeline ===
+2025-07-28 14:55:35,308 - __main__ - INFO - 1. 설정 검증 중...
+2025-07-28 14:55:35,309 - __main__ - INFO - 2. 입력 데이터 준비 중...
+2025-07-28 14:55:35,315 - __main__ - INFO - 비디오 파일 수집 완료: 1개
+2025-07-28 14:55:35,316 - __main__ - INFO - 어노테이션 로드 완료: 100개 항목
+2025-07-28 14:55:35,316 - __main__ - INFO - 어노테이션 매칭 완료: 1/1개
+2025-07-28 14:55:35,316 - __main__ - INFO - 라벨 매핑 로드 완료: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:55:35,317 - __main__ - INFO - 라벨 매핑: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:55:35,317 - __main__ - INFO - 3. 파이프라인 초기화 중...
+2025-07-28 14:55:35,317 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 중...
+2025-07-28 14:55:35,317 - pose_estimator - INFO - RTMO-m 모델 로딩 중...
+2025-07-28 14:55:36,727 - pose_estimator - INFO - RTMO-m 모델 로딩 완료
+2025-07-28 14:55:36,727 - fight_tracker - INFO - Fight-우선 트래커 초기화 (ByteTrack 통합): 640x480
+2025-07-28 14:55:36,727 - action_classifier - INFO - STGCN++ 모델 로딩 중...
+2025-07-28 14:55:37,255 - action_classifier - INFO - STGCN++ 모델 로딩 완료
+2025-07-28 14:55:37,270 - video_overlay - INFO - MMPose 시각화기 설정 준비 완료 - pose_model 연결 대기 중
+2025-07-28 14:55:37,277 - video_overlay - INFO - ByteTrack 기반 비디오 오버레이 생성기 초기화 완료
+2025-07-28 14:55:37,278 - video_overlay - WARNING - MMPose 시각화기 초기화 실패: 'PoseLocalVisualizer is not in the mmaction::visualizer registry. Please check whether the value of `PoseLocalVisualizer` is correct or it was registered as expected. More details can be found at https://mmengine.readthedocs.io/en/latest/advanced_tutorials/config.html#import-the-custom-module'
+2025-07-28 14:55:37,278 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 완료
+2025-07-28 14:55:37,278 - __main__ - INFO - === 단일 비디오 모드 실행 ===
+2025-07-28 14:57:17,574 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 14:57:26,206 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 14:57:26,429 - video_overlay - INFO - 오버레이 비디오 생성 시작: 1105프레임
+2025-07-28 14:57:30,533 - video_overlay - INFO - 오버레이 비디오 생성 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/overlays/Fighting033_x264_bytetrack_overlay.mp4
+2025-07-28 14:57:30,537 - main_pipeline - INFO - 비디오 처리 완료: Fighting033_x264.mp4 (113.26초)
+2025-07-28 14:57:30,552 - __main__ - INFO - 단일 비디오 처리 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/Fighting033_x264_result.json
+2025-07-28 14:57:30,553 - __main__ - INFO - === 파이프라인 실행 완료 ===
+2025-07-28 14:57:30,553 - __main__ - INFO - 5. 리소스 정리 중...
+2025-07-28 14:57:30,553 - main_pipeline - INFO - 파이프라인 리소스 정리 중...
+2025-07-28 14:57:30,565 - main_pipeline - INFO - 리소스 정리 완료
+2025-07-28 14:59:56,108 - __main__ - INFO - === STGCN++ Violence Detection Inference Pipeline ===
+2025-07-28 14:59:56,108 - __main__ - INFO - 1. 설정 검증 중...
+2025-07-28 14:59:56,110 - __main__ - INFO - 2. 입력 데이터 준비 중...
+2025-07-28 14:59:56,111 - __main__ - INFO - 비디오 파일 수집 완료: 1개
+2025-07-28 14:59:56,111 - __main__ - INFO - 어노테이션 로드 완료: 100개 항목
+2025-07-28 14:59:56,111 - __main__ - INFO - 어노테이션 매칭 완료: 1/1개
+2025-07-28 14:59:56,112 - __main__ - INFO - 라벨 매핑 로드 완료: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:59:56,112 - __main__ - INFO - 라벨 매핑: {'Fight': 1, 'Normal': 0}
+2025-07-28 14:59:56,112 - __main__ - INFO - 3. 파이프라인 초기화 중...
+2025-07-28 14:59:56,112 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 중...
+2025-07-28 14:59:56,113 - pose_estimator - INFO - RTMO-m 모델 로딩 중...
+2025-07-28 14:59:57,352 - pose_estimator - INFO - RTMO-m 모델 로딩 완료
+2025-07-28 14:59:57,353 - fight_tracker - INFO - Fight-우선 트래커 초기화 (ByteTrack 통합): 640x480
+2025-07-28 14:59:57,353 - action_classifier - INFO - STGCN++ 모델 로딩 중...
+2025-07-28 14:59:57,649 - action_classifier - INFO - STGCN++ 모델 로딩 완료
+2025-07-28 14:59:57,649 - video_overlay - INFO - MMPose 시각화기 설정 준비 완료 - pose_model 연결 대기 중
+2025-07-28 14:59:57,649 - video_overlay - INFO - ByteTrack 기반 비디오 오버레이 생성기 초기화 완료
+2025-07-28 14:59:57,651 - video_overlay - WARNING - MMPose 시각화기 초기화 실패: 'PoseLocalVisualizer is not in the mmaction::visualizer registry. Please check whether the value of `PoseLocalVisualizer` is correct or it was registered as expected. More details can be found at https://mmengine.readthedocs.io/en/latest/advanced_tutorials/config.html#import-the-custom-module'
+2025-07-28 14:59:57,651 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 완료
+2025-07-28 14:59:57,651 - __main__ - INFO - === 단일 비디오 모드 실행 ===
+2025-07-28 15:01:27,355 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 15:01:34,377 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 15:01:34,547 - video_overlay - INFO - 오버레이 비디오 생성 시작: 1105프레임
+2025-07-28 15:01:38,253 - video_overlay - INFO - 오버레이 비디오 생성 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/overlays/Fighting033_x264_bytetrack_overlay.mp4
+2025-07-28 15:01:38,256 - main_pipeline - INFO - 비디오 처리 완료: Fighting033_x264.mp4 (100.60초)
+2025-07-28 15:01:38,264 - __main__ - INFO - 단일 비디오 처리 완료: ./results/Fighting033_x264_result.json
+2025-07-28 15:01:38,264 - __main__ - INFO - === 파이프라인 실행 완료 ===
+2025-07-28 15:01:38,264 - __main__ - INFO - 5. 리소스 정리 중...
+2025-07-28 15:01:38,264 - main_pipeline - INFO - 파이프라인 리소스 정리 중...
+2025-07-28 15:01:38,275 - main_pipeline - INFO - 리소스 정리 완료
+2025-07-28 15:06:27,523 - __main__ - INFO - === STGCN++ Violence Detection Inference Pipeline ===
+2025-07-28 15:06:27,523 - __main__ - INFO - 1. 설정 검증 중...
+2025-07-28 15:06:27,524 - __main__ - INFO - 2. 입력 데이터 준비 중...
+2025-07-28 15:06:27,525 - __main__ - INFO - 비디오 파일 수집 완료: 1개
+2025-07-28 15:06:27,526 - __main__ - INFO - 어노테이션 로드 완료: 100개 항목
+2025-07-28 15:06:27,526 - __main__ - INFO - 어노테이션 매칭 완료: 1/1개
+2025-07-28 15:06:27,526 - __main__ - INFO - 라벨 매핑 로드 완료: {'Fight': 1, 'Normal': 0}
+2025-07-28 15:06:27,527 - __main__ - INFO - 라벨 매핑: {'Fight': 1, 'Normal': 0}
+2025-07-28 15:06:27,527 - __main__ - INFO - 3. 파이프라인 초기화 중...
+2025-07-28 15:06:27,527 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 중...
+2025-07-28 15:06:27,527 - pose_estimator - INFO - RTMO-m 모델 로딩 중...
+2025-07-28 15:06:28,518 - pose_estimator - INFO - RTMO-m 모델 로딩 완료
+2025-07-28 15:06:28,519 - fight_tracker - INFO - Fight-우선 트래커 초기화 (ByteTrack 통합): 640x480
+2025-07-28 15:06:28,519 - action_classifier - INFO - STGCN++ 모델 로딩 중...
+2025-07-28 15:06:29,049 - action_classifier - INFO - STGCN++ 모델 로딩 완료
+2025-07-28 15:06:29,049 - video_overlay - INFO - MMPose 시각화기 설정 준비 완료 - pose_model 연결 대기 중
+2025-07-28 15:06:29,049 - video_overlay - INFO - ByteTrack 기반 비디오 오버레이 생성기 초기화 완료
+2025-07-28 15:06:29,053 - matplotlib.font_manager - DEBUG - findfont: Matching sans\-serif:style=normal:variant=normal:weight=normal:stretch=normal:size=10.0.
+2025-07-28 15:06:29,054 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXSizOneSymReg.ttf', name='STIXSizeOneSym', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,054 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXNonUni.ttf', name='STIXNonUnicode', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,054 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXSizThreeSymBol.ttf', name='STIXSizeThreeSym', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 10.335
+2025-07-28 15:06:29,055 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXNonUniBol.ttf', name='STIXNonUnicode', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 10.335
+2025-07-28 15:06:29,055 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSerif-BoldItalic.ttf', name='DejaVu Serif', style='italic', variant='normal', weight=700, stretch='normal', size='scalable')) = 11.335
+2025-07-28 15:06:29,055 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXNonUniIta.ttf', name='STIXNonUnicode', style='italic', variant='normal', weight=400, stretch='normal', size='scalable')) = 11.05
+2025-07-28 15:06:29,055 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSerif-Italic.ttf', name='DejaVu Serif', style='italic', variant='normal', weight=400, stretch='normal', size='scalable')) = 11.05
+2025-07-28 15:06:29,055 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSansMono-Bold.ttf', name='DejaVu Sans Mono', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 10.335
+2025-07-28 15:06:29,056 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/cmex10.ttf', name='cmex10', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,056 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXSizTwoSymReg.ttf', name='STIXSizeTwoSym', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,056 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSerif.ttf', name='DejaVu Serif', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,056 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXSizFiveSymReg.ttf', name='STIXSizeFiveSym', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,056 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXSizThreeSymReg.ttf', name='STIXSizeThreeSym', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,057 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSerif-Bold.ttf', name='DejaVu Serif', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 10.335
+2025-07-28 15:06:29,057 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/cmsy10.ttf', name='cmsy10', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,057 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSerifDisplay.ttf', name='DejaVu Serif Display', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,057 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSansMono-BoldOblique.ttf', name='DejaVu Sans Mono', style='oblique', variant='normal', weight=700, stretch='normal', size='scalable')) = 11.335
+2025-07-28 15:06:29,057 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSansDisplay.ttf', name='DejaVu Sans Display', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,058 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXSizOneSymBol.ttf', name='STIXSizeOneSym', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 10.335
+2025-07-28 15:06:29,058 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/cmmi10.ttf', name='cmmi10', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,058 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXGeneral.ttf', name='STIXGeneral', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,058 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSansMono-Oblique.ttf', name='DejaVu Sans Mono', style='oblique', variant='normal', weight=400, stretch='normal', size='scalable')) = 11.05
+2025-07-28 15:06:29,059 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/cmtt10.ttf', name='cmtt10', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,059 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans-Bold.ttf', name='DejaVu Sans', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 0.33499999999999996
+2025-07-28 15:06:29,059 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/cmb10.ttf', name='cmb10', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,059 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXNonUniBolIta.ttf', name='STIXNonUnicode', style='italic', variant='normal', weight=700, stretch='normal', size='scalable')) = 11.335
+2025-07-28 15:06:29,059 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/cmr10.ttf', name='cmr10', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,060 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf', name='DejaVu Sans', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 0.05
+2025-07-28 15:06:29,060 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSansMono.ttf', name='DejaVu Sans Mono', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,060 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXSizFourSymReg.ttf', name='STIXSizeFourSym', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,060 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXSizTwoSymBol.ttf', name='STIXSizeTwoSym', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 10.335
+2025-07-28 15:06:29,060 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans-Oblique.ttf', name='DejaVu Sans', style='oblique', variant='normal', weight=400, stretch='normal', size='scalable')) = 1.05
+2025-07-28 15:06:29,061 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans-BoldOblique.ttf', name='DejaVu Sans', style='oblique', variant='normal', weight=700, stretch='normal', size='scalable')) = 1.335
+2025-07-28 15:06:29,061 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXSizFourSymBol.ttf', name='STIXSizeFourSym', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 10.335
+2025-07-28 15:06:29,061 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXGeneralBol.ttf', name='STIXGeneral', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 10.335
+2025-07-28 15:06:29,061 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXGeneralBolIta.ttf', name='STIXGeneral', style='italic', variant='normal', weight=700, stretch='normal', size='scalable')) = 11.335
+2025-07-28 15:06:29,061 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/cmss10.ttf', name='cmss10', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,062 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/STIXGeneralItalic.ttf', name='STIXGeneral', style='italic', variant='normal', weight=400, stretch='normal', size='scalable')) = 11.05
+2025-07-28 15:06:29,062 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf', name='DejaVu Sans Mono', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 10.335
+2025-07-28 15:06:29,062 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf', name='DejaVu Sans Mono', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,062 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', name='DejaVu Sans', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 0.05
+2025-07-28 15:06:29,063 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf', name='DejaVu Serif', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 10.335
+2025-07-28 15:06:29,063 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf', name='DejaVu Serif', style='normal', variant='normal', weight=400, stretch='normal', size='scalable')) = 10.05
+2025-07-28 15:06:29,063 - matplotlib.font_manager - DEBUG - findfont: score(FontEntry(fname='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', name='DejaVu Sans', style='normal', variant='normal', weight=700, stretch='normal', size='scalable')) = 0.33499999999999996
+2025-07-28 15:06:29,063 - matplotlib.font_manager - DEBUG - findfont: Matching sans\-serif:style=normal:variant=normal:weight=normal:stretch=normal:size=10.0 to DejaVu Sans ('/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf') with score of 0.050000.
+2025-07-28 15:06:29,071 - video_overlay - INFO - MMPose 시각화기 직접 초기화 완료
+2025-07-28 15:06:29,071 - main_pipeline - INFO - 파이프라인 구성 요소 초기화 완료
+2025-07-28 15:06:29,072 - __main__ - INFO - === 단일 비디오 모드 실행 ===
+2025-07-28 15:08:02,591 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 15:08:09,521 - fight_tracker - INFO - Fight-우선 트래커 초기화 완료 (ByteTrack 리셋)
+2025-07-28 15:08:09,829 - video_overlay - INFO - 오버레이 비디오 생성 시작: 1105프레임
+2025-07-28 15:08:16,056 - video_overlay - INFO - 오버레이 비디오 생성 완료: /workspace/rtmo_gcn_pipeline/inference_pipeline/results/overlays/Fighting033_x264_bytetrack_overlay.mp4
+2025-07-28 15:08:16,061 - main_pipeline - INFO - 비디오 처리 완료: Fighting033_x264.mp4 (106.99초)
+2025-07-28 15:08:16,115 - __main__ - INFO - 단일 비디오 처리 완료: ./results/Fighting033_x264_result.json
+2025-07-28 15:08:16,116 - __main__ - INFO - === 파이프라인 실행 완료 ===
+2025-07-28 15:08:16,116 - __main__ - INFO - 5. 리소스 정리 중...
+2025-07-28 15:08:16,117 - main_pipeline - INFO - 파이프라인 리소스 정리 중...
+2025-07-28 15:08:16,131 - main_pipeline - INFO - 리소스 정리 완료

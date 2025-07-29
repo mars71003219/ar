@@ -145,21 +145,30 @@ optim_wrapper = dict(
     _delete_=True,  # base config optimizer 무시
     type='OptimWrapper',
     optimizer=dict(
-        type='SGD', 
-        lr=0.1,  # STGCN++에 적합한 학습률
-        weight_decay=0.0005,
-        momentum=0.9
+        type='AdamW', 
+        lr=0.001,  # AdamW에 적합한 학습률로 조정
+        weight_decay=0.0005
     ),
     clip_grad=dict(max_norm=40, norm_type=2)
 )
 
 # Learning rate scheduler
 param_scheduler = [
+    # 5 에폭 동안 선형적으로 학습률을 증가시키는 Warmup
+    dict(
+        type='LinearLR',
+        start_factor=0.001, # 0.01 * 0.001 = 0.00001 부터 시작
+        by_epoch=True,
+        begin=0,
+        end=5,
+        convert_to_iter_based=True
+    ),
+    # 5 에폭 이후에는 CosineAnnealingLR 적용
     dict(
         type='CosineAnnealingLR',
         by_epoch=True,
-        begin=0,
-        T_max=50,  # Enhanced training은 더 많은 epoch 필요
+        begin=5,
+        T_max=50,
         eta_min_ratio=0.01
     )
 ]
@@ -247,8 +256,14 @@ log_level = 'INFO'
 # Custom Hooks for Enhanced Training
 # ============================================================================
 
-# custom_hooks는 기본 MMAction2 hooks 사용 (향후 확장 가능)
-# custom_hooks = []
+custom_hooks = [
+    dict(
+        type='EarlyStoppingHook',
+        monitor='acc/top1',         # 모니터링할 메트릭
+        patience=5,                 # 5 에폭 동안 개선이 없으면 중단
+        rule='greater'              # 메트릭 값이 클수록 좋음
+    )
+]
 
 # ============================================================================
 # Training Command Examples

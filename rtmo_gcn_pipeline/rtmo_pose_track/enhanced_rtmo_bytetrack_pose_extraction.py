@@ -578,7 +578,8 @@ class EnhancedFightInvolvementScorer:
         
         current_track_id = None
         for tid, tdata in all_tracks_data.items():
-            if tdata == track_data:
+            # 딕셔너리의 메모리 주소로 비교 (같은 객체인지 확인)
+            if id(tdata) == id(track_data):
                 current_track_id = tid
                 break
         
@@ -889,6 +890,11 @@ def collect_all_tracks_data(pose_results, min_track_length=10):
         
         for p_idx in range(len(instance_track_ids)):
             tid = instance_track_ids[p_idx]
+            # track_id가 numpy array인 경우 스칼라 값으로 추출
+            if isinstance(tid, np.ndarray):
+                tid = tid.item() if tid.size == 1 else tid[0]
+            # 정수형으로 변환
+            tid = int(tid) if tid is not None else -1
             if tid >= 0:  # 유효한 track_id만
                 all_tracks_data[tid][f_idx] = {
                     'keypoints': instance_keypoints[p_idx].cpu().numpy() if hasattr(instance_keypoints[p_idx], 'cpu') else instance_keypoints[p_idx],
@@ -1117,7 +1123,8 @@ def get_output_path(video_path, input_root, output_root, extension):
     return output_path
 
 
-def create_overlay_video_streaming(video_path, input_root, output_root, pose_results, fps, width, height, pose_model):
+def create_overlay_video_streaming(video_path, input_root, output_root, pose_results, fps, width, height, pose_model, top_track_ids=None):
+    """메모리 효율적인 스트리밍 방식 오버레이 비디오 생성"""
     """메모리 효율적인 스트리밍 방식 오버레이 비디오 생성"""
     try:
         # 비디오 확장자 확인
@@ -1163,14 +1170,14 @@ def create_overlay_video_streaming(video_path, input_root, output_root, pose_res
                 break
                 
             try:
-                # 포즈 시각화
+                # 포즈 시각화 (라벨 비활성화)
                 visualizer.add_datasample(
                     'result',
                     frame,
                     data_sample=pose_result,
                     draw_gt=False,
                     draw_heatmap=False,
-                    draw_bbox=True,
+                    draw_bbox=False,  # 바운딩 박스와 라벨 비활성화
                     show_kpt_idx=False,
                     skeleton_style='mmpose'
                 )
@@ -1182,8 +1189,8 @@ def create_overlay_video_streaming(video_path, input_root, output_root, pose_res
                 if vis_frame.shape[:2] != (height, width):
                     vis_frame = cv2.resize(vis_frame, (width, height))
                 
-                # TrackID 추가 표시
-                vis_frame = draw_track_ids(vis_frame, pose_result)
+                # TrackID 추가 표시 (상위 트랙 강조)
+                vis_frame = draw_track_ids(vis_frame, pose_result, top_track_ids)
                 
                 # 비디오에 프레임 작성
                 out_writer.write(vis_frame)
@@ -1208,7 +1215,8 @@ def create_overlay_video_streaming(video_path, input_root, output_root, pose_res
         return False
 
 
-def create_overlay_video(video_path, input_root, output_root, pose_results, frames, fps, width, height, pose_model):
+def create_overlay_video(video_path, input_root, output_root, pose_results, frames, fps, width, height, pose_model, top_track_ids=None):
+    """오버레이 비디오 생성"""
     """오버레이 비디오 생성"""
     try:
         # 비디오 확장자 확인
@@ -1243,14 +1251,14 @@ def create_overlay_video(video_path, input_root, output_root, pose_results, fram
         # 각 프레임에 포즈 오버레이
         for idx, (pose_result, frame) in enumerate(zip(pose_results, frames)):
             try:
-                # 포즈 시각화
+                # 포즈 시각화 (라벨 비활성화)
                 visualizer.add_datasample(
                     'result',
                     frame,
                     data_sample=pose_result,
                     draw_gt=False,
                     draw_heatmap=False,
-                    draw_bbox=True,
+                    draw_bbox=False,  # 바운딩 박스와 라벨 비활성화
                     show_kpt_idx=False,
                     skeleton_style='mmpose'
                 )
@@ -1262,8 +1270,8 @@ def create_overlay_video(video_path, input_root, output_root, pose_results, fram
                 if vis_frame.shape[:2] != (height, width):
                     vis_frame = cv2.resize(vis_frame, (width, height))
                 
-                # TrackID 추가 표시
-                vis_frame = draw_track_ids(vis_frame, pose_result)
+                # TrackID 추가 표시 (상위 트랙 강조)
+                vis_frame = draw_track_ids(vis_frame, pose_result, top_track_ids)
                 
                 # 비디오에 프레임 작성
                 out_writer.write(vis_frame)
@@ -1287,43 +1295,73 @@ def create_overlay_video(video_path, input_root, output_root, pose_results, fram
         return False
 
 
-def draw_track_ids(frame, pose_result):
-    """프레임에 TrackID 표시"""
+def draw_track_ids(frame, pose_result, top_track_ids: Optional[List[int]] = None):
+    """프레임에 TrackID와 정렬번호 표시"""
     try:
-        # pred_instances에서 track_id 정보 추출
-        if hasattr(pose_result, 'pred_instances') and hasattr(pose_result.pred_instances, 'track_id'):
-            track_ids = pose_result.pred_instances.track_id
+        if hasattr(pose_result, 'pred_instances') and hasattr(pose_result.pred_instances, 'track_ids'):
+            track_ids = pose_result.pred_instances.track_ids
             keypoints = pose_result.pred_instances.keypoints
             
+            # 현재 프레임의 모든 track_id를 수집하고 정렬
+            current_track_ids = []
             for i, track_id in enumerate(track_ids):
-                if track_id is not None and track_id > 0:
-                    # 첫 번째 키포인트(보통 머리 부분)의 좌표 사용
+                # track_id가 numpy array인 경우 스칼라 값으로 추출
+                if isinstance(track_id, np.ndarray):
+                    track_id = track_id.item() if track_id.size == 1 else track_id[0]
+                # 정수형으로 변환
+                track_id = int(track_id) if track_id is not None else -1
+                if track_id is not None and track_id >= 0:
+                    current_track_ids.append(track_id)
+            
+            # track_id를 오름차순으로 정렬
+            sorted_track_ids = sorted(current_track_ids)
+            
+            for i, track_id in enumerate(track_ids):
+                # track_id가 numpy array인 경우 스칼라 값으로 추출
+                if isinstance(track_id, np.ndarray):
+                    track_id = track_id.item() if track_id.size == 1 else track_id[0]
+                # 정수형으로 변환
+                track_id = int(track_id) if track_id is not None else -1
+                if track_id is not None and track_id >= 0:
                     if len(keypoints[i]) > 0:
-                        # 유효한 키포인트 찾기 (confidence > 0)
-                        valid_kpts = keypoints[i][keypoints[i][:, 2] > 0.5]  # confidence > 0.5
-                        if len(valid_kpts) > 0:
-                            # 가장 위쪽 키포인트 사용 (머리 부분)
-                            head_kpt = valid_kpts[np.argmin(valid_kpts[:, 1])]
-                            x, y = int(head_kpt[0]), int(head_kpt[1])
+                        # 키포인트 배열 형태 확인
+                        kpts = keypoints[i]
+                        if len(kpts.shape) == 2 and kpts.shape[1] >= 2:
+                            # 신뢰도 점수가 있는 경우 (shape: [N, 3])
+                            if kpts.shape[1] >= 3:
+                                valid_kpts = kpts[kpts[:, 2] > 0.5]
+                            else:
+                                # 신뢰도 점수가 없는 경우 (shape: [N, 2]) - 모든 키포인트 사용
+                                valid_kpts = kpts[~np.isnan(kpts[:, 0]) & ~np.isnan(kpts[:, 1])]
                             
-                            # TrackID 텍스트 표시
-                            text = f"ID:{int(track_id)}"
-                            font = cv2.FONT_HERSHEY_SIMPLEX
-                            font_scale = 0.8
-                            thickness = 2
+                            if len(valid_kpts) > 0:
+                                head_kpt = valid_kpts[np.argmin(valid_kpts[:, 1])]
+                                x, y = int(head_kpt[0]), int(head_kpt[1])
                             
-                            # 텍스트 크기 측정
-                            (text_width, text_height), _ = cv2.getTextSize(text, font, font_scale, thickness)
-                            
-                            # 배경 사각형 그리기
-                            cv2.rectangle(frame, 
-                                        (x - 5, y - text_height - 10), 
-                                        (x + text_width + 5, y + 5), 
-                                        (0, 0, 0), -1)  # 검은색 배경
-                            
-                            # 텍스트 그리기
-                            cv2.putText(frame, text, (x, y - 5), font, font_scale, 
-                                      (0, 255, 255), thickness)  # 노란색 텍스트
+                                # 정렬번호 계산 (현재 프레임에서의 순위)
+                                rank_number = sorted_track_ids.index(track_id) + 1  # 1부터 시작
+                                
+                                # 텍스트 형식: "ID: tracker_id, 정렬번호"
+                                text = f"ID: {int(track_id)}, {rank_number}"
+                                
+                                # 폰트 설정 - 작고 선명하게
+                                font = cv2.FONT_HERSHEY_SIMPLEX
+                                font_scale = 0.4  # 0.6에서 0.4로 축소
+                                thickness = 1  # 2에서 1로 축소
+                                
+                                # 단일 배경색 사용 (기본 배경색)
+                                bg_color = (50, 50, 50)  # BGR: 회색 배경
+                                text_color = (255, 255, 255)  # 흰색 텍스트
+
+                                (text_width, text_height), _ = cv2.getTextSize(text, font, font_scale, thickness)
+                                
+                                cv2.rectangle(frame, 
+                                            (x - 3, y - text_height - 8), 
+                                            (x + text_width + 3, y + 3), 
+                                            bg_color, -1)
+                                
+                                cv2.putText(frame, text, (x, y - 3), font, font_scale, 
+                                          text_color, thickness)
         
         return frame
         
@@ -1500,9 +1538,44 @@ def process_single_video(video_path, args, failure_logger):
         
         if save_overlay:
             print("Creating overlay visualization video...")
+            
+            # 상위 num_person개 트랙 ID 추출 (복합 점수 기준 정렬)
+            num_person = getattr(args, 'num_person', 2)  # 기본값: 2명
+            top_track_ids = []
+            
+            if 'keypoint' in annotation and annotation['keypoint']:
+                # 트랙별 평균 복합점수 계산
+                track_scores = {}
+                for frame_data in annotation['keypoint']:
+                    if isinstance(frame_data, list) and len(frame_data) > 0:
+                        for person_data in frame_data:
+                            if len(person_data) >= 3:  # [keypoints, scores, track_id] 구조 확인
+                                track_id = person_data[2] if len(person_data) > 2 else -1
+                                # track_id가 numpy array인 경우 스칼라 값으로 추출
+                                if isinstance(track_id, np.ndarray):
+                                    track_id = track_id.item() if track_id.size == 1 else track_id[0]
+                                # 정수형으로 변환
+                                track_id = int(track_id) if track_id is not None else -1
+                                if track_id >= 0:
+                                    # 복합 점수는 보통 추가 정보로 저장되거나 점수에서 계산
+                                    # 여기서는 keypoint 점수의 평균을 사용
+                                    if len(person_data) > 1 and person_data[1] is not None:
+                                        avg_score = np.mean(person_data[1]) if isinstance(person_data[1], np.ndarray) else 0
+                                        if track_id not in track_scores:
+                                            track_scores[track_id] = []
+                                        track_scores[track_id].append(avg_score)
+                
+                # 트랙별 평균 점수 계산 및 상위 선택
+                if track_scores:
+                    track_avg_scores = {tid: np.mean(scores) for tid, scores in track_scores.items()}
+                    # 점수 높은 순으로 정렬하여 상위 num_person개 선택
+                    sorted_tracks = sorted(track_avg_scores.items(), key=lambda x: x[1], reverse=True)
+                    top_track_ids = [tid for tid, _ in sorted_tracks[:num_person]]
+                    print(f"Top {num_person} track IDs selected: {top_track_ids}")
+            
             success = create_overlay_video_streaming(
                 video_path, input_root, args.output_root,
-                pose_results, video_fps, width, height, pose_model
+                pose_results, video_fps, width, height, pose_model, top_track_ids
             )
             if success:
                 print("Overlay video creation completed successfully")
@@ -1514,6 +1587,8 @@ def process_single_video(video_path, args, failure_logger):
         return True
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         failure_logger.log_failure(video_path, f"Processing error: {str(e)}")
         return False
 
@@ -1539,6 +1614,8 @@ def parse_args():
                        help='Minimum track length for inclusion')
     parser.add_argument('--quality-threshold', type=float, default=0.3, 
                        help='Minimum track quality threshold')
+    parser.add_argument('--num-person', type=int, default=2,
+                       help='Number of top-ranked persons to highlight in overlay (default: 2)')
     
     # ByteTrack parameters
     parser.add_argument('--track-high-thresh', type=float, default=0.6)

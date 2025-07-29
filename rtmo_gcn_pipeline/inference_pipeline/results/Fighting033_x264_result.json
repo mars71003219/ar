@@ -4998,6 +4998,6 @@
     "prediction_consistency": 0.6666666666666666
   },
   "overlay_path": "/workspace/rtmo_gcn_pipeline/inference_pipeline/results/overlays/Fighting033_x264_bytetrack_overlay.mp4",
-  "processing_time": 105.94685983657837,
+  "processing_time": 106.98619508743286,
   "status": "success"
 }
