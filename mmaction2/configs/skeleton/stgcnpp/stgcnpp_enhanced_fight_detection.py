@@ -20,7 +20,7 @@ model = dict(
         in_channels=256,
         loss_cls=dict(
             type='CrossEntropyLoss',
-            class_weight=[1.0, 1.2]  # Fight 클래스에 약간 더 높은 가중치
+            class_weight=[1.0, 1.0]  # Fight 클래스에 약간 더 높은 가중치
         )
     )
 )
@@ -33,14 +33,11 @@ model = dict(
 dataset_type = 'PoseDataset'  # 표준 dataset으로 임시 변경
 
 # 데이터 경로 설정
-data_root = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/'
-ann_file_train = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_enhanced_train.pkl'
-ann_file_val = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_enhanced_val.pkl'
-ann_file_test = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_enhanced_test.pkl'
-# data_root = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/'
-# ann_file_train = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_standard_train.pkl'
-# ann_file_val = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_standard_val.pkl'
-# ann_file_test = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/rwf2000_standard_test.pkl'
+data_root = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/UCF_Crime_test2'
+ann_file_train = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/UCF_Crime_test2/UCF_Crime_test2_train_windows.pkl'
+ann_file_val = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/UCF_Crime_test2/UCF_Crime_test2_val_windows.pkl'
+ann_file_test = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/UCF_Crime_test2/UCF_Crime_test2_test_windows.pkl'
+
 # ============================================================================
 # Enhanced Pipeline Configuration
 # ============================================================================
@@ -234,7 +231,7 @@ visualizer = dict(
 load_from = '/workspace/mmaction2/checkpoints/stgcnpp_8xb16-bone-u100-80e_ntu60-xsub-keypoint-2d_20221228-cd11a691.pth'
 
 # Work directory
-work_dir = '/workspace/mmaction2/work_dirs/stgcnpp_enhanced_fight_detection'
+work_dir = '/workspace/mmaction2/work_dirs/test'
 
 # Resume training
 resume = False

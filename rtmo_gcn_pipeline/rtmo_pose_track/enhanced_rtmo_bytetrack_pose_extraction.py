@@ -32,7 +32,7 @@ from mmpose.registry import VISUALIZERS
 
 
 # =============================================================================
-# Core Tracking Classes (기존 유지)
+# Core Tracking Classes
 # =============================================================================
 
 class KalmanFilter:
@@ -1117,8 +1117,7 @@ def get_output_path(video_path, input_root, output_root, extension):
     return output_path
 
 
-def create_overlay_video_streaming(video_path, input_root, output_root, pose_results, fps, width, height, pose_model, top_track_ids=None):
-    """메모리 효율적인 스트리밍 방식 오버레이 비디오 생성"""
+def create_overlay_video_streaming(video_path, input_root, output_root, pose_results, fps, width, height, pose_model, track_id_to_rank, top_track_ids=None):
     """메모리 효율적인 스트리밍 방식 오버레이 비디오 생성"""
     try:
         # 비디오 확장자 확인
@@ -1184,7 +1183,7 @@ def create_overlay_video_streaming(video_path, input_root, output_root, pose_res
                     vis_frame = cv2.resize(vis_frame, (width, height))
                 
                 # TrackID 추가 표시 (상위 트랙 강조)
-                vis_frame = draw_track_ids(vis_frame, pose_result, top_track_ids)
+                vis_frame = draw_track_ids(vis_frame, pose_result, track_id_to_rank, top_track_ids)
                 
                 # 비디오에 프레임 작성
                 out_writer.write(vis_frame)
@@ -1210,7 +1209,6 @@ def create_overlay_video_streaming(video_path, input_root, output_root, pose_res
 
 
 def create_overlay_video(video_path, input_root, output_root, pose_results, frames, fps, width, height, pose_model, top_track_ids=None):
-    """오버레이 비디오 생성"""
     """오버레이 비디오 생성"""
     try:
         # 비디오 확장자 확인
@@ -1289,63 +1287,50 @@ def create_overlay_video(video_path, input_root, output_root, pose_results, fram
         return False
 
 
-def draw_track_ids(frame, pose_result, top_track_ids: Optional[List[int]] = None):
-    """프레임에 TrackID와 정렬번호 표시"""
+def draw_track_ids(frame, pose_result, track_id_to_rank: Dict[int, int], top_track_ids: Optional[List[int]] = None):
+    """프레임에 TrackID와 전체 순위(Rank) 표시"""
     try:
         if hasattr(pose_result, 'pred_instances') and hasattr(pose_result.pred_instances, 'track_ids'):
             track_ids = pose_result.pred_instances.track_ids
             keypoints = pose_result.pred_instances.keypoints
             
-            # 현재 프레임의 모든 track_id를 수집하고 정렬
-            current_track_ids = []
             for i, track_id in enumerate(track_ids):
                 # track_id가 numpy array인 경우 스칼라 값으로 추출
                 if isinstance(track_id, np.ndarray):
                     track_id = track_id.item() if track_id.size == 1 else track_id[0]
                 # 정수형으로 변환
                 track_id = int(track_id) if track_id is not None else -1
-                if track_id is not None and track_id >= 0:
-                    current_track_ids.append(track_id)
-            
-            # track_id를 오름차순으로 정렬
-            sorted_track_ids = sorted(current_track_ids)
-            
-            for i, track_id in enumerate(track_ids):
-                # track_id가 numpy array인 경우 스칼라 값으로 추출
-                if isinstance(track_id, np.ndarray):
-                    track_id = track_id.item() if track_id.size == 1 else track_id[0]
-                # 정수형으로 변환
-                track_id = int(track_id) if track_id is not None else -1
-                if track_id is not None and track_id >= 0:
+                
+                if track_id >= 0 and track_id in track_id_to_rank:
                     if len(keypoints[i]) > 0:
-                        # 키포인트 배열 형태 확인
                         kpts = keypoints[i]
                         if len(kpts.shape) == 2 and kpts.shape[1] >= 2:
-                            # 신뢰도 점수가 있는 경우 (shape: [N, 3])
                             if kpts.shape[1] >= 3:
                                 valid_kpts = kpts[kpts[:, 2] > 0.5]
                             else:
-                                # 신뢰도 점수가 없는 경우 (shape: [N, 2]) - 모든 키포인트 사용
                                 valid_kpts = kpts[~np.isnan(kpts[:, 0]) & ~np.isnan(kpts[:, 1])]
                             
                             if len(valid_kpts) > 0:
                                 head_kpt = valid_kpts[np.argmin(valid_kpts[:, 1])]
                                 x, y = int(head_kpt[0]), int(head_kpt[1])
-                            
-                                # 정렬번호 계산 (현재 프레임에서의 순위)
-                                rank_number = sorted_track_ids.index(track_id) + 1  # 1부터 시작
                                 
-                                # 텍스트 형식: "ID: tracker_id, 정렬번호"
-                                text = f"ID: {int(track_id)}, {rank_number}"
+                                # 전체 순위(Rank) 조회
+                                rank = track_id_to_rank[track_id]
                                 
-                                # 폰트 설정 - 작고 선명하게
+                                # 텍스트 형식: "ID: tracker_id, Rank: rank"
+                                text = f"ID: {track_id}, Rank: {rank}"
+                                
                                 font = cv2.FONT_HERSHEY_SIMPLEX
-                                font_scale = 0.4  # 0.6에서 0.4로 축소
-                                thickness = 1  # 2에서 1로 축소
+                                font_scale = 0.4
+                                thickness = 1
                                 
-                                # 단일 배경색 사용 (기본 배경색)
-                                bg_color = (50, 50, 50)  # BGR: 회색 배경
-                                text_color = (255, 255, 255)  # 흰색 텍스트
+                                # 상위 N명은 다른 색으로 강조 (top_track_ids가 주어진 경우)
+                                if top_track_ids and track_id in top_track_ids:
+                                    bg_color = (0, 255, 0)  # 형광 녹색 배경 (BGR 순서)
+                                    text_color = (0, 0, 0)  # 검은색 텍스트 (가독성 향상)
+                                else:
+                                    bg_color = (50, 50, 50)
+                                    text_color = (255, 255, 255)
 
                                 (text_width, text_height), _ = cv2.getTextSize(text, font, font_scale, thickness)
                                 
@@ -1446,8 +1431,78 @@ class EnhancedRTMOPoseExtractor:
         
         # 복합 점수 가중치
         self.weights = [0.30, 0.35, 0.20, 0.10, 0.05]
-        
     
+    def extract_poses_only(self, video_path, failure_logger=None):
+        """전체 비디오에 대해 포즈 추정만 수행 (트래킹 제외)"""
+        try:
+            print(f"Extracting poses from: {video_path}")
+            
+            # CUDA 메모리 정리
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except:
+                pass
+            
+            # 모델 초기화
+            pose_model = init_model(self.config_path, self.checkpoint_path, device=self.device)
+            
+            # 모델 설정 적용
+            if hasattr(pose_model.cfg, 'model'):
+                if hasattr(pose_model.cfg.model, 'test_cfg'):
+                    pose_model.cfg.model.test_cfg.score_thr = self.score_thr
+                    pose_model.cfg.model.test_cfg.nms_thr = self.nms_thr
+                else:
+                    pose_model.cfg.model.test_cfg = dict(score_thr=self.score_thr, nms_thr=self.nms_thr)
+            
+            if hasattr(pose_model, 'head') and hasattr(pose_model.head, 'test_cfg'):
+                pose_model.head.test_cfg.score_thr = self.score_thr
+                pose_model.head.test_cfg.nms_thr = self.nms_thr
+        
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                if failure_logger:
+                    failure_logger.log_failure(video_path, "Cannot open video file")
+                return None
+                
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            pose_results = []
+            
+            # 포즈 추정만 수행 (트래킹 없음)
+            print(f"Running pose estimation on {total_frames} frames...")
+            pbar = tqdm(total=total_frames, desc="Extracting poses")
+
+            while True:
+                success, frame = cap.read()
+                if not success:
+                    break
+
+                # 포즈 추정만 수행
+                batch_pose_results = inference_bottomup(pose_model, frame)
+                pose_result = batch_pose_results[0]
+                
+                pose_results.append(pose_result)
+                pbar.update(1)
+
+            cap.release()
+            pbar.close()
+            
+            if not pose_results:
+                if failure_logger:
+                    failure_logger.log_failure(video_path, "No pose results generated")
+                return None
+            
+            print(f"Extracted poses from {len(pose_results)} frames")
+            return pose_results
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            if failure_logger:
+                failure_logger.log_failure(video_path, f"Pose extraction error: {str(e)}")
+            return None
     
     def process_single_video(self, video_path, output_root, failure_logger=None):
         """단일 비디오 처리"""
@@ -1566,25 +1621,26 @@ class EnhancedRTMOPoseExtractor:
             if self.save_overlay:
                 print("Creating overlay visualization video...")
                 
-                # 상위 num_person개 트랙 ID 추출 (복합 점수 기준 정렬)
-                top_track_ids = []
-            
+                # 전체 순위 정보 생성 (track_id -> rank)
+                track_id_to_rank = {}
                 if 'persons' in annotation and annotation['persons']:
-                    # 복합 점수 기준으로 상위 선택
-                    person_scores = []
-                    for key, person_data in annotation['persons'].items():
-                        track_id = person_data.get('track_id', -1)
-                        composite_score = person_data.get('composite_score', 0)
-                        person_scores.append((track_id, composite_score))
-                    
-                    # 점수 높은 순으로 정렬하여 상위 num_person개 선택
-                    sorted_persons = sorted(person_scores, key=lambda x: x[1], reverse=True)
-                    top_track_ids = [tid for tid, _ in sorted_persons[:self.num_person]]
-                    print(f"Top {self.num_person} track IDs selected: {top_track_ids}")
+                    for person_data in annotation['persons'].values():
+                        track_id = person_data.get('track_id')
+                        rank = person_data.get('rank')
+                        if track_id is not None and rank is not None:
+                            track_id_to_rank[track_id] = rank
+                
+                # 상위 N명 트랙 ID 추출 (시각적 강조용)
+                top_track_ids = []
+                if 'persons' in annotation and annotation['persons']:
+                    sorted_persons = sorted(annotation['persons'].values(), key=lambda p: p['rank'])
+                    top_track_ids = [p['track_id'] for p in sorted_persons[:self.num_person]]
+                    print(f"Top {self.num_person} track IDs for highlighting: {top_track_ids}")
                 
                 success = create_overlay_video_streaming(
                     video_path, os.path.dirname(video_path), output_root,
-                    pose_results, video_fps, width, height, pose_model, top_track_ids
+                    pose_results, video_fps, width, height, pose_model, 
+                    track_id_to_rank, top_track_ids
                 )
                 if success:
                     print("Overlay video creation completed successfully")
@@ -1603,5 +1659,4 @@ class EnhancedRTMOPoseExtractor:
             return None
 
 
-# 이 파일은 클래스로만 사용됩니다. 메인 진입점은 extract_pose_to_pkl_main.py입니다.
 

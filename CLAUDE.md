@@ -209,3 +209,4 @@ Both frameworks use hierarchical configs:
 - 클로드 너의 위치는 우분투 호스트 경로이고, 코드 디버깅과 개발환경은 도커 컨테이너야 
   - /home/gaonpf/hsnam/mmlabs 는 /workspace 와 매핑돼 
   - docker exec -it mmlabs bash로 컨테이너 내부 진입이 가능해. 다만 디버깅은 토큰 비용이 많이 발생하니까 내가 직접 실행할꺼야 
+- 내부 테스트나 파일 추가/삭제 시 도커 컨테이너 명령을 통해 실행 docker exec -it mmlabs
