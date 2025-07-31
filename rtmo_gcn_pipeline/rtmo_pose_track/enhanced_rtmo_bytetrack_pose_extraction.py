@@ -1400,7 +1400,13 @@ class EnhancedRTMOPoseExtractor:
     """개선된 RTMO 포즈 추출기 클래스"""
     
     def __init__(self, config_path, checkpoint_path, device='cuda:0', 
-                 save_overlay=True, num_person=5, overlay_fps=30):
+                 save_overlay=True, num_person=5, overlay_fps=30,
+                 # 포즈 추출 파라미터
+                 score_thr=0.3, nms_thr=0.35, quality_threshold=0.3, min_track_length=10,
+                 # ByteTracker 파라미터
+                 track_high_thresh=0.6, track_low_thresh=0.1, track_max_disappeared=30, track_min_hits=3,
+                 # 복합 점수 가중치
+                 weights=None):
         """
         Args:
             config_path: RTMO 설정 파일 경로
@@ -1409,6 +1415,18 @@ class EnhancedRTMOPoseExtractor:
             save_overlay: 오버레이 비디오 저장 여부
             num_person: 오버레이에 표시할 최대 인물 수
             overlay_fps: 오버레이 비디오 FPS
+            # 포즈 추출 파라미터
+            score_thr: 포즈 검출 점수 임계값
+            nms_thr: NMS 임계값
+            quality_threshold: 트랙 품질 최소 임계값
+            min_track_length: 유효한 트랙의 최소 길이
+            # ByteTracker 파라미터
+            track_high_thresh: ByteTracker 높은 임계값
+            track_low_thresh: ByteTracker 낮은 임계값
+            track_max_disappeared: 트랙이 사라지기 전까지 최대 프레임 수
+            track_min_hits: 유효한 트랙으로 간주하기 위한 최소 히트 수
+            # 복합 점수 가중치
+            weights: 복합 점수 가중치 리스트 [movement, position, interaction, temporal, persistence]
         """
         self.config_path = config_path
         self.checkpoint_path = checkpoint_path
@@ -1417,20 +1435,20 @@ class EnhancedRTMOPoseExtractor:
         self.num_person = num_person
         self.overlay_fps = overlay_fps
         
-        # 기본 파라미터 설정
-        self.score_thr = 0.3
-        self.nms_thr = 0.35
-        self.min_track_length = 10
-        self.quality_threshold = 0.3
+        # 포즈 추출 파라미터
+        self.score_thr = score_thr
+        self.nms_thr = nms_thr
+        self.min_track_length = min_track_length
+        self.quality_threshold = quality_threshold
         
-        # ByteTrack 파라미터
-        self.track_high_thresh = 0.6
-        self.track_low_thresh = 0.1
-        self.track_max_disappeared = 30
-        self.track_min_hits = 3
+        # ByteTracker 파라미터
+        self.track_high_thresh = track_high_thresh
+        self.track_low_thresh = track_low_thresh
+        self.track_max_disappeared = track_max_disappeared
+        self.track_min_hits = track_min_hits
         
         # 복합 점수 가중치
-        self.weights = [0.30, 0.35, 0.20, 0.10, 0.05]
+        self.weights = weights if weights is not None else [0.30, 0.35, 0.20, 0.10, 0.05]
     
     def extract_poses_only(self, video_path, failure_logger=None):
         """전체 비디오에 대해 포즈 추정만 수행 (트래킹 제외)"""
