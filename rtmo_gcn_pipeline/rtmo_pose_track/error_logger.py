@@ -7,25 +7,35 @@ import os
 import json
 import traceback
 from datetime import datetime
+import glob
+import re
 
 class ProcessingErrorLogger:
     """처리 과정에서 발생하는 에러들을 로그로 기록하는 클래스"""
     
-    def __init__(self, output_dir: str, dataset_name: str = "unknown"):
+    def __init__(self, output_dir: str, dataset_name: str = "unknown", resume: bool = False):
         """
         Args:
             output_dir: 로그 파일을 저장할 출력 디렉토리
             dataset_name: 데이터셋 이름
+            resume: 이전 로그에 이어쓸지 여부
         """
         self.output_dir = output_dir
         self.dataset_name = dataset_name
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        # 로그 파일 경로들
-        self.error_log_file = os.path.join(output_dir, f"processing_errors_{self.session_id}.log")
-        self.failed_videos_file = os.path.join(output_dir, f"failed_videos_{self.session_id}.json")
-        self.summary_file = os.path.join(output_dir, f"processing_summary_{self.session_id}.json")
+        # 로그 파일 경로들 - dataset_name 폴더 내부에 생성
+        dataset_output_dir = os.path.join(output_dir, dataset_name)
+        os.makedirs(dataset_output_dir, exist_ok=True)
         
+        self.error_log_file = os.path.join(dataset_output_dir, f"processing_errors_{self.session_id}.log")
+        self.failed_videos_file = os.path.join(dataset_output_dir, f"failed_videos_{self.session_id}.json")
+        self.summary_file = os.path.join(dataset_output_dir, f"processing_summary_{self.session_id}.json")
+        
+        self.resuming = resume
+        if self.resuming:
+            self._find_and_set_latest_logs()
+
         # 통계 정보
         self.stats = {
             'total_videos': 0,
@@ -40,20 +50,69 @@ class ProcessingErrorLogger:
         # 실패한 비디오 목록
         self.failed_videos = []
         
+        if self.resuming:
+            self._load_previous_state()
+
         # 로그 파일 초기화
         self._initialize_log_files()
+
+    def _find_and_set_latest_logs(self):
+        """가장 최신 로그 파일을 찾아 세션 정보를 설정합니다."""
+        dataset_output_dir = os.path.join(self.output_dir, self.dataset_name)
+        log_files = glob.glob(os.path.join(dataset_output_dir, 'processing_errors_*.log'))
+        if not log_files:
+            self.resuming = False
+            return
+
+        latest_log_file = max(log_files, key=os.path.getmtime)
+        self.error_log_file = latest_log_file
+        
+        match = re.search(r'processing_errors_(\d{8}_\d{6})\.log', os.path.basename(latest_log_file))
+        if match:
+            self.session_id = match.group(1)
+            self.failed_videos_file = os.path.join(dataset_output_dir, f"failed_videos_{self.session_id}.json")
+            self.summary_file = os.path.join(dataset_output_dir, f"processing_summary_{self.session_id}.json")
+        else:
+            # Fallback if pattern doesn't match
+            self.resuming = False
+
+    def _load_previous_state(self):
+        """이전 세션의 통계와 실패 목록을 불러옵니다."""
+        if os.path.exists(self.summary_file):
+            try:
+                with open(self.summary_file, 'r', encoding='utf-8') as f:
+                    self.stats = json.load(f)
+                # Reset values that should not be carried over
+                self.stats['end_time'] = None
+            except (json.JSONDecodeError, FileNotFoundError):
+                self.stats['start_time'] = datetime.now().isoformat() # Start new if corrupt
+
+        if os.path.exists(self.failed_videos_file):
+            try:
+                with open(self.failed_videos_file, 'r', encoding='utf-8') as f:
+                    self.failed_videos = json.load(f)
+            except (json.JSONDecodeError, FileNotFoundError):
+                self.failed_videos = [] # Start new if corrupt
     
     def _initialize_log_files(self):
         """로그 파일들 초기화"""
         try:
-            os.makedirs(self.output_dir, exist_ok=True)
+            # dataset_name 폴더는 이미 __init__에서 생성되었으므로 여기서는 생성하지 않음
+            dataset_output_dir = os.path.join(self.output_dir, self.dataset_name)
+            os.makedirs(dataset_output_dir, exist_ok=True)
             
             # 에러 로그 파일 초기화
-            with open(self.error_log_file, 'w', encoding='utf-8') as f:
-                f.write(f"Processing Error Log - {self.dataset_name}\n")
-                f.write(f"Session ID: {self.session_id}\n")
-                f.write(f"Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write("=" * 80 + "\n\n")
+            mode = 'a' if self.resuming and os.path.exists(self.error_log_file) else 'w'
+            with open(self.error_log_file, mode, encoding='utf-8') as f:
+                if mode == 'w':
+                    f.write(f"Processing Error Log - {self.dataset_name}\n")
+                    f.write(f"Session ID: {self.session_id}\n")
+                    f.write(f"Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("=" * 80 + "\n\n")
+                else:
+                    f.write("\n" + "=" * 80 + "\n")
+                    f.write(f"RESUMING LOGGING at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("=" * 80 + "\n\n")
             
             # 에러 로깅 초기화 완료
             
@@ -61,6 +120,10 @@ class ProcessingErrorLogger:
             # 로깅 초기화 실패 - 계속 진행
             pass
     
+    def log_info(self, message: str):
+        """일반 정보 메시지를 로그에 기록합니다."""
+        self._append_to_log(f"[INFO] {message.strip()}")
+
     def log_video_start(self, video_path: str):
         """비디오 처리 시작 로그"""
         self.stats['total_videos'] += 1
@@ -161,18 +224,6 @@ class ProcessingErrorLogger:
         """윈도우 처리 실패 로그"""
         self.stats['failed_windows'] += 1
         self._append_to_log(f"[WINDOW_FAILED] {os.path.basename(video_path)} - Window {window_idx}: {error_message}")
-    
-    def log_pose_extraction_failure(self, video_path: str, error_message: str, full_traceback: str = None):
-        """포즈 추출 실패 전용 로그"""
-        self.log_video_failure(video_path, "POSE_EXTRACTION_ERROR", error_message, full_traceback)
-    
-    def log_annotation_failure(self, video_path: str, window_idx: int, error_message: str):
-        """어노테이션 생성 실패 로그"""
-        self.log_window_failure(video_path, window_idx, f"Annotation failed: {error_message}")
-    
-    def log_overlay_failure(self, video_path: str, window_idx: int, error_message: str):
-        """오버레이 비디오 생성 실패 로그"""
-        self.log_window_failure(video_path, window_idx, f"Overlay creation failed: {error_message}")
     
     def log_general_error(self, component: str, error_message: str, full_traceback: str = None):
         """일반적인 에러 로그"""

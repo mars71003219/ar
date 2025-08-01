@@ -705,78 +705,7 @@ class EnhancedFightInvolvementScorer:
         return len(all_frames) if all_frames else 1
 
 
-# =============================================================================
-# Failure Logging System
-# =============================================================================
 
-class FailureLogger:
-    """실패 케이스 로깅 시스템"""
-    
-    FAILURE_CATEGORIES = {
-        'NO_TRACKS': "No valid tracks found",
-        'INSUFFICIENT_LENGTH': "Tracks too short (< min_track_length)",
-        'LOW_QUALITY': "All tracks below quality threshold", 
-        'PROCESSING_ERROR': "Technical processing error",
-        'EMPTY_VIDEO': "Empty or corrupted video file"
-    }
-    
-    def __init__(self, log_file_path):
-        self.log_file_path = log_file_path
-        self._initialize_log_file()
-    
-    def _initialize_log_file(self):
-        """로그 파일 초기화"""
-        os.makedirs(os.path.dirname(self.log_file_path), exist_ok=True)
-        
-        if not os.path.exists(self.log_file_path):
-            with open(self.log_file_path, 'w', encoding='utf-8') as f:
-                f.write(f"# Enhanced STGCN++ Annotation Failure Log\n")
-                f.write(f"# Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"# Format: [timestamp] video_path | failure_reason\n\n")
-    
-    def log_failure(self, video_path, reason, additional_info=None):
-        """실패 케이스 로깅"""
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_entry = f"[{timestamp}] {video_path} | {reason}"
-        
-        if additional_info:
-            log_entry += f" | {additional_info}"
-        
-        log_entry += "\n"
-        
-        with open(self.log_file_path, 'a', encoding='utf-8') as f:
-            f.write(log_entry)
-        
-        print(f"FAILED: {os.path.basename(video_path)} - {reason}")
-    
-    def categorize_failure(self, tracks_data, min_length, quality_threshold):
-        """실패 원인 자동 분류"""
-        if len(tracks_data) == 0:
-            return self.FAILURE_CATEGORIES['NO_TRACKS']
-        
-        valid_length_tracks = [t for t in tracks_data if len(t) >= min_length]
-        if len(valid_length_tracks) == 0:
-            return self.FAILURE_CATEGORIES['INSUFFICIENT_LENGTH']
-        
-        high_quality_tracks = [t for t in valid_length_tracks 
-                              if self._calculate_track_quality(t) >= quality_threshold]
-        if len(high_quality_tracks) == 0:
-            return self.FAILURE_CATEGORIES['LOW_QUALITY']
-        
-        return "Unknown failure"
-    
-    def _calculate_track_quality(self, track_data):
-        """트랙 품질 점수 계산"""
-        if not track_data:
-            return 0.0
-        
-        # 평균 키포인트 신뢰도로 품질 평가
-        scores = []
-        for frame_data in track_data.values():
-            if 'scores' in frame_data:
-                scores.extend(frame_data['scores'])
-        
-        return np.mean(scores) if scores else 0.0
 
 
 # =============================================================================
@@ -1400,55 +1329,41 @@ class EnhancedRTMOPoseExtractor:
     """개선된 RTMO 포즈 추출기 클래스"""
     
     def __init__(self, config_path, checkpoint_path, device='cuda:0', 
-                 save_overlay=True, num_person=5, overlay_fps=30,
-                 # 포즈 추출 파라미터
-                 score_thr=0.3, nms_thr=0.35, quality_threshold=0.3, min_track_length=10,
-                 # ByteTracker 파라미터
-                 track_high_thresh=0.6, track_low_thresh=0.1, track_max_disappeared=30, track_min_hits=3,
-                 # 복합 점수 가중치
-                 weights=None):
+                 score_thr=0.3, nms_thr=0.35):
         """
         Args:
             config_path: RTMO 설정 파일 경로
             checkpoint_path: RTMO 체크포인트 파일 경로
             device: 추론에 사용할 디바이스
-            save_overlay: 오버레이 비디오 저장 여부
-            num_person: 오버레이에 표시할 최대 인물 수
-            overlay_fps: 오버레이 비디오 FPS
-            # 포즈 추출 파라미터
             score_thr: 포즈 검출 점수 임계값
             nms_thr: NMS 임계값
-            quality_threshold: 트랙 품질 최소 임계값
-            min_track_length: 유효한 트랙의 최소 길이
-            # ByteTracker 파라미터
-            track_high_thresh: ByteTracker 높은 임계값
-            track_low_thresh: ByteTracker 낮은 임계값
-            track_max_disappeared: 트랙이 사라지기 전까지 최대 프레임 수
-            track_min_hits: 유효한 트랙으로 간주하기 위한 최소 히트 수
-            # 복합 점수 가중치
-            weights: 복합 점수 가중치 리스트 [movement, position, interaction, temporal, persistence]
         """
         self.config_path = config_path
         self.checkpoint_path = checkpoint_path
         self.device = device
-        self.save_overlay = save_overlay
-        self.num_person = num_person
-        self.overlay_fps = overlay_fps
-        
-        # 포즈 추출 파라미터
         self.score_thr = score_thr
         self.nms_thr = nms_thr
-        self.min_track_length = min_track_length
-        self.quality_threshold = quality_threshold
         
-        # ByteTracker 파라미터
-        self.track_high_thresh = track_high_thresh
-        self.track_low_thresh = track_low_thresh
-        self.track_max_disappeared = track_max_disappeared
-        self.track_min_hits = track_min_hits
+        # 모델을 생성자에서 한 번만 초기화
+        print(f"Initializing RTMO model: {config_path}")
+        self.pose_model = init_model(config_path, checkpoint_path, device=device)
         
-        # 복합 점수 가중치
-        self.weights = weights if weights is not None else [0.30, 0.35, 0.20, 0.10, 0.05]
+        # 모델 설정 적용
+        self._configure_model()
+        print("RTMO model initialized successfully")
+    
+    def _configure_model(self):
+        """모델 설정 적용"""
+        if hasattr(self.pose_model.cfg, 'model'):
+            if hasattr(self.pose_model.cfg.model, 'test_cfg'):
+                self.pose_model.cfg.model.test_cfg.score_thr = self.score_thr
+                self.pose_model.cfg.model.test_cfg.nms_thr = self.nms_thr
+            else:
+                self.pose_model.cfg.model.test_cfg = dict(score_thr=self.score_thr, nms_thr=self.nms_thr)
+        
+        if hasattr(self.pose_model, 'head') and hasattr(self.pose_model.head, 'test_cfg'):
+            self.pose_model.head.test_cfg.score_thr = self.score_thr
+            self.pose_model.head.test_cfg.nms_thr = self.nms_thr
     
     def extract_poses_only(self, video_path, failure_logger=None):
         """전체 비디오에 대해 포즈 추정만 수행 (트래킹 제외)"""
@@ -1463,20 +1378,8 @@ class EnhancedRTMOPoseExtractor:
             except:
                 pass
             
-            # 모델 초기화
-            pose_model = init_model(self.config_path, self.checkpoint_path, device=self.device)
-            
-            # 모델 설정 적용
-            if hasattr(pose_model.cfg, 'model'):
-                if hasattr(pose_model.cfg.model, 'test_cfg'):
-                    pose_model.cfg.model.test_cfg.score_thr = self.score_thr
-                    pose_model.cfg.model.test_cfg.nms_thr = self.nms_thr
-                else:
-                    pose_model.cfg.model.test_cfg = dict(score_thr=self.score_thr, nms_thr=self.nms_thr)
-            
-            if hasattr(pose_model, 'head') and hasattr(pose_model.head, 'test_cfg'):
-                pose_model.head.test_cfg.score_thr = self.score_thr
-                pose_model.head.test_cfg.nms_thr = self.nms_thr
+            # 이미 초기화된 모델 사용 (매번 로드하지 않음)
+            pose_model = self.pose_model
         
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
@@ -1508,8 +1411,6 @@ class EnhancedRTMOPoseExtractor:
             pbar.close()
             
             if not pose_results:
-                if failure_logger:
-                    failure_logger.log_failure(video_path, "No pose results generated")
                 return None
             
             print(f"Extracted poses from {len(pose_results)} frames")
@@ -1520,160 +1421,6 @@ class EnhancedRTMOPoseExtractor:
             traceback.print_exc()
             if failure_logger:
                 failure_logger.log_failure(video_path, f"Pose extraction error: {str(e)}")
-            return None
-    
-    def process_single_video(self, video_path, output_root, failure_logger=None):
-        """단일 비디오 처리"""
-        try:
-            print(f"\nProcessing: {video_path}")
-            print(f"Using PyTorch inference")
-            
-            # CUDA 메모리 정리 (멀티프로세싱 환경에서 안정성 향상)
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except:
-                pass
-            
-            # ByteTracker 초기화
-            tracker = ByteTracker(
-                high_thresh=self.track_high_thresh,
-                low_thresh=self.track_low_thresh,
-                max_disappeared=self.track_max_disappeared,
-                min_hits=self.track_min_hits
-            )
-            
-            # 모델 초기화
-            pose_model = init_model(self.config_path, self.checkpoint_path, device=self.device)
-            
-            # 모델 설정 적용
-            if hasattr(pose_model.cfg, 'model'):
-                if hasattr(pose_model.cfg.model, 'test_cfg'):
-                    pose_model.cfg.model.test_cfg.score_thr = self.score_thr
-                    pose_model.cfg.model.test_cfg.nms_thr = self.nms_thr
-                else:
-                    pose_model.cfg.model.test_cfg = dict(score_thr=self.score_thr, nms_thr=self.nms_thr)
-            
-            if hasattr(pose_model, 'head') and hasattr(pose_model.head, 'test_cfg'):
-                pose_model.head.test_cfg.score_thr = self.score_thr
-                pose_model.head.test_cfg.nms_thr = self.nms_thr
-        
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                if failure_logger:
-                    failure_logger.log_failure(video_path, "Cannot open video file")
-                return False
-                
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            video_fps = cap.get(cv2.CAP_PROP_FPS) if cap.get(cv2.CAP_PROP_FPS) > 0 else self.overlay_fps
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            
-            pose_results = []
-        
-            # Step 1: 포즈 추정 및 트래킹
-            print(f"Running pose estimation and tracking... (save_overlay={self.save_overlay})")
-            frame_count = 0
-            pbar = tqdm(total=total_frames, desc="Processing frames")
-
-            while True:
-                success, frame = cap.read()
-                if not success:
-                    break
-
-                # 포즈 추정 (PyTorch)
-                batch_pose_results = inference_bottomup(pose_model, frame)
-                pose_result = batch_pose_results[0]
-                
-                # Detection 결과 생성
-                detections = create_detection_results(pose_result)
-                
-                # ByteTrack으로 트래킹 수행
-                active_tracks = tracker.update(detections)
-                
-                # 포즈 결과에 트래킹 ID 할당
-                pose_result = assign_track_ids_from_bytetrack(pose_result, active_tracks)
-                
-                pose_results.append(pose_result)
-                frame_count += 1
-                pbar.update(1)
-
-            cap.release()
-            pbar.close()
-            
-            if not pose_results:
-                if failure_logger:
-                    failure_logger.log_failure(video_path, "No pose results generated")
-                return False
-            
-            # Step 2: 개선된 어노테이션 생성
-            print("Creating enhanced annotation...")
-            annotation, status_message = create_enhanced_annotation(
-                pose_results, video_path, pose_model,
-                min_track_length=self.min_track_length,
-                quality_threshold=self.quality_threshold,
-                weights=self.weights
-            )
-
-            
-            if annotation is None:
-                if failure_logger:
-                    failure_logger.log_failure(video_path, status_message)
-                return False
-            
-            # Step 3: 결과 저장
-            video_name = os.path.splitext(os.path.basename(video_path))[0]
-            pkl_output_path = os.path.join(output_root, f"{video_name}_enhanced_stgcn_annotation.pkl")
-            
-            os.makedirs(os.path.dirname(pkl_output_path), exist_ok=True)
-            
-            with open(pkl_output_path, 'wb') as f:
-                pickle.dump(annotation, f)
-            
-            print(f'Enhanced annotation saved: {pkl_output_path}')
-            print(f'Total persons: {annotation["total_persons"]}')
-            print(f'Quality threshold: {annotation["quality_threshold"]}')
-            
-            # Step 4: 오버레이 비디오 생성 (옵션) - 스트리밍 방식
-            if self.save_overlay:
-                print("Creating overlay visualization video...")
-                
-                # 전체 순위 정보 생성 (track_id -> rank)
-                track_id_to_rank = {}
-                if 'persons' in annotation and annotation['persons']:
-                    for person_data in annotation['persons'].values():
-                        track_id = person_data.get('track_id')
-                        rank = person_data.get('rank')
-                        if track_id is not None and rank is not None:
-                            track_id_to_rank[track_id] = rank
-                
-                # 상위 N명 트랙 ID 추출 (시각적 강조용)
-                top_track_ids = []
-                if 'persons' in annotation and annotation['persons']:
-                    sorted_persons = sorted(annotation['persons'].values(), key=lambda p: p['rank'])
-                    top_track_ids = [p['track_id'] for p in sorted_persons[:self.num_person]]
-                    print(f"Top {self.num_person} track IDs for highlighting: {top_track_ids}")
-                
-                success = create_overlay_video_streaming(
-                    video_path, os.path.dirname(video_path), output_root,
-                    pose_results, video_fps, width, height, pose_model, 
-                    track_id_to_rank, top_track_ids
-                )
-                if success:
-                    print("Overlay video creation completed successfully")
-                else:
-                    print("Warning: Overlay video creation failed")
-            else:
-                print("Overlay video generation skipped (save_overlay=False)")
-            
-            return pkl_output_path
-            
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            if failure_logger:
-                failure_logger.log_failure(video_path, f"Processing error: {str(e)}")
             return None
 
 
