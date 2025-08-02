@@ -6,9 +6,9 @@
 import os
 import json
 import traceback
-from datetime import datetime
 import glob
 import re
+from datetime import datetime
 
 class ProcessingErrorLogger:
     """처리 과정에서 발생하는 에러들을 로그로 기록하는 클래스"""
@@ -81,9 +81,24 @@ class ProcessingErrorLogger:
         if os.path.exists(self.summary_file):
             try:
                 with open(self.summary_file, 'r', encoding='utf-8') as f:
-                    self.stats = json.load(f)
-                # Reset values that should not be carried over
+                    previous_stats = json.load(f)
+                
+                # Resume 시에는 비디오 카운트를 누적하지 않고 새로 시작
+                # 단, error_categories는 유지
+                if 'error_categories' in previous_stats:
+                    self.stats['error_categories'] = previous_stats['error_categories'].copy()
+                
+                # 원래 시작 시간 유지
+                if 'start_time' in previous_stats:
+                    self.stats['start_time'] = previous_stats['start_time']
+                
+                # 비디오 카운트는 0부터 시작 (resume에서 새로 처리할 비디오들만 카운트)
+                self.stats['total_videos'] = 0
+                self.stats['successful_videos'] = 0
+                self.stats['failed_videos'] = 0
+                self.stats['failed_windows'] = previous_stats.get('failed_windows', 0)
                 self.stats['end_time'] = None
+                
             except (json.JSONDecodeError, FileNotFoundError):
                 self.stats['start_time'] = datetime.now().isoformat() # Start new if corrupt
 

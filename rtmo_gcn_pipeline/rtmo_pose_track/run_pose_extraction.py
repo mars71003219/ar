@@ -8,66 +8,149 @@
 import os
 import argparse
 import glob
-import re
 from unified_pose_processor import UnifiedPoseProcessor
 from error_logger import ProcessingErrorLogger, capture_exception_info
 
+
+def _is_successful_result(result):
+    """처리 결과가 성공인지 확인다."""
+    return result and result.get('windows') and len(result['windows']) > 0
+
+
+def _handle_failed_result(result, video_path, error_logger):
+    """실패한 결과를 처리한다."""
+    if isinstance(result, dict) and 'failure_stage' in result:
+        error_logger.log_video_failure(video_path, failure_analysis=result)
+    elif isinstance(result, dict) and 'error_type' in result:
+        specific_cause = result.get('specific_cause', 'UNKNOWN_ERROR')
+        diagnosis = result.get('diagnosis', 'No diagnosis available')
+        error_message = f"{diagnosis} ({result.get('error_message', 'No details')})"
+        full_traceback = result.get('traceback', '')
+        error_logger.log_video_failure(video_path, None, specific_cause, error_message, full_traceback)
+    else:
+        error_msg = "Video processing returned None or empty result"
+        error_logger.log_video_failure(video_path, None, "PROCESSING_RETURNED_NONE", error_msg)
+
+
+def _setup_gpu_environment(args):
+    """초기 GPU 환경 설정을 처리한다."""
+    try:
+        import torch
+        torch_available = True
+    except ImportError:
+        torch_available = False
+        print("Warning: PyTorch not available. Using CPU")
+    
+    device = 'cpu'
+    gpu_ids = []
+    multi_gpu = False
+    
+    if args.gpu.lower() == 'cpu':
+        print("Using CPU")
+    elif torch_available and torch.cuda.is_available():
+        gpu_count = torch.cuda.device_count()
+        print(f"Available GPUs: {gpu_count}")
+        
+        for i in range(gpu_count):
+            print(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
+        
+        try:
+            requested_gpu_ids = [int(x.strip()) for x in args.gpu.split(',')]
+            valid_gpu_ids = [gpu_id for gpu_id in requested_gpu_ids if gpu_id < gpu_count]
+            
+            if not valid_gpu_ids:
+                print("Warning: No valid GPU IDs specified. Using GPU 0")
+                valid_gpu_ids = [0] if gpu_count > 0 else []
+            
+            if valid_gpu_ids:
+                if len(valid_gpu_ids) > 1:
+                    device = f'cuda:{valid_gpu_ids[0]}'
+                    gpu_ids = valid_gpu_ids
+                    multi_gpu = True
+                    print(f"Multi-GPU mode: GPUs {valid_gpu_ids}")
+                else:
+                    device = f'cuda:{valid_gpu_ids[0]}'
+                    gpu_ids = valid_gpu_ids
+                    multi_gpu = False
+                    print(f"Single GPU mode: GPU {valid_gpu_ids[0]}")
+        except ValueError:
+            print(f"Warning: Invalid GPU specification '{args.gpu}'. Using CPU")
+    else:
+        if torch_available:
+            print("Warning: CUDA not available. Using CPU")
+        else:
+            print("Using CPU (PyTorch not available)")
+    
+    return device, gpu_ids, multi_gpu
+
 def get_unprocessed_videos(input_dir, output_dir):
     """output 디렉토리를 기준으로 처리되지 않은 비디오 목록을 가져옵니다."""
+    video_extensions = ('.mp4', '.avi', '.mov', '.mkv')
     all_input_videos = glob.glob(os.path.join(input_dir, '**', '*.*'), recursive=True)
     
-    # 부모경로+파일명으로 유니크한 키 생성 (중복 해결)
     input_video_map = {}
-    for p in all_input_videos:
-        if p.endswith(('.mp4', '.avi', '.mov', '.mkv')):
-            basename = os.path.splitext(os.path.basename(p))[0]
-            parent_dir = os.path.basename(os.path.dirname(p))
+    for video_path in all_input_videos:
+        if video_path.endswith(video_extensions):
+            basename = os.path.splitext(os.path.basename(video_path))[0]
+            parent_dir = os.path.basename(os.path.dirname(video_path))
             unique_key = f"{parent_dir}/{basename}"
-            input_video_map[unique_key] = p
+            input_video_map[unique_key] = video_path
 
-    processed_video_keys = set()
-    dataset_name = os.path.basename(input_dir.rstrip('/\\'))
-    temp_path = os.path.join(output_dir, dataset_name, 'temp')
-
-    # temp 폴더 하위에서 비디오 이름으로 만들어진 폴더들을 찾습니다
-    if os.path.exists(temp_path):
-        for root, dirs, files in os.walk(temp_path):
-            for dir_name in dirs:
-                # 비디오 이름 폴더인지 확인 (Fight, Normal, train, val 같은 구조 폴더가 아닌)
-                if dir_name not in ['Fight', 'Normal', 'train', 'val', 'test']:
-                    # root에서 카테고리 추출 (Fight 또는 Normal)
-                    root_parts = root.split(os.sep)
-                    if 'Fight' in root_parts:
-                        temp_category = 'Fight'
-                    elif 'Normal' in root_parts or 'NonFight' in root_parts:
-                        temp_category = 'Normal'
-                    else:
-                        # 카테고리를 찾을 수 없는 경우 건너뛰기
-                        continue
-                    
-                    # Input에서 사용하는 카테고리명으로 매핑
-                    input_categories = ['Fight', 'NonFight']  # Input에서 사용하는 실제 카테고리명
-                    
-                    for input_category in input_categories:
-                        unique_key = f"{input_category}/{dir_name}"
-                        if unique_key in input_video_map:
-                            processed_video_keys.add(unique_key)
-                            break
-
+    processed_video_keys = _get_processed_videos(output_dir, os.path.basename(input_dir.rstrip('/\\')))
+    
     unprocessed_video_keys = set(input_video_map.keys()) - processed_video_keys
-    unprocessed_video_paths = [input_video_map[key] for key in unprocessed_video_keys if key in input_video_map]
+    unprocessed_video_paths = [input_video_map[key] for key in unprocessed_video_keys]
     
     return sorted(unprocessed_video_paths), len(processed_video_keys)
 
 
-
+def _get_processed_videos(output_dir, dataset_name):
+    """처리된 비디오 키 목록을 반환합니다. PKL 파일이 존재하는지 확인."""
+    processed_video_keys = set()
+    
+    # 1. temp 폴더에서 완료된 비디오들 확인 (PKL 파일 존재 여부)
+    temp_path = os.path.join(output_dir, dataset_name, 'temp')
+    if os.path.exists(temp_path):
+        for root, dirs, files in os.walk(temp_path):
+            for dir_name in dirs:
+                if dir_name not in ['Fight', 'NonFight', 'train', 'val', 'test']:
+                    # 비디오 폴더에 PKL 파일이 있는지 확인
+                    video_dir_path = os.path.join(root, dir_name)
+                    pkl_file = os.path.join(video_dir_path, f"{dir_name}_windows.pkl")
+                    
+                    if os.path.exists(pkl_file):
+                        root_parts = root.split(os.sep)
+                        
+                        # temp 폴더에서 실제 카테고리 확인하여 입력 키와 매칭
+                        if 'Fight' in root_parts:
+                            unique_key = f"Fight/{dir_name}"
+                            processed_video_keys.add(unique_key)
+                        elif 'NonFight' in root_parts:
+                            unique_key = f"NonFight/{dir_name}"
+                            processed_video_keys.add(unique_key)
+    
+    # 2. 최종 폴더(train/val/test)에서 완료된 비디오들 확인
+    final_dirs = ['train', 'val', 'test']
+    for split_dir in final_dirs:
+        split_path = os.path.join(output_dir, dataset_name, split_dir)
+        if os.path.exists(split_path):
+            for category in ['Fight', 'NonFight']:
+                category_path = os.path.join(split_path, category)
+                if os.path.exists(category_path):
+                    for video_dir in os.listdir(category_path):
+                        pkl_file = os.path.join(category_path, video_dir, f"{video_dir}_windows.pkl")
+                        if os.path.exists(pkl_file):
+                            if category == 'Fight':
+                                processed_video_keys.add(f"Fight/{video_dir}")
+                            else:  # NonFight
+                                processed_video_keys.add(f"NonFight/{video_dir}")
+    
+    return processed_video_keys
 
 def process_videos_with_logging(processor, video_files, args, error_logger):
     """에러 로깅을 포함한 비디오 처리"""
     from tqdm import tqdm
     from concurrent.futures import ProcessPoolExecutor, as_completed
-    
-    # 비디오 처리 시작
     
     successful_videos_data = []
     failed_count = 0
@@ -90,11 +173,15 @@ def process_videos_with_logging(processor, video_files, args, error_logger):
                         failed_count += 1
                         error_logger.log_video_failure(video_path, result)
                         print(f"Failed: {os.path.basename(video_path)} - {result.get('root_cause', 'Unknown error')}")
-                    else:
+                    elif isinstance(result, dict) and 'windows' in result:
                         successful_videos_data.append(result)
-                        windows_count = len(result.get('windows', [])) if result else 0
+                        windows_count = len(result.get('windows', []))
                         error_logger.log_video_success(video_path, windows_count)
                         print(f"Success: {os.path.basename(video_path)}")
+                    else:
+                        failed_count += 1
+                        error_logger.log_video_failure(video_path, None, "UNKNOWN_FAILURE", "Processing returned an unexpected result type.")
+                        print(f"Failed: {os.path.basename(video_path)} - Unknown error")
                         
                 except Exception as e:
                     failed_count += 1
@@ -104,7 +191,7 @@ def process_videos_with_logging(processor, video_files, args, error_logger):
         
         else:
             # 멀티프로세싱 사용 (각 프로세스마다 모델 로딩됨)
-            print(f"Using multi-process mode with {args.max_workers} workers (model will be loaded per process)")
+            print(f"Using multi-process mode with {args.max_workers} workers")
             with ProcessPoolExecutor(max_workers=args.max_workers) as executor:
                 # 작업 제출
                 future_to_video = {
@@ -122,43 +209,25 @@ def process_videos_with_logging(processor, video_files, args, error_logger):
                     
                     try:
                         result = future.result()
-                        if result and result.get('windows'):
-                            # 성공 로그
+                        result = future.result()
+                        
+                        if _is_successful_result(result):
                             windows_count = len(result['windows'])
                             error_logger.log_video_success(video_path, windows_count)
                             successful_videos_data.append(result)
-                        elif result and isinstance(result, dict) and 'failure_stage' in result:
-                            # 상세 실패 분석 결과가 포함된 경우 (새로운 분석 방식)
-                            error_logger.log_video_failure(video_path, failure_analysis=result)
-                            failed_count += 1
-                        elif result and isinstance(result, dict) and 'error_type' in result:
-                            # 에러 상세 정보가 포함된 결과 (기존 방식)
-                            specific_cause = result.get('specific_cause', 'UNKNOWN_ERROR')
-                            diagnosis = result.get('diagnosis', 'No diagnosis available')
-                            error_message = f"{diagnosis} ({result.get('error_message', 'No details')})"
-                            full_traceback = result.get('traceback', '')
-                            
-                            error_logger.log_video_failure(video_path, None, specific_cause, error_message, full_traceback)
-                            failed_count += 1
                         else:
-                            # None이나 빈 결과의 경우 - 구체적인 실패 원인을 찾을 수 없는 상황
-                            error_msg = "Video processing returned None or empty result - check video file integrity"
-                            error_logger.log_video_failure(video_path, None, "PROCESSING_RETURNED_NONE", error_msg)
+                            _handle_failed_result(result, video_path, error_logger)
                             failed_count += 1
                             
                     except Exception as exc:
-                        # 처리 중 예외 발생
                         error_type, error_message, full_traceback = capture_exception_info()
                         error_logger.log_video_failure(video_path, None, error_type, error_message, full_traceback)
-                        # 비디오 처리 예외 발생
                         failed_count += 1
     
     except Exception as e:
         error_type, error_message, full_traceback = capture_exception_info()
         error_logger.log_general_error("BATCH_PROCESSING", f"{error_type}: {error_message}", full_traceback)
         raise
-    
-    # 배치 처리 완료
     
     return successful_videos_data
 
@@ -171,7 +240,7 @@ def main():
     
     # 공통 설정
     parser.add_argument('--input-dir', type=str, 
-                       default='/aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2002',
+                       default='/aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000',
                        help='Input video directory (for full mode) or processed data directory (for merge mode)')
     parser.add_argument('--output-dir', type=str,
                        default='/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output',
@@ -354,57 +423,7 @@ def main():
             return
         
         # Full 모드 처리 (기존 로직)
-        # GPU 설정 검증 및 조정 (출력 전에 먼저 수행)
-        try:
-            import torch
-            torch_available = True
-        except ImportError:
-            torch_available = False
-            print("Warning: PyTorch not available. Using CPU")
-        
-        # 기본값 초기화
-        device = 'cpu'
-        gpu_ids = []
-        multi_gpu = False
-        
-        if args.gpu.lower() == 'cpu':
-            print("Using CPU")
-        elif torch_available and torch.cuda.is_available():
-            gpu_count = torch.cuda.device_count()
-            print(f"Available GPUs: {gpu_count}")
-            
-            # 사용 가능한 GPU 목록 표시
-            for i in range(gpu_count):
-                print(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
-            
-            # GPU ID 파싱
-            try:
-                requested_gpu_ids = [int(x.strip()) for x in args.gpu.split(',')]
-                valid_gpu_ids = [gpu_id for gpu_id in requested_gpu_ids if gpu_id < gpu_count]
-                
-                if not valid_gpu_ids:
-                    print("Warning: No valid GPU IDs specified. Using GPU 0")
-                    valid_gpu_ids = [0] if gpu_count > 0 else []
-                
-                # 설정 결정
-                if valid_gpu_ids:
-                    if len(valid_gpu_ids) > 1:
-                        device = f'cuda:{valid_gpu_ids[0]}'  # 메인 GPU
-                        gpu_ids = valid_gpu_ids
-                        multi_gpu = True
-                        print(f"Multi-GPU mode: GPUs {valid_gpu_ids}")
-                    else:
-                        device = f'cuda:{valid_gpu_ids[0]}'
-                        gpu_ids = valid_gpu_ids
-                        multi_gpu = False
-                        print(f"Single GPU mode: GPU {valid_gpu_ids[0]}")
-            except ValueError:
-                print(f"Warning: Invalid GPU specification '{args.gpu}'. Using CPU")
-        else:
-            if torch_available:
-                print("Warning: CUDA not available. Using CPU")
-            else:
-                print("Using CPU (PyTorch not available)")
+        device, gpu_ids, multi_gpu = _setup_gpu_environment(args)
         
         # 이제 정보 출력
         print("=" * 70)
@@ -578,21 +597,21 @@ def main():
         print("│   │   │   ├── video1_1.mp4")
         print("│   │   │   └── ...")
         print("│   │   └── video2/...")
-        print("│   └── Normal/")
+        print("│   └── NonFight/")
         print("│       └── ...")
         print("├── val/                                # 최종 분배된 검증 데이터")
         print("│   ├── Fight/")
-        print("│   └── Normal/")
+        print("│   └── NonFight/")
         print("├── test/                               # 최종 분배된 테스트 데이터")
         print("│   ├── Fight/")
-        print("│   └── Normal/")
+        print("│   └── NonFight/")
         print("├── {}_train_windows.pkl                # 통합 학습 PKL".format(dataset_name))
         print("├── {}_val_windows.pkl                  # 통합 검증 PKL".format(dataset_name))
         print("└── {}_test_windows.pkl                 # 통합 테스트 PKL".format(dataset_name))
         print()
         print(" Processing Workflow:")
         print("-" * 50)
-        print("1. Input videos processed → temp/train|val/Fight|Normal/video_name/")
+        print("1. Input videos processed → temp/train|val/Fight|NonFight/video_name/")
         print("2. All inference completed → split into train/val/test by ratio")
         print("3. Files moved from temp → final train/val/test structure") 
         print("4. Unified PKL files created → temp folder cleaned up")

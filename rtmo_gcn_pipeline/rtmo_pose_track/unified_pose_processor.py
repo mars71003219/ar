@@ -13,12 +13,14 @@ from collections import defaultdict
 import cv2
 import psutil
 import atexit
-from concurrent.futures import ProcessPoolExecutor, as_completed
+import shutil
 import multiprocessing as mp
 from enhanced_rtmo_bytetrack_pose_extraction import EnhancedRTMOPoseExtractor
 
-# CUDA multiprocessing 설정 - spawn 방식 사용
-mp.set_start_method('spawn', force=True)
+try:
+    mp.set_start_method('spawn', force=True)
+except RuntimeError:
+    pass
 
 class UnifiedPoseProcessor:
     """통합 포즈 처리기 - 비디오에서 최종 STGCN 데이터까지 원스톱"""
@@ -172,7 +174,7 @@ class UnifiedPoseProcessor:
                 all_pose_results = self._apply_temporal_padding(all_pose_results, self.clip_len)
             
             stride = training_stride
-            windows_data = self._process_windows_with_tracking(all_pose_results, video_path, output_dir, stride)
+            windows_data = self._process_windows_with_tracking(all_pose_results, video_path, output_dir, input_dir, stride)
             
             if isinstance(windows_data, dict) and 'failure_stage' in windows_data:
                 return windows_data
@@ -186,7 +188,7 @@ class UnifiedPoseProcessor:
             
             video_name = os.path.splitext(os.path.basename(video_path))[0]
             label = 1 if '/Fight/' in video_path else 0
-            label_folder = 'Fight' if label == 1 else 'Normal'
+            label_folder = 'Fight' if label == 1 else 'NonFight'
             dataset_name = os.path.basename(input_dir.rstrip('/\\'))
             
             video_result = {
@@ -248,7 +250,7 @@ class UnifiedPoseProcessor:
                 }
             )
     
-    def _process_windows_with_tracking(self, all_pose_results, video_path, output_dir, stride=10):
+    def _process_windows_with_tracking(self, all_pose_results, video_path, output_dir, input_dir, stride=10):
         try:
             total_frames = len(all_pose_results)
             windows_data = []
@@ -267,7 +269,8 @@ class UnifiedPoseProcessor:
                     start_frame, 
                     end_frame,
                     video_path,
-                    output_dir
+                    output_dir,
+                    input_dir
                 )
                 
                 if window_data:
@@ -330,6 +333,24 @@ class UnifiedPoseProcessor:
             if len(failed_windows) > 0:
                 print(f"Warning: {len(failed_windows)} windows failed but success rate {success_rate:.1%} meets minimum threshold {self.min_success_rate:.1%}")
             
+            # 비디오 처리 완료 시 즉시 개별 PKL 저장
+            video_name = os.path.splitext(os.path.basename(video_path))[0]
+            label = 1 if '/Fight/' in video_path else 0
+            label_folder = 'Fight' if label == 1 else 'NonFight'
+            dataset_name = os.path.basename(input_dir.rstrip('/\\')) if input_dir else 'unknown_dataset'
+            
+            video_result_for_pkl = {
+                'video_name': video_name,
+                'video_path': video_path,
+                'label': label,
+                'label_folder': label_folder,
+                'total_frames': total_frames,
+                'num_windows': len(windows_data),
+                'windows': windows_data,
+                'dataset_name': dataset_name
+            }
+            self._save_individual_video_pkl(video_result_for_pkl, output_dir, input_dir)
+            
             return windows_data
             
         except Exception as e:
@@ -346,7 +367,7 @@ class UnifiedPoseProcessor:
                 }
             )
     
-    def _process_single_window(self, window_pose_results, window_idx, start_frame, end_frame, video_path, output_dir):
+    def _process_single_window(self, window_pose_results, window_idx, start_frame, end_frame, video_path, output_dir, input_dir):
         try:
             from enhanced_rtmo_bytetrack_pose_extraction import (
                 ByteTracker, create_detection_results, assign_track_ids_from_bytetrack,
@@ -396,7 +417,7 @@ class UnifiedPoseProcessor:
             if self.save_overlay:
                 segment_video_path = self._create_window_segment_video(
                     video_path, output_dir, window_idx, start_frame, end_frame, 
-                    tracked_pose_results, pose_model, annotation
+                    tracked_pose_results, pose_model, annotation, input_dir
                 )
             
             window_data = {
@@ -429,27 +450,29 @@ class UnifiedPoseProcessor:
             )
     
     def _create_window_segment_video(self, video_path, output_dir, window_idx, start_frame, end_frame, 
-                                   tracked_pose_results, pose_model, annotation):
+                                   tracked_pose_results, pose_model, annotation, input_dir=None):
         try:
             video_name = os.path.splitext(os.path.basename(video_path))[0]
             label = 1 if '/Fight/' in video_path else 0
-            label_folder = 'Fight' if label == 1 else 'Normal'
+            label_folder = 'Fight' if label == 1 else 'NonFight'
             
-            # input_dir 구조에서 dataset_name과 split_folder 추출
+            # input_dir에서 dataset_name 추출, video_path에서 split_folder 추출
+            if input_dir:
+                dataset_name = os.path.basename(input_dir.rstrip('/\\'))
+            else:
+                dataset_name = 'unknown_dataset'
+            
+            # video_path에서 split_folder 추출 (train, val, test 등)
             path_parts = video_path.replace('\\', '/').split('/')
-            dataset_name = None
-            split_folder = None  # train, val, test 등
+            split_folder = None
             
-            # Fight, Normal 폴더를 찾고, 그 상위와 상위의 상위 폴더 확인
+            # Fight, Normal 폴더를 찾고, 그 상위 폴더 확인
             for i, part in enumerate(path_parts):
-                if part in ['Fight', 'Normal'] and i >= 2:
+                if part in ['Fight', 'NonFight'] and i >= 1:
                     split_folder = path_parts[i-1]  # train, val 등
-                    dataset_name = path_parts[i-2]  # RWF-2001 등
                     break
             
-            if dataset_name is None or split_folder is None:
-                # fallback: 기본값 사용
-                dataset_name = 'RWF-2001'
+            if split_folder is None:
                 split_folder = 'train'  # 기본값
             
             # input-dir 구조를 따른 temp 폴더: output_dir/dataset_name/temp/split_folder/label_folder/video_name/
@@ -535,38 +558,44 @@ class UnifiedPoseProcessor:
         except Exception as e:
             return pose_results
 
-    def process_batch_videos(self, video_list, output_dir, input_dir, training_stride=10, max_workers=2):
-        successful_videos_data = []
-        failed_count = 0
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            future_to_video = {executor.submit(self.process_single_video_to_segments, video, output_dir, input_dir, training_stride): video for video in video_list}
-            for future in tqdm(as_completed(future_to_video), total=len(video_list), desc="Processing videos"):
-                video = future_to_video[future]
-                try:
-                    result = future.result()
-                    if result:
-                        successful_videos_data.append(result)
-                    else:
-                        failed_count += 1
-                except Exception as exc:
-                    failed_count += 1
-        return successful_videos_data
     
     def create_unified_stgcn_data(self, video_results_list, output_dir, input_dir, train_split=0.7, val_split=0.2):
         dataset_name = os.path.basename(input_dir.rstrip('/\\'))
         
         print(f"Creating unified STGCN data for dataset: {dataset_name}")
-        print(f"Step 1: Saving individual video results to temp folder...")
+        print(f"Step 1: Loading existing individual PKL files from temp folder...")
         
-        # Step 1: 모든 개별 비디오 결과를 temp 폴더에 저장
+        # Step 1: temp 폴더의 기존 PKL 파일들을 읽어서 처리
         all_stgcn_samples = []
-        for video_result in video_results_list:
+        temp_path = os.path.join(output_dir, dataset_name, 'temp')
+        
+        if not os.path.exists(temp_path):
+            print(f"Warning: temp folder not found at {temp_path}")
+            return 0, 0, 0
+        
+        # temp 폴더에서 모든 PKL 파일 찾기
+        video_results_from_pkl = []
+        for root, dirs, files in os.walk(temp_path):
+            for file in files:
+                if file.endswith('_windows.pkl'):
+                    pkl_path = os.path.join(root, file)
+                    try:
+                        with open(pkl_path, 'rb') as f:
+                            video_data = pickle.load(f)
+                        video_results_from_pkl.append(video_data)
+                        print(f"Loaded PKL: {pkl_path}")
+                    except Exception as e:
+                        print(f"Error loading PKL {pkl_path}: {str(e)}")
+        
+        if not video_results_from_pkl:
+            print("No PKL files found in temp folder")
+            return 0, 0, 0
+        
+        # PKL에서 로드한 데이터로 STGCN 샘플 생성
+        for video_result in video_results_from_pkl:
             video_name = video_result['video_name']
             label = video_result['label']
             label_folder = video_result['label_folder']
-            
-            # temp 폴더에 개별 비디오 PKL 저장
-            self._save_video_pkl(video_result, output_dir, dataset_name)
             
             # STGCN 샘플 생성 (메모리에 유지)
             for window_data in video_result['windows']:
@@ -577,13 +606,13 @@ class UnifiedPoseProcessor:
         print(f"Step 2: Splitting data into train/val/test sets...")
         # Step 2: 모든 추론 완료 후 train/val/test 분할
         train_segments, val_segments, test_segments = self._split_samples_by_video(
-            all_stgcn_samples, video_results_list, train_split, val_split
+            all_stgcn_samples, video_results_from_pkl, train_split, val_split
         )
         
         print(f"Step 3: Moving temp files to final train/val/test structure...")
         # Step 3: temp에서 최종 train/val/test 구조로 파일 이동
         self._save_split_data_new_structure(
-            train_segments, val_segments, test_segments, output_dir, dataset_name, video_results_list
+            train_segments, val_segments, test_segments, output_dir, dataset_name, video_results_from_pkl
         )
         
         print(f"Step 4: Creating unified PKL files...")
@@ -607,7 +636,7 @@ class UnifiedPoseProcessor:
             split_folder = None
             
             for i, part in enumerate(path_parts):
-                if part in ['Fight', 'Normal'] and i >= 1:
+                if part in ['Fight', 'NonFight'] and i >= 1:
                     split_folder = path_parts[i-1]  # train, val 등
                     break
             
@@ -624,6 +653,42 @@ class UnifiedPoseProcessor:
             print(f"Saved video PKL to temp: {video_pkl_path}")
         except Exception as e:
             print(f"Error saving video PKL to temp: {str(e)}")
+    
+    def _save_individual_video_pkl(self, video_result, output_dir, input_dir):
+        """비디오 처리 완료 시 즉시 개별 PKL 저장"""
+        try:
+            if not video_result or 'windows' not in video_result or not video_result['windows']:
+                print("No valid windows data to save for PKL.")
+                return
+            
+            video_name = video_result['video_name']
+            label_folder = video_result['label_folder']
+            video_path = video_result['video_path']
+            dataset_name = video_result['dataset_name']
+            
+            # video_path에서 split_folder 추출 (train, val, test 등)
+            path_parts = video_path.replace('\\', '/').split('/')
+            split_folder = None
+            
+            for i, part in enumerate(path_parts):
+                if part in ['Fight', 'NonFight'] and i >= 1:
+                    split_folder = path_parts[i-1]  # train, val 등
+                    break
+            
+            if split_folder is None:
+                split_folder = 'train'  # 기본값
+            
+            # temp 폴더에 PKL 저장: output_dir/dataset_name/temp/split_folder/label_folder/video_name/
+            video_pkl_dir = os.path.join(output_dir, dataset_name, 'temp', split_folder, label_folder, video_name)
+            os.makedirs(video_pkl_dir, exist_ok=True)
+            video_pkl_path = os.path.join(video_pkl_dir, f"{video_name}_windows.pkl")
+            
+            with open(video_pkl_path, 'wb') as f:
+                pickle.dump(video_result, f)
+            print(f"Saved individual video PKL: {video_pkl_path}")
+            
+        except Exception as e:
+            print(f"Error saving individual video PKL: {str(e)}")
     
     def _convert_window_to_stgcn_format(self, window_data, video_name, label, label_folder):
         try:
@@ -669,53 +734,131 @@ class UnifiedPoseProcessor:
     
     def _split_samples_by_video(self, all_samples, video_results_list, train_split, val_split):
         try:
-            fight_video_groups = defaultdict(list)
-            normal_video_groups = defaultdict(list)
-            for video_result in video_results_list:
-                video_name = video_result['video_name']
-                label = video_result['label']
-                group_key = video_name.split('_')[0] if '_' in video_name else video_name
-                if label == 1: fight_video_groups[group_key].append(video_name)
-                else: normal_video_groups[group_key].append(video_name)
-
-            def split_video_groups(video_groups, train_ratio, val_ratio):
-                group_keys = list(video_groups.keys())
-                np.random.seed(42)
-                np.random.shuffle(group_keys)
-                total_groups = len(group_keys)
-                if total_groups < 3:
-                    train_videos = []
-                    for group_key in group_keys:
-                        train_videos.extend(video_groups[group_key])
-                    return train_videos, [], []
+            # input_dir에 이미 train/val/test 구조가 있는지 확인
+            has_existing_split = any('train' in video_result['video_path'] or 
+                                   'val' in video_result['video_path'] or 
+                                   'test' in video_result['video_path'] 
+                                   for video_result in video_results_list)
+            
+            if has_existing_split:
+                # 기존 split 구조를 따라 분할
+                print("Detected existing train/val/test split structure. Using existing split.")
+                train_segments = []
+                val_segments = []
+                test_segments = []
                 
-                train_size = int(total_groups * train_ratio)
-                val_size = int(total_groups * val_ratio)
-                train_group_keys = group_keys[:train_size]
-                val_group_keys = group_keys[train_size:train_size + val_size]
-                test_group_keys = group_keys[train_size + val_size:]
+                for sample in all_samples:
+                    video_name = sample['window_info']['video_name']
+                    # video_results_list에서 해당 비디오의 split 폴더 찾기
+                    split_folder = None
+                    for video_result in video_results_list:
+                        if video_result['video_name'] == video_name:
+                            video_path = video_result['video_path']
+                            if '/train/' in video_path or '\\train\\' in video_path:
+                                split_folder = 'train'
+                            elif '/val/' in video_path or '\\val\\' in video_path:
+                                split_folder = 'val'
+                            elif '/test/' in video_path or '\\test\\' in video_path:
+                                split_folder = 'test'
+                            break
+                    
+                    if split_folder == 'train':
+                        train_segments.append(sample)
+                    elif split_folder == 'val':
+                        val_segments.append(sample)
+                    elif split_folder == 'test':
+                        test_segments.append(sample)
+                    else:
+                        # 기본값으로 train에 배정
+                        train_segments.append(sample)
                 
-                train_videos = [v for gk in train_group_keys for v in video_groups[gk]]
-                val_videos = [v for gk in val_group_keys for v in video_groups[gk]]
-                test_videos = [v for gk in test_group_keys for v in video_groups[gk]]
-                return train_videos, val_videos, test_videos
+                # test 폴더가 없으면 val에서 일부를 test로 이동 (0.7:0.2:0.1 비율 맞춤)
+                if not test_segments and val_segments:
+                    print("No test split found. Creating test split from validation data.")
+                    # val 데이터를 반반으로 나눠서 일부를 test로 이동
+                    val_count = len(val_segments)
+                    test_count = val_count // 2
+                    
+                    # Label별로 균등하게 분할
+                    val_fight = [s for s in val_segments if s['label'] == 1]
+                    val_nonFight = [s for s in val_segments if s['label'] == 0]
+                    
+                    # Fight 데이터 분할
+                    fight_test_count = len(val_fight) // 2
+                    test_fight = val_fight[:fight_test_count]
+                    remaining_val_fight = val_fight[fight_test_count:]
+                    
+                    # NonFight 데이터 분할
+                    nonFight_test_count = len(val_nonFight) // 2
+                    test_nonFight = val_nonFight[:nonFight_test_count]
+                    remaining_val_nonFight = val_nonFight[nonFight_test_count:]
+                    
+                    # 새로운 val과 test 설정
+                    test_segments = test_fight + test_nonFight
+                    val_segments = remaining_val_fight + remaining_val_nonFight
+                    
+                    print(f"Split validation data: {len(val_segments)} val, {len(test_segments)} test")
+                
+                print(f"Using existing split: {len(train_segments)} train, {len(val_segments)} val, {len(test_segments)} test")
+                return train_segments, val_segments, test_segments
+            
+            else:
+                # 기존 로직: 모든 비디오를 새로 분할
+                print("No existing split structure found. Creating new split.")
+                fight_video_groups = defaultdict(list)
+                normal_video_groups = defaultdict(list)
+                for video_result in video_results_list:
+                    video_name = video_result['video_name']
+                    label = video_result['label']
+                    group_key = video_name.split('_')[0] if '_' in video_name else video_name
+                    if label == 1: fight_video_groups[group_key].append(video_name)
+                    else: normal_video_groups[group_key].append(video_name)
 
-            fight_train_videos, fight_val_videos, fight_test_videos = split_video_groups(fight_video_groups, train_split, val_split)
-            normal_train_videos, normal_val_videos, normal_test_videos = split_video_groups(normal_video_groups, train_split, val_split)
+                def split_video_groups(video_groups, train_ratio, val_ratio):
+                    group_keys = list(video_groups.keys())
+                    np.random.seed(42)
+                    np.random.shuffle(group_keys)
+                    total_groups = len(group_keys)
+                    if total_groups < 3:
+                        train_videos = []
+                        for group_key in group_keys:
+                            train_videos.extend(video_groups[group_key])
+                        return train_videos, [], []
+                    
+                    train_end_idx = int(total_groups * train_ratio)
+                    val_end_idx = int(total_groups * (train_ratio + val_ratio))
 
-            all_train_videos = fight_train_videos + normal_train_videos
-            all_val_videos = fight_val_videos + normal_val_videos
-            all_test_videos = fight_test_videos + normal_test_videos
+                    # Ensure val set gets at least one sample if possible
+                    if total_groups > 2 and train_end_idx == val_end_idx and val_end_idx < total_groups:
+                        val_end_idx += 1
 
-            train_segments = [s for s in all_samples if s['window_info']['video_name'] in all_train_videos]
-            val_segments = [s for s in all_samples if s['window_info']['video_name'] in all_val_videos]
-            test_segments = [s for s in all_samples if s['window_info']['video_name'] in all_test_videos]
+                    train_group_keys = group_keys[:train_end_idx]
+                    val_group_keys = group_keys[train_end_idx:val_end_idx]
+                    test_group_keys = group_keys[val_end_idx:]
+                    
+                    train_videos = [v for gk in train_group_keys for v in video_groups[gk]]
+                    val_videos = [v for gk in val_group_keys for v in video_groups[gk]]
+                    test_videos = [v for gk in test_group_keys for v in video_groups[gk]]
+                    return train_videos, val_videos, test_videos
 
-            np.random.shuffle(train_segments)
-            np.random.shuffle(val_segments)
-            np.random.shuffle(test_segments)
-            return train_segments, val_segments, test_segments
+                fight_train_videos, fight_val_videos, fight_test_videos = split_video_groups(fight_video_groups, train_split, val_split)
+                normal_train_videos, normal_val_videos, normal_test_videos = split_video_groups(normal_video_groups, train_split, val_split)
+
+                all_train_videos = fight_train_videos + normal_train_videos
+                all_val_videos = fight_val_videos + normal_val_videos
+                all_test_videos = fight_test_videos + normal_test_videos
+
+                train_segments = [s for s in all_samples if s['window_info']['video_name'] in all_train_videos]
+                val_segments = [s for s in all_samples if s['window_info']['video_name'] in all_val_videos]
+                test_segments = [s for s in all_samples if s['window_info']['video_name'] in all_test_videos]
+
+                np.random.shuffle(train_segments)
+                np.random.shuffle(val_segments)
+                np.random.shuffle(test_segments)
+                return train_segments, val_segments, test_segments
+                
         except Exception as e:
+            print(f"Error in split_samples_by_video: {str(e)}")
             return [], [], []
     
     def _save_split_data_new_structure(self, train_segments, val_segments, test_segments, output_dir, dataset_name, video_results_list):
@@ -731,9 +874,9 @@ class UnifiedPoseProcessor:
                     os.makedirs(fight_dir, exist_ok=True)
                     self._move_segment_files_to_split(fight_segments, fight_dir, 'Fight', video_results_list)
                 if normal_segments:
-                    normal_dir = os.path.join(output_dir, dataset_name, split_name, 'Normal')
+                    normal_dir = os.path.join(output_dir, dataset_name, split_name, 'NonFight')
                     os.makedirs(normal_dir, exist_ok=True)
-                    self._move_segment_files_to_split(normal_segments, normal_dir, 'Normal', video_results_list)
+                    self._move_segment_files_to_split(normal_segments, normal_dir, 'NonFight', video_results_list)
         except Exception as e:
             print(f"Error saving split data: {str(e)}")
     
@@ -764,7 +907,7 @@ class UnifiedPoseProcessor:
                     original_split_folder = None
                     
                     for i, part in enumerate(path_parts):
-                        if part in ['Fight', 'Normal'] and i >= 1:
+                        if part in ['Fight', 'NonFight'] and i >= 1:
                             original_split_folder = path_parts[i-1]  # train, val 등
                             break
                     
@@ -813,11 +956,50 @@ class UnifiedPoseProcessor:
         try:
             base_output_dir = os.path.join(output_dir, dataset_name)
             splits_data = {'train': train_segments, 'val': val_segments, 'test': test_segments}
+            
             for split_name, segments in splits_data.items():
-                if not segments: continue
+                if not segments: 
+                    continue
+                    
                 pkl_path = os.path.join(base_output_dir, f"{dataset_name}_{split_name}_windows.pkl")
-                with open(pkl_path, 'wb') as f:
-                    pickle.dump(segments, f)
+                
+                # 기존 통합 PKL 파일이 있으면 병합
+                if os.path.exists(pkl_path):
+                    try:
+                        with open(pkl_path, 'rb') as f:
+                            existing_segments = pickle.load(f)
+                        
+                        # 기존 비디오 이름들 수집
+                        existing_video_names = set()
+                        for segment in existing_segments:
+                            if 'window_info' in segment and 'video_name' in segment['window_info']:
+                                existing_video_names.add(segment['window_info']['video_name'])
+                        
+                        # 새로운 세그먼트만 추가 (중복 방지)
+                        new_segments = []
+                        for segment in segments:
+                            if 'window_info' in segment and 'video_name' in segment['window_info']:
+                                video_name = segment['window_info']['video_name']
+                                if video_name not in existing_video_names:
+                                    new_segments.append(segment)
+                        
+                        # 기존 데이터와 새 데이터 병합
+                        merged_segments = existing_segments + new_segments
+                        print(f"Merged {len(existing_segments)} existing + {len(new_segments)} new = {len(merged_segments)} total segments for {split_name}")
+                        
+                        with open(pkl_path, 'wb') as f:
+                            pickle.dump(merged_segments, f)
+                            
+                    except Exception as merge_error:
+                        print(f"Error merging existing PKL file {pkl_path}, creating new: {str(merge_error)}")
+                        with open(pkl_path, 'wb') as f:
+                            pickle.dump(segments, f)
+                else:
+                    # 새로 생성
+                    with open(pkl_path, 'wb') as f:
+                        pickle.dump(segments, f)
+                    print(f"Created new unified PKL: {pkl_path} with {len(segments)} segments")
+                        
         except Exception as e:
             print(f"Error saving unified PKL files: {str(e)}")
     
@@ -858,14 +1040,16 @@ class UnifiedPoseProcessor:
     
     def _force_remove_directory(self, dir_path):
         try:
-            import stat, shutil
+            import stat
             def handle_remove_readonly(func, path, exc):
                 try:
                     os.chmod(path, stat.S_IWRITE)
                     func(path)
-                except Exception: pass
+                except Exception:
+                    pass
             shutil.rmtree(dir_path, onerror=handle_remove_readonly)
-        except Exception: pass
+        except Exception:
+            pass
     
     def _analyze_video_failure(self, video_path, exception, full_traceback):
         video_name = os.path.basename(video_path)
@@ -919,8 +1103,11 @@ class UnifiedPoseProcessor:
         return "PROCESSING_ERROR", f"Processing failed with {type(exception).__name__}"
     
     def _get_current_timestamp(self):
-        try: return datetime.now().isoformat()
-        except: return None
+        from datetime import datetime
+        try:
+            return datetime.now().isoformat()
+        except Exception:
+            return None
     
     def _cleanup_multiprocessing_resources(self):
         try:
@@ -970,7 +1157,7 @@ class UnifiedPoseProcessor:
                 split_dir = os.path.join(temp_dir, split_folder)
                 if not os.path.isdir(split_dir): continue
                 
-                for label_folder in ['Fight', 'Normal']:
+                for label_folder in ['Fight', 'NonFight']:
                     label_dir = os.path.join(split_dir, label_folder)
                     if not os.path.exists(label_dir): continue
                     label = 1 if label_folder == 'Fight' else 0
@@ -992,7 +1179,8 @@ class UnifiedPoseProcessor:
                                 for window_data in video_result['windows']:
                                     stgcn_sample = self._convert_window_to_stgcn_format(window_data, video_name, label, label_folder)
                                     if stgcn_sample: all_stgcn_samples.append(stgcn_sample)
-                        except Exception as e: continue
+                        except Exception:
+                            continue
             
             if not video_results_list: return 0, 0, 0
             
@@ -1001,7 +1189,7 @@ class UnifiedPoseProcessor:
             self._save_unified_pkl_files(train_segments, val_segments, test_segments, output_dir, dataset_name)
             self._cleanup_temp_folder(output_dir, dataset_name)
             return len(train_segments), len(val_segments), len(test_segments)
-        except Exception as e:
+        except Exception:
             return 0, 0, 0
     
     def _create_failure_analysis(self, video_path, failure_stage, root_cause, detailed_info=None):

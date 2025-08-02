@@ -14,11 +14,9 @@ Enhanced STGCN++ Dataset Annotation Generator
 
 import os
 import glob
-import pickle
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict
-from datetime import datetime
 
 import cv2
 import numpy as np
@@ -704,10 +702,6 @@ class EnhancedFightInvolvementScorer:
         
         return len(all_frames) if all_frames else 1
 
-
-
-
-
 # =============================================================================
 # Enhanced Annotation Creator
 # =============================================================================
@@ -1007,213 +1001,8 @@ def _calculate_track_quality(track_data):
 # File Operations
 # =============================================================================
 
-def find_video_files(input_path):
-    """비디오 파일 찾기"""
-    if os.path.isfile(input_path):
-        return [input_path]
-    
-    video_extensions = ['*.mp4', '*.MP4', '*.avi', '*.AVI', '*.mov', '*.MOV']
-    video_files = []
-    
-    for ext in video_extensions:
-        pattern = os.path.join(input_path, '**', ext)
-        video_files.extend(glob.glob(pattern, recursive=True))
-    
-    return sorted(video_files)
 
 
-def get_video_extension(video_path):
-    """비디오 파일의 확장자 반환"""
-    return os.path.splitext(video_path)[1].lower()
-
-
-def get_output_path(video_path, input_root, output_root, extension):
-    """출력 경로 생성"""
-    input_basename = os.path.basename(input_root.rstrip('/'))
-    
-    abs_video_path = os.path.abspath(video_path)
-    abs_input_root = os.path.abspath(input_root)
-    
-    rel_path = os.path.relpath(abs_video_path, abs_input_root)
-    rel_path_with_base = os.path.join(input_basename, rel_path)
-    
-    base_name = os.path.splitext(rel_path_with_base)[0]
-    output_file = base_name + extension
-    output_path = os.path.join(output_root, output_file)
-    
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
-    return output_path
-
-
-def create_overlay_video_streaming(video_path, input_root, output_root, pose_results, fps, width, height, pose_model, track_id_to_rank, top_track_ids=None):
-    """메모리 효율적인 스트리밍 방식 오버레이 비디오 생성"""
-    try:
-        # 비디오 확장자 확인
-        input_ext = get_video_extension(video_path)
-        
-        # 출력 파일 경로 생성
-        if input_ext == '.mp4':
-            output_ext = '_enhanced_rtmo_overlay.mp4'
-        elif input_ext == '.avi':
-            output_ext = '_enhanced_rtmo_overlay.avi'
-        elif input_ext == '.mov':
-            output_ext = '_enhanced_rtmo_overlay.mov'
-        else:
-            output_ext = '_enhanced_rtmo_overlay.avi'  # 기본값
-        
-        video_output_path = get_output_path(video_path, input_root, output_root, output_ext)
-        
-        # 비디오 라이터 설정
-        _, out_writer = setup_video_writer(video_output_path, input_ext, fps, width, height)
-        if out_writer is None:
-            print(f"Failed to create video writer for {video_output_path}")
-            return False
-        
-        # Visualizer 초기화
-        from mmpose.registry import VISUALIZERS
-        visualizer = VISUALIZERS.build(pose_model.cfg.visualizer)
-        visualizer.set_dataset_meta(pose_model.dataset_meta)
-        
-        # 원본 비디오 다시 읽기 (스트리밍)
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            print(f"Failed to open video: {video_path}")
-            return False
-        
-        print(f"Creating overlay video: {video_output_path}")
-        vis_pbar = tqdm(total=len(pose_results), desc="Creating overlay video")
-        
-        # 각 프레임을 스트리밍으로 처리
-        for idx, pose_result in enumerate(pose_results):
-            success, frame = cap.read()
-            if not success:
-                print(f"Warning: Could not read frame {idx}")
-                break
-                
-            try:
-                # 포즈 시각화 (라벨 비활성화)
-                visualizer.add_datasample(
-                    'result',
-                    frame,
-                    data_sample=pose_result,
-                    draw_gt=False,
-                    draw_heatmap=False,
-                    draw_bbox=False,  # 바운딩 박스와 라벨 비활성화
-                    show_kpt_idx=False,
-                    skeleton_style='mmpose'
-                )
-                
-                # 시각화된 프레임 가져오기
-                vis_frame = visualizer.get_image()
-                
-                # 프레임 크기 조정 (필요시)
-                if vis_frame.shape[:2] != (height, width):
-                    vis_frame = cv2.resize(vis_frame, (width, height))
-                
-                # TrackID 추가 표시 (상위 트랙 강조)
-                vis_frame = draw_track_ids(vis_frame, pose_result, track_id_to_rank, top_track_ids)
-                
-                # 비디오에 프레임 작성
-                out_writer.write(vis_frame)
-                
-            except Exception as e:
-                print(f"Warning: Failed to process frame {idx}: {e}")
-                # 오리지널 프레임 사용
-                out_writer.write(frame)
-            
-            vis_pbar.update(1)
-        
-        # 리소스 정리
-        vis_pbar.close()
-        out_writer.release()
-        cap.release()
-        
-        print(f"Overlay video saved: {video_output_path}")
-        return True
-        
-    except Exception as e:
-        print(f"Error creating overlay video: {e}")
-        return False
-
-
-def create_overlay_video(video_path, input_root, output_root, pose_results, frames, fps, width, height, pose_model, top_track_ids=None):
-    """오버레이 비디오 생성"""
-    try:
-        # 비디오 확장자 확인
-        input_ext = get_video_extension(video_path)
-        
-        # 출력 파일 경로 생성
-        if input_ext == '.mp4':
-            output_ext = '_enhanced_rtmo_overlay.mp4'
-        elif input_ext == '.avi':
-            output_ext = '_enhanced_rtmo_overlay.avi'
-        elif input_ext == '.mov':
-            output_ext = '_enhanced_rtmo_overlay.mov'
-        else:
-            output_ext = '_enhanced_rtmo_overlay.avi'  # 기본값
-        
-        video_output_path = get_output_path(video_path, input_root, output_root, output_ext)
-        
-        # 비디오 라이터 설정
-        _, out_writer = setup_video_writer(video_output_path, input_ext, fps, width, height)
-        if out_writer is None:
-            print(f"Failed to create video writer for {video_output_path}")
-            return False
-        
-        # Visualizer 초기화
-        from mmpose.registry import VISUALIZERS
-        visualizer = VISUALIZERS.build(pose_model.cfg.visualizer)
-        visualizer.set_dataset_meta(pose_model.dataset_meta)
-        
-        print(f"Creating overlay video: {video_output_path}")
-        vis_pbar = tqdm(total=len(pose_results), desc="Creating overlay video")
-        
-        # 각 프레임에 포즈 오버레이
-        for idx, (pose_result, frame) in enumerate(zip(pose_results, frames)):
-            try:
-                # 포즈 시각화 (라벨 비활성화)
-                visualizer.add_datasample(
-                    'result',
-                    frame,
-                    data_sample=pose_result,
-                    draw_gt=False,
-                    draw_heatmap=False,
-                    draw_bbox=False,  # 바운딩 박스와 라벨 비활성화
-                    show_kpt_idx=False,
-                    skeleton_style='mmpose'
-                )
-                
-                # 시각화된 프레임 가져오기
-                vis_frame = visualizer.get_image()
-                
-                # 프레임 크기 조정 (필요시)
-                if vis_frame.shape[:2] != (height, width):
-                    vis_frame = cv2.resize(vis_frame, (width, height))
-                
-                # TrackID 추가 표시 (상위 트랙 강조)
-                vis_frame = draw_track_ids(vis_frame, pose_result, top_track_ids)
-                
-                # 비디오에 프레임 작성
-                out_writer.write(vis_frame)
-                
-            except Exception as e:
-                print(f"Warning: Failed to process frame {idx}: {e}")
-                # 오리지널 프레임 사용
-                out_writer.write(frame)
-            
-            vis_pbar.update(1)
-        
-        # 리소스 정리
-        vis_pbar.close()
-        out_writer.release()
-        
-        print(f"Overlay video saved: {video_output_path}")
-        return True
-        
-    except Exception as e:
-        print(f"Error creating overlay video: {e}")
-        return False
 
 
 def draw_track_ids(frame, pose_result, track_id_to_rank: Dict[int, int], top_track_ids: Optional[List[int]] = None):
@@ -1275,53 +1064,7 @@ def draw_track_ids(frame, pose_result, track_id_to_rank: Dict[int, int], top_tra
         
     except Exception as e:
         print(f"Warning: Failed to draw track IDs: {e}")
-        return frame
-
-
-def setup_video_writer(output_path, input_ext, fps, width, height):
-    """비디오 라이터 설정"""
-    try:
-        if input_ext == '.mp4':
-            # MP4 포맷
-            codecs_to_try = ['H264', 'avc1', 'mp4v']
-        elif input_ext == '.avi':
-            # AVI 포맷
-            codecs_to_try = ['XVID', 'MJPG']
-        elif input_ext == '.mov':
-            # MOV 포맷
-            codecs_to_try = ['mp4v', 'H264']
-        else:
-            # 기본 AVI
-            codecs_to_try = ['XVID', 'MJPG']
-        
-        # 코덱 순서대로 시도
-        for codec in codecs_to_try:
-            try:
-                fourcc = cv2.VideoWriter_fourcc(*codec)
-                out_writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height), True)
-                
-                # 테스트 프레임으로 검증
-                test_frame = np.zeros((height, width, 3), dtype=np.uint8)
-                if out_writer.write(test_frame):
-                    return fourcc, out_writer
-                else:
-                    out_writer.release()
-                    
-            except Exception:
-                continue
-        
-        print(f"Warning: All codecs failed for {input_ext}, trying fallback")
-        # 최종 fallback
-        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-        out_writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height), True)
-        return fourcc, out_writer
-        
-    except Exception as e:
-        print(f"Failed to setup video writer: {e}")
-        return None, None
-
-
-# =============================================================================
+        return frame# =============================================================================
 # Enhanced RTMO Pose Extractor Class
 # =============================================================================
 
