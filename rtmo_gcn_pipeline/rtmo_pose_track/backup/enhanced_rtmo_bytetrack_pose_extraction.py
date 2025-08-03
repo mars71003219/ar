@@ -1071,50 +1071,25 @@ def draw_track_ids(frame, pose_result, track_id_to_rank: Dict[int, int], top_tra
 class EnhancedRTMOPoseExtractor:
     """개선된 RTMO 포즈 추출기 클래스"""
     
-    def __init__(self, config_file, checkpoint_file, device='cuda:0', 
-                 gpu_ids=None, multi_gpu=False,
-                 score_thr=0.3, nms_thr=0.35,
-                 track_high_thresh=0.6, track_low_thresh=0.1,
-                 track_max_disappeared=30, track_min_hits=3,
-                 quality_threshold=0.3, min_track_length=10,
-                 weights=None):
+    def __init__(self, config_path, checkpoint_path, device='cuda:0', 
+                 score_thr=0.3, nms_thr=0.35):
         """
         Args:
-            config_file: RTMO 설정 파일 경로
-            checkpoint_file: RTMO 체크포인트 파일 경로
+            config_path: RTMO 설정 파일 경로
+            checkpoint_path: RTMO 체크포인트 파일 경로
             device: 추론에 사용할 디바이스
-            gpu_ids: 사용할 GPU ID 리스트
-            multi_gpu: 멀티 GPU 사용 여부
             score_thr: 포즈 검출 점수 임계값
             nms_thr: NMS 임계값
-            track_high_thresh: ByteTracker 높은 임계값
-            track_low_thresh: ByteTracker 낮은 임계값
-            track_max_disappeared: 트랙 최대 소실 프레임
-            track_min_hits: 트랙 최소 히트 수
-            quality_threshold: 품질 임계값
-            min_track_length: 최소 트랙 길이
-            weights: 복합점수 가중치
         """
-        self.config_path = config_file
-        self.checkpoint_path = checkpoint_file
+        self.config_path = config_path
+        self.checkpoint_path = checkpoint_path
         self.device = device
-        self.gpu_ids = gpu_ids or []
-        self.multi_gpu = multi_gpu
         self.score_thr = score_thr
         self.nms_thr = nms_thr
         
-        # 트래킹 설정
-        self.track_high_thresh = track_high_thresh
-        self.track_low_thresh = track_low_thresh
-        self.track_max_disappeared = track_max_disappeared
-        self.track_min_hits = track_min_hits
-        self.quality_threshold = quality_threshold
-        self.min_track_length = min_track_length
-        self.weights = weights or [0.45, 0.10, 0.30, 0.10, 0.05]
-        
         # 모델을 생성자에서 한 번만 초기화
-        print(f"Initializing RTMO model: {config_file}")
-        self.pose_model = init_model(config_file, checkpoint_file, device=device)
+        print(f"Initializing RTMO model: {config_path}")
+        self.pose_model = init_model(config_path, checkpoint_path, device=device)
         
         # 모델 설정 적용
         self._configure_model()
@@ -1190,113 +1165,6 @@ class EnhancedRTMOPoseExtractor:
             if failure_logger:
                 failure_logger.log_failure(video_path, f"Pose extraction error: {str(e)}")
             return None
-    
-    def apply_tracking_to_poses(self, poses_data: list, start_frame: int, end_frame: int, window_idx: int):
-        """저장된 포즈 데이터에 트래킹 및 복합점수 적용"""
-        try:
-            if not poses_data or len(poses_data) == 0:
-                return None
-            
-            # ByteTracker 초기화
-            tracker = ByteTracker(
-                high_thresh=self.track_high_thresh,
-                low_thresh=self.track_low_thresh,
-                max_disappeared=self.track_max_disappeared,
-                min_hits=self.track_min_hits
-            )
-            
-            # 트래킹 적용
-            tracked_poses = []
-            for frame_idx, pose_result in enumerate(poses_data):
-                if pose_result and len(pose_result) > 0:
-                    # 바운딩 박스 추출
-                    detections = []
-                    for person in pose_result:
-                        if 'bbox' in person:
-                            bbox = person['bbox']
-                            if len(bbox) >= 5:  # [x1, y1, x2, y2, score]
-                                detections.append(Detection(bbox))
-                    
-                    # 트래킹 업데이트
-                    tracks = tracker.update(detections)
-                    
-                    # 트래킹 결과를 포즈 데이터에 매핑
-                    tracked_frame = self._map_tracks_to_poses(pose_result, tracks)
-                    tracked_poses.append(tracked_frame)
-                else:
-                    tracked_poses.append([])
-            
-            # 복합점수 계산 및 어노테이션 생성
-            annotation_generator = AnnotationGenerator(
-                quality_threshold=self.quality_threshold,
-                min_track_length=self.min_track_length,
-                weights=self.weights
-            )
-            
-            # 전체 윈도우에 대한 어노테이션 생성
-            annotation = annotation_generator.generate_annotation(tracked_poses)
-            
-            if not annotation or 'persons' not in annotation or not annotation['persons']:
-                return None
-            
-            # 윈도우 결과 구성
-            window_result = {
-                'window_idx': window_idx,
-                'start_frame': start_frame,
-                'end_frame': end_frame,
-                'annotation': annotation,
-                'tracking_applied': True,
-                'frame_count': len(tracked_poses)
-            }
-            
-            return window_result
-            
-        except Exception as e:
-            print(f"Error applying tracking to poses: {str(e)}")
-            return None
-    
-    def _map_tracks_to_poses(self, pose_result: list, tracks: list) -> list:
-        """트래킹 결과를 포즈 데이터에 매핑"""
-        try:
-            if not tracks:
-                return pose_result
-            
-            tracked_poses = []
-            
-            # 각 트랙에 대해 가장 가까운 포즈 찾기
-            for track in tracks:
-                track_bbox = track.to_bbox()
-                track_center = [(track_bbox[0] + track_bbox[2]) / 2, 
-                               (track_bbox[1] + track_bbox[3]) / 2]
-                
-                best_match = None
-                best_distance = float('inf')
-                
-                for person in pose_result:
-                    if 'bbox' in person:
-                        person_bbox = person['bbox']
-                        person_center = [(person_bbox[0] + person_bbox[2]) / 2,
-                                       (person_bbox[1] + person_bbox[3]) / 2]
-                        
-                        # 중심점 간 거리 계산
-                        distance = np.sqrt((track_center[0] - person_center[0])**2 + 
-                                         (track_center[1] - person_center[1])**2)
-                        
-                        if distance < best_distance:
-                            best_distance = distance
-                            best_match = person.copy()
-                
-                if best_match is not None:
-                    # 트랙 ID 추가
-                    best_match['track_id'] = track.track_id
-                    best_match['track_bbox'] = track_bbox
-                    tracked_poses.append(best_match)
-            
-            return tracked_poses
-            
-        except Exception as e:
-            print(f"Error mapping tracks to poses: {str(e)}")
-            return pose_result
 
 
 
