@@ -544,17 +544,20 @@ class UnifiedPoseProcessor:
     
     def _apply_temporal_padding(self, pose_results, target_length):
         try:
-            if len(pose_results) >= target_length: return pose_results
-            current_length = len(pose_results)
-            needed_frames = target_length - current_length
-            if current_length > 0:
-                last_frame = pose_results[-1]
-                padded_results = pose_results.copy()
-                for _ in range(needed_frames):
-                    padded_results.append(last_frame)
-                return padded_results
-            else:
+            if len(pose_results) >= target_length:
                 return pose_results
+
+            current_length = len(pose_results)
+            if current_length == 0:
+                return pose_results
+
+            padded_results = pose_results.copy()
+            needed = target_length - current_length
+
+            for i in range(needed):
+                padded_results.append(pose_results[i % current_length])
+
+            return padded_results
         except Exception as e:
             return pose_results
 

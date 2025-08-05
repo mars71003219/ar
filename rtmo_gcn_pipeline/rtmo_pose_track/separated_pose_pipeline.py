@@ -1,635 +1,838 @@
 #!/usr/bin/env python3
 """
 분리된 포즈 추정 및 트래킹 파이프라인
-1. 포즈 추정: 설정별 원본 포즈 데이터 저장
-2. 트래킹: 포즈 데이터 기반 트래킹 및 복합점수 계산
+
+3단계 분리 처리:
+1. 포즈 추정: 설정별 원본 포즈 데이터 저장 (PKL)
+2. 트래킹: 포즈 데이터 기반 트래킹 및 복합점수 계산  
 3. 통합: train/val/test 분할 및 통합 PKL 생성
+
+사용법:
+  # 전체 파이프라인 실행
+  python separated_pose_pipeline.py
+  
+  # 특정 단계만 실행
+  python separated_pose_pipeline.py --stage 1
+  python separated_pose_pipeline.py --stage 2
+  python separated_pose_pipeline.py --stage 3
+  
+  # 다른 설정 파일 사용
+  python separated_pose_pipeline.py --config configs/custom_config.py
+  
+  # Resume 기능 (이미 처리된 파일은 건너뜀)
+  python separated_pose_pipeline.py --resume
+  
+  # Force 기능 (모든 파일 재처리)
+  python separated_pose_pipeline.py --force
 """
 
 import os
-import argparse
-import json
+import sys
 import pickle
 import glob
-import hashlib
-from pathlib import Path
+import importlib.util
+import argparse
+from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
+import numpy as np
+from tqdm import tqdm
+
 from enhanced_rtmo_bytetrack_pose_extraction import EnhancedRTMOPoseExtractor
-from error_logger import ProcessingErrorLogger, capture_exception_info
+from error_logger import ProcessingErrorLogger
 
 
-class SeparatedPoseProcessor:
-    """포즈 추정과 트래킹을 분리한 처리기"""
+class SeparatedPosePipeline:
+    """분리된 포즈 추정 파이프라인"""
     
-    def __init__(self, 
-                 detector_config: str,
-                 detector_checkpoint: str,
-                 device: str = 'cuda:0',
-                 gpu_ids: list = None,
-                 multi_gpu: bool = False,
-                 # 포즈 추정 파라미터
-                 score_thr: float = 0.3,
-                 nms_thr: float = 0.35,
-                 # 트래킹 파라미터
-                 track_high_thresh: float = 0.6,
-                 track_low_thresh: float = 0.1,
-                 track_max_disappeared: int = 30,
-                 track_min_hits: int = 3,
-                 quality_threshold: float = 0.3,
-                 min_track_length: int = 10,
-                 # 복합 점수 가중치
-                 weights: list = None,
-                 # 윈도우 설정
-                 clip_len: int = 100,
-                 training_stride: int = 10):
-        
-        self.detector_config = detector_config
-        self.detector_checkpoint = detector_checkpoint
-        self.device = device
-        self.gpu_ids = gpu_ids or []
-        self.multi_gpu = multi_gpu
-        
-        # 포즈 추정 설정
-        self.score_thr = score_thr
-        self.nms_thr = nms_thr
-        
-        # 트래킹 설정
-        self.track_high_thresh = track_high_thresh
-        self.track_low_thresh = track_low_thresh
-        self.track_max_disappeared = track_max_disappeared
-        self.track_min_hits = track_min_hits
-        self.quality_threshold = quality_threshold
-        self.min_track_length = min_track_length
-        
-        # 복합 점수 가중치
-        self.weights = weights or [0.45, 0.10, 0.30, 0.10, 0.05]
-        
-        # 윈도우 설정
-        self.clip_len = clip_len
-        self.training_stride = training_stride
-        
-        # 포즈 추출기
+    def __init__(self, config_module):
+        self.config = config_module
         self.pose_extractor = None
+        self.error_logger = ProcessingErrorLogger(
+            os.path.join(self.config.output_dir, 'processing_errors.log')
+        )
+        
+        # 출력 디렉토리 생성
+        self._create_output_directories()
+    
+    def _get_weights_as_list(self):
+        """가중치를 리스트 형태로 반환 (기존 코드 호환성)"""
+        if isinstance(self.config.weights, dict):
+            return [
+                self.config.weights.get('movement', 0.40),
+                self.config.weights.get('position', 0.15),
+                self.config.weights.get('interaction', 0.30),
+                self.config.weights.get('temporal_consistency', 0.08),
+                self.config.weights.get('persistence', 0.02)
+            ]
+        elif isinstance(self.config.weights, list):
+            return self.config.weights
+        else:
+            # 기본값 반환
+            return [0.40, 0.15, 0.30, 0.08, 0.02]
+    
+    def _create_output_directories(self):
+        """출력 디렉토리 구조 생성"""
+        # input_dir의 마지막 폴더명을 dataset_name으로 사용
+        dataset_name = os.path.basename(self.config.input_dir.rstrip('/\\'))
+        
+        # 1단계: 포즈 추정 결과 저장 경로
+        pose_settings = f"score{self.config.score_thr}_nms{self.config.nms_thr}"
+        self.poses_output_dir = os.path.join(
+            self.config.output_dir,
+            dataset_name,
+            "step1_poses", 
+            pose_settings
+        )
+        
+        # 2단계: 트래킹 결과 저장 경로  
+        tracking_settings = (f"clip{self.config.clip_len}_stride{self.config.training_stride}_"
+                           f"thresh{self.config.track_high_thresh}_{self.config.track_low_thresh}_"
+                           f"quality{self.config.quality_threshold}")
+        self.tracking_output_dir = os.path.join(
+            self.config.output_dir,
+            dataset_name,
+            "step2_tracking", 
+            tracking_settings
+        )
+        
+        # 3단계: 통합 PKL 저장 경로
+        self.unified_output_dir = os.path.join(
+            self.config.output_dir,
+            dataset_name,
+            "step3_unified"
+        )
+        
+        # 디렉토리 생성
+        # step1과 step2는 Fight/NonFight 폴더 생성
+        for output_dir in [self.poses_output_dir, self.tracking_output_dir]:
+            os.makedirs(output_dir, exist_ok=True)
+            for category in ['Fight', 'NonFight']:
+                os.makedirs(os.path.join(output_dir, category), exist_ok=True)
+        
+        # step3는 통합 폴더만 생성 (Fight/NonFight 폴더 없음)
+        os.makedirs(self.unified_output_dir, exist_ok=True)
     
     def _initialize_pose_extractor(self):
         """포즈 추출기 초기화"""
         if self.pose_extractor is None:
-            print("Initializing pose extractor...")
+            print(f"Initializing pose extractor...")
             self.pose_extractor = EnhancedRTMOPoseExtractor(
-                config_file=self.detector_config,
-                checkpoint_file=self.detector_checkpoint,
-                device=self.device,
-                gpu_ids=self.gpu_ids,
-                multi_gpu=self.multi_gpu,
-                score_thr=self.score_thr,
-                nms_thr=self.nms_thr,
-                track_high_thresh=self.track_high_thresh,
-                track_low_thresh=self.track_low_thresh,
-                track_max_disappeared=self.track_max_disappeared,
-                track_min_hits=self.track_min_hits,
-                quality_threshold=self.quality_threshold,
-                min_track_length=self.min_track_length,
-                weights=self.weights
+                config_file=self.config.detector_config,
+                checkpoint_file=self.config.detector_checkpoint,
+                device=self.config.device,
+                score_thr=self.config.score_thr,
+                nms_thr=self.config.nms_thr,
+                track_high_thresh=self.config.track_high_thresh,
+                track_low_thresh=self.config.track_low_thresh,
+                track_max_disappeared=self.config.track_max_disappeared,
+                track_min_hits=self.config.track_min_hits,
+                quality_threshold=self.config.quality_threshold,
+                min_track_length=self.config.min_track_length,
+                weights=self._get_weights_as_list()
             )
             print("Pose extractor initialized successfully")
     
-    def _get_pose_estimation_hash(self):
-        """포즈 추정 설정의 해시값 생성"""
-        pose_config = {
-            'model': os.path.basename(self.detector_checkpoint),
-            'score_thr': self.score_thr,
-            'nms_thr': self.nms_thr
-        }
-        config_str = json.dumps(pose_config, sort_keys=True)
-        return hashlib.md5(config_str.encode()).hexdigest()[:8]
-    
-    def _get_tracking_hash(self):
-        """트래킹 설정의 해시값 생성"""
-        tracking_config = {
-            'track_high_thresh': self.track_high_thresh,
-            'track_low_thresh': self.track_low_thresh,
-            'track_max_disappeared': self.track_max_disappeared,
-            'track_min_hits': self.track_min_hits,
-            'quality_threshold': self.quality_threshold,
-            'min_track_length': self.min_track_length,
-            'weights': self.weights
-        }
-        config_str = json.dumps(tracking_config, sort_keys=True)
-        return hashlib.md5(config_str.encode()).hexdigest()[:8]
-    
-    def _get_pose_estimation_folder_name(self):
-        """포즈 추정 설정 폴더명 생성"""
-        model_name = Path(self.detector_checkpoint).stem.replace('rtmo-', '').replace('_16xb16-600e_body7-640x640-39e78cc4_20231211', '')
-        return f"{model_name}_score{self.score_thr}_nms{self.nms_thr}"
-    
-    def _get_tracking_folder_name(self):
-        """트래킹 설정 폴더명 생성"""
-        weights_str = "_".join([f"{w:.2f}" for w in self.weights])
-        return f"track{self.track_high_thresh}_{self.track_low_thresh}_weights{weights_str}"
-    
-    def extract_poses_only(self, input_dir: str, output_dir: str):
-        """1단계: 포즈 추정만 수행하여 원본 포즈 데이터 저장"""
-        dataset_name = os.path.basename(input_dir.rstrip('/\\\\'))
-        pose_folder = self._get_pose_estimation_folder_name()
+    def run_stage1_pose_extraction(self, force_reprocess=False):
+        """1단계: 포즈 추정만 수행"""
+        print("=" * 60)
+        print("STAGE 1: Pose Extraction Only")
+        print("=" * 60)
         
-        # 포즈 추정 결과 저장 경로
-        pose_output_dir = os.path.join(output_dir, dataset_name, 'pose_estimation', pose_folder)
-        
-        print(f"\\n=== Step 1: Pose Estimation ===")
-        print(f"Input: {input_dir}")
-        print(f"Output: {pose_output_dir}")
-        print(f"Settings: score_thr={self.score_thr}, nms_thr={self.nms_thr}")
+        self._initialize_pose_extractor()
         
         # 비디오 파일 수집
-        video_extensions = ['*.mp4', '*.avi', '*.mov', '*.mkv']
-        all_video_files = []
-        for ext in video_extensions:
-            all_video_files.extend(glob.glob(os.path.join(input_dir, '**', ext), recursive=True))
+        video_files = self._collect_video_files()
         
-        if not all_video_files:
-            print(f"No videos found in {input_dir}")
-            return False
+        if force_reprocess:
+            remaining_videos = video_files
+            print("Force mode: Reprocessing all videos")
+        else:
+            processed_videos = self._get_processed_videos_stage1()
+            remaining_videos = [v for v in video_files if self._get_video_key(v) not in processed_videos]
+            print(f"Total videos: {len(video_files)}")
+            print(f"Already processed: {len(processed_videos)}")
         
-        self._initialize_pose_extractor()
+        print(f"Remaining videos: {len(remaining_videos)}")
         
-        successful_count = 0
+        if not remaining_videos:
+            print("All videos already processed for stage 1")
+            return
         
-        for video_path in all_video_files:
+        # 포즈 추정 수행
+        for video_path in tqdm(remaining_videos, desc="Extracting poses"):
             try:
-                # 비디오 정보 추출
-                video_name = os.path.splitext(os.path.basename(video_path))[0]
-                
-                # 카테고리 폴더 찾기 (Fight/NonFight)
-                path_parts = video_path.replace('\\\\', '/').split('/')
-                label_folder = None
-                for part in path_parts:
-                    if part in ['Fight', 'NonFight']:
-                        label_folder = part
-                        break
-                
-                if label_folder is None:
-                    print(f"Warning: Could not determine category for {video_path}")
-                    continue
-                
-                # 출력 디렉토리 생성
-                video_pose_dir = os.path.join(pose_output_dir, label_folder, video_name)
-                os.makedirs(video_pose_dir, exist_ok=True)
-                
-                # 이미 처리된 경우 스킵
-                if self._check_pose_extraction_complete(video_pose_dir):
-                    print(f"Skipping {video_name} (already processed)")
-                    successful_count += 1
-                    continue
-                
-                print(f"Extracting poses from: {video_name}")
-                
-                # 포즈 추정 수행
-                poses_data = self.pose_extractor.extract_poses_only(video_path)
-                
-                if poses_data and len(poses_data) > 0:
-                    # 윈도우별로 포즈 데이터 저장
-                    windows_generated = self._save_pose_windows(poses_data, video_pose_dir, video_name)
-                    
-                    if windows_generated > 0:
-                        print(f"Success: {video_name} - {windows_generated} windows saved")
-                        successful_count += 1
-                    else:
-                        print(f"Failed: {video_name} - No valid windows generated")
-                else:
-                    print(f"Failed: {video_name} - No poses extracted")
-                    
+                self._extract_poses_from_video(video_path)
             except Exception as e:
+                self.error_logger.log_video_failure(video_path, None, "POSE_EXTRACTION_ERROR", str(e))
                 print(f"Error processing {video_path}: {str(e)}")
-                continue
         
-        print(f"\\nPose extraction completed: {successful_count}/{len(all_video_files)} videos processed")
-        return successful_count > 0
+        print(f"Stage 1 completed. Results saved to: {self.poses_output_dir}")
     
-    def _check_pose_extraction_complete(self, video_pose_dir: str) -> bool:
-        """포즈 추출이 완료되었는지 확인"""
-        if not os.path.exists(video_pose_dir):
-            return False
-        
-        # window_*.json 파일이 있는지 확인
-        window_files = glob.glob(os.path.join(video_pose_dir, 'window_*.json'))
-        return len(window_files) > 0
-    
-    def _save_pose_windows(self, poses_data: list, video_pose_dir: str, video_name: str) -> int:
-        """포즈 데이터를 윈도우별로 저장"""
-        if not poses_data:
-            return 0
-        
-        total_frames = len(poses_data)
-        windows_generated = 0
-        
-        # 윈도우 생성
-        for start_frame in range(0, total_frames - self.clip_len + 1, self.training_stride):
-            end_frame = start_frame + self.clip_len
-            
-            if end_frame > total_frames:
-                break
-            
-            window_idx = start_frame // self.training_stride
-            window_poses = poses_data[start_frame:end_frame]
-            
-            # 윈도우 데이터 구성
-            window_data = {
-                'video_name': video_name,
-                'window_idx': window_idx,
-                'start_frame': start_frame,
-                'end_frame': end_frame,
-                'clip_len': self.clip_len,
-                'poses': window_poses,
-                'pose_settings': {
-                    'score_thr': self.score_thr,
-                    'nms_thr': self.nms_thr,
-                    'model': os.path.basename(self.detector_checkpoint)
-                }
-            }
-            
-            # JSON 파일로 저장
-            window_file = os.path.join(video_pose_dir, f'window_{window_idx:03d}_poses.json')
-            with open(window_file, 'w', encoding='utf-8') as f:
-                json.dump(window_data, f, indent=2, ensure_ascii=False)
-            
-            windows_generated += 1
-        
-        return windows_generated
-    
-    def apply_tracking_to_poses(self, input_dir: str, output_dir: str):
-        """2단계: 저장된 포즈 데이터에 트래킹 및 복합점수 적용"""
-        dataset_name = os.path.basename(input_dir.rstrip('/\\\\'))
-        pose_folder = self._get_pose_estimation_folder_name()
-        tracking_folder = self._get_tracking_folder_name()
-        
-        # 포즈 데이터 경로
-        pose_input_dir = os.path.join(output_dir, dataset_name, 'pose_estimation', pose_folder)
-        
-        # 트래킹 결과 저장 경로
-        tracking_output_dir = os.path.join(output_dir, dataset_name, 'tracking', tracking_folder)
-        
-        print(f"\\n=== Step 2: Tracking & Composite Scoring ===")
-        print(f"Pose data: {pose_input_dir}")
-        print(f"Output: {tracking_output_dir}")
-        print(f"Tracking settings: high={self.track_high_thresh}, low={self.track_low_thresh}")
-        print(f"Weights: {self.weights}")
-        
-        if not os.path.exists(pose_input_dir):
-            print(f"Error: Pose data not found at {pose_input_dir}")
-            return False
+    def run_stage2_tracking(self, force_reprocess=False):
+        """2단계: 트래킹 및 복합점수 계산"""
+        print("=" * 60)
+        print("STAGE 2: Tracking and Composite Scoring")
+        print("=" * 60)
         
         self._initialize_pose_extractor()
         
-        successful_count = 0
+        # 1단계 결과 수집
+        pose_files = self._collect_pose_results()
         
-        # 카테고리별로 처리 (Fight, NonFight)
-        for category in ['Fight', 'NonFight']:
-            category_pose_dir = os.path.join(pose_input_dir, category)
-            category_tracking_dir = os.path.join(tracking_output_dir, category)
-            
-            if not os.path.exists(category_pose_dir):
-                continue
-            
-            os.makedirs(category_tracking_dir, exist_ok=True)
-            
-            # 각 비디오 처리
-            for video_name in os.listdir(category_pose_dir):
-                video_pose_dir = os.path.join(category_pose_dir, video_name)
-                
-                if not os.path.isdir(video_pose_dir):
-                    continue
-                
-                try:
-                    # 트래킹 결과 파일 경로
-                    video_tracking_dir = os.path.join(category_tracking_dir, video_name)
-                    os.makedirs(video_tracking_dir, exist_ok=True)
-                    
-                    tracking_pkl_file = os.path.join(video_tracking_dir, f"{video_name}_windows.pkl")
-                    
-                    # 이미 처리된 경우 스킵
-                    if os.path.exists(tracking_pkl_file):
-                        print(f"Skipping {video_name} (already tracked)")
-                        successful_count += 1
-                        continue
-                    
-                    print(f"Processing tracking for: {video_name}")
-                    
-                    # 윈도우별 포즈 데이터 로드
-                    window_files = sorted(glob.glob(os.path.join(video_pose_dir, 'window_*_poses.json')))
-                    
-                    if not window_files:
-                        print(f"No pose windows found for {video_name}")
-                        continue
-                    
-                    # 트래킹 적용
-                    video_result = self._apply_tracking_to_windows(window_files, video_name, category)
-                    
-                    if video_result and video_result.get('windows'):
-                        # PKL 파일로 저장
-                        with open(tracking_pkl_file, 'wb') as f:
-                            pickle.dump(video_result, f)
-                        
-                        windows_count = len(video_result['windows'])
-                        print(f"Success: {video_name} - {windows_count} windows tracked")
-                        successful_count += 1
-                    else:
-                        print(f"Failed: {video_name} - No valid tracking results")
-                        
-                except Exception as e:
-                    print(f"Error processing tracking for {video_name}: {str(e)}")
-                    continue
+        if not pose_files:
+            print("No pose files found from stage 1. Please run stage 1 first.")
+            return
         
-        print(f"\\nTracking completed: {successful_count} videos processed")
-        return successful_count > 0
+        if force_reprocess:
+            remaining_files = pose_files
+            print("Force mode: Reprocessing all pose files")
+        else:
+            processed_videos = self._get_processed_videos_stage2()
+            remaining_files = [f for f in pose_files if self._get_video_key_from_pose_path(f) not in processed_videos]
+            print(f"Total pose files: {len(pose_files)}")
+            print(f"Already processed: {len(processed_videos)}")
+        
+        print(f"Remaining files: {len(remaining_files)}")
+        
+        if not remaining_files:
+            print("All videos already processed for stage 2")
+            return
+        
+        # 트래킹 수행
+        for poses_file in tqdm(remaining_files, desc="Applying tracking"):
+            try:
+                self._apply_tracking_to_video(poses_file)
+            except Exception as e:
+                self.error_logger.log_video_failure(poses_file, None, "TRACKING_ERROR", str(e))
+                print(f"Error processing {poses_file}: {str(e)}")
+        
+        print(f"Stage 2 completed. Results saved to: {self.tracking_output_dir}")
     
-    def _apply_tracking_to_windows(self, window_files: list, video_name: str, category: str) -> dict:
-        """윈도우별 포즈 데이터에 트래킹 적용"""
-        try:
-            processed_windows = []
-            
-            for window_file in window_files:
-                with open(window_file, 'r', encoding='utf-8') as f:
-                    window_data = json.load(f)
-                
-                # 포즈 데이터에 트래킹 적용
-                tracked_result = self.pose_extractor.apply_tracking_to_poses(
-                    window_data['poses'], 
-                    window_data['start_frame'],
-                    window_data['end_frame'],
-                    window_data['window_idx']
-                )
-                
-                if tracked_result:
-                    processed_windows.append(tracked_result)
-            
-            if not processed_windows:
-                return None
-            
-            # 비디오 결과 구성
-            video_result = {
-                'video_name': video_name,
-                'label_folder': category,
-                'label': 1 if category == 'Fight' else 0,
-                'dataset_name': 'retracked',
-                'windows': processed_windows,
-                'tracking_settings': {
-                    'track_high_thresh': self.track_high_thresh,
-                    'track_low_thresh': self.track_low_thresh,
-                    'track_max_disappeared': self.track_max_disappeared,
-                    'track_min_hits': self.track_min_hits,
-                    'quality_threshold': self.quality_threshold,
-                    'min_track_length': self.min_track_length,
-                    'weights': self.weights
-                }
+    def run_stage3_unification(self, force_reprocess=False):
+        """3단계: 통합 PKL 생성"""
+        print("=" * 60)
+        print("STAGE 3: Dataset Unification")
+        print("=" * 60)
+        
+        # 2단계 결과 수집
+        tracking_results = self._collect_tracking_results()
+        
+        if not tracking_results:
+            print("No tracking results found from stage 2. Please run stage 2 first.")
+            return
+        
+        # 기존 통합 결과 확인
+        existing_unified_files = self._get_existing_unified_files()
+        
+        if not force_reprocess and existing_unified_files:
+            print(f"Unified files already exist: {existing_unified_files}")
+            print("Use --force to reprocess unified dataset")
+            return
+        
+        if force_reprocess and existing_unified_files:
+            print("Force mode: Reprocessing unified dataset")
+        
+        # 데이터셋 분할 및 통합 PKL 생성
+        self._create_unified_dataset(tracking_results)
+        
+        print(f"Stage 3 completed. Results saved to: {self.unified_output_dir}")
+    
+    def _collect_video_files(self) -> List[str]:
+        """비디오 파일 수집"""
+        video_extensions = ('.mp4', '.avi', '.mov', '.mkv')
+        video_files = []
+        
+        for root, dirs, files in os.walk(self.config.input_dir):
+            for file in files:
+                if file.lower().endswith(video_extensions):
+                    video_files.append(os.path.join(root, file))
+        
+        return sorted(video_files)
+    
+    def _get_video_key(self, video_path: str) -> str:
+        """비디오 경로에서 키 생성"""
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        category = 'Fight' if '/Fight/' in video_path else 'NonFight'
+        return f"{category}/{video_name}"
+    
+    def _get_processed_videos_stage1(self) -> set:
+        """1단계에서 이미 처리된 비디오 확인"""
+        processed = set()
+        
+        for category in ['Fight', 'NonFight']:
+            category_dir = os.path.join(self.poses_output_dir, category)
+            if os.path.exists(category_dir):
+                for file_name in os.listdir(category_dir):
+                    if file_name.endswith('_poses.pkl'):
+                        # 파일명에서 비디오 이름 추출
+                        video_name = file_name.replace('_poses.pkl', '')
+                        processed.add(f"{category}/{video_name}")
+        
+        return processed
+    
+    def _get_existing_unified_files(self) -> List[str]:
+        """3단계에서 이미 생성된 통합 파일 확인"""
+        dataset_name = os.path.basename(self.config.input_dir.rstrip('/\\\\'))
+        unified_files = []
+        
+        for split in ['train', 'val', 'test']:
+            pkl_filename = f"{dataset_name}_{split}_windows.pkl"
+            pkl_path = os.path.join(self.unified_output_dir, pkl_filename)
+            if os.path.exists(pkl_path):
+                unified_files.append(pkl_filename)
+        
+        return unified_files
+    
+    def _extract_poses_from_video(self, video_path: str):
+        """비디오에서 포즈 추정 수행"""
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        category = 'Fight' if '/Fight/' in video_path else 'NonFight'
+        
+        print(f"  Processing: {video_name}")
+        
+        # 포즈 추정 수행
+        pose_results = self.pose_extractor.extract_poses_only(video_path, self.error_logger)
+        
+        if pose_results is None or len(pose_results) == 0:
+            raise ValueError(f"No poses extracted from {video_name}")
+        
+        # PKL 파일로 저장 (바로 category 폴더에 저장)
+        poses_data = {
+            'video_name': video_name,
+            'category': category,
+            'total_frames': len(pose_results),
+            'poses': pose_results,
+            'settings': {
+                'score_thr': self.config.score_thr,
+                'nms_thr': self.config.nms_thr,
+                'device': self.config.device
             }
-            
-            return video_result
-            
-        except Exception as e:
-            print(f"Error applying tracking to windows: {str(e)}")
-            return None
-    
-    def create_unified_pkl(self, output_dir: str, dataset_name: str, train_split: float = 0.7, val_split: float = 0.2):
-        """3단계: 통합 PKL 파일 생성"""
-        tracking_folder = self._get_tracking_folder_name()
-        tracking_dir = os.path.join(output_dir, dataset_name, 'tracking', tracking_folder)
-        
-        print(f"\\n=== Step 3: Creating Unified PKL ===")
-        print(f"Tracking data: {tracking_dir}")
-        print(f"Split ratios: train={train_split}, val={val_split}, test={1-train_split-val_split}")
-        
-        if not os.path.exists(tracking_dir):
-            print(f"Error: Tracking data not found at {tracking_dir}")
-            return False
-        
-        # PKL 파일들 수집
-        video_results = []
-        
-        for category in ['Fight', 'NonFight']:
-            category_dir = os.path.join(tracking_dir, category)
-            if not os.path.exists(category_dir):
-                continue
-            
-            for video_name in os.listdir(category_dir):
-                video_dir = os.path.join(category_dir, video_name)
-                pkl_file = os.path.join(video_dir, f"{video_name}_windows.pkl")
-                
-                if os.path.exists(pkl_file):
-                    try:
-                        with open(pkl_file, 'rb') as f:
-                            video_result = pickle.load(f)
-                        video_results.append(video_result)
-                    except Exception as e:
-                        print(f"Error loading {pkl_file}: {str(e)}")
-                        continue
-        
-        if not video_results:
-            print("No PKL files found for unified processing")
-            return False
-        
-        print(f"Loaded {len(video_results)} video PKL files")
-        
-        # STGCN 샘플 생성 및 분할 로직은 기존 unified_pose_processor.py의 로직 재사용
-        # 여기서는 간단히 통합 PKL만 생성
-        all_samples = []
-        for video_result in video_results:
-            for window_data in video_result['windows']:
-                # STGCN 형식으로 변환 (기존 로직 재사용)
-                sample = self._convert_to_stgcn_sample(window_data, video_result)
-                if sample:
-                    all_samples.append(sample)
-        
-        # 간단한 분할 (실제로는 더 정교한 로직 필요)
-        import random
-        random.seed(42)
-        random.shuffle(all_samples)
-        
-        total = len(all_samples)
-        train_end = int(total * train_split)
-        val_end = int(total * (train_split + val_split))
-        
-        train_samples = all_samples[:train_end]
-        val_samples = all_samples[train_end:val_end]
-        test_samples = all_samples[val_end:]
-        
-        # 통합 PKL 저장
-        unified_files = {
-            'train': f"{dataset_name}_train_windows.pkl",
-            'val': f"{dataset_name}_val_windows.pkl", 
-            'test': f"{dataset_name}_test_windows.pkl"
         }
         
-        for split_name, samples in [('train', train_samples), ('val', val_samples), ('test', test_samples)]:
-            if samples:
-                unified_file = os.path.join(tracking_dir, unified_files[split_name])
-                with open(unified_file, 'wb') as f:
-                    pickle.dump(samples, f)
-                print(f"Saved {len(samples)} samples to {unified_files[split_name]}")
+        poses_file = os.path.join(self.poses_output_dir, category, f"{video_name}_poses.pkl")
+        with open(poses_file, 'wb') as f:
+            pickle.dump(poses_data, f)
         
-        print(f"\\nUnified PKL creation completed")
-        print(f"Total samples: {total} (train: {len(train_samples)}, val: {len(val_samples)}, test: {len(test_samples)})")
-        
-        return True
+        print(f"  Saved {len(pose_results)} pose frames to: {poses_file}")
     
-    def _convert_to_stgcn_sample(self, window_data: dict, video_result: dict) -> dict:
-        """윈도우 데이터를 STGCN 샘플로 변환 (간단 버전)"""
-        try:
-            # 실제 구현에서는 unified_pose_processor.py의 _convert_window_to_stgcn_format 로직 사용
-            annotation = window_data.get('annotation', {})
-            if 'persons' not in annotation or not annotation['persons']:
-                return None
-            
-            # 간단한 STGCN 샘플 구성
-            sample = {
-                'keypoint': [],  # 실제 키포인트 데이터 처리 필요
-                'label': video_result['label'],
-                'window_info': {
-                    'video_name': video_result['video_name'],
-                    'window_idx': window_data.get('window_idx', 0),
-                    'start_frame': window_data.get('start_frame', 0),
-                    'end_frame': window_data.get('end_frame', 100)
+    def _collect_pose_results(self) -> List[str]:
+        """1단계 포즈 결과 수집"""
+        pose_files = []
+        
+        for category in ['Fight', 'NonFight']:
+            category_dir = os.path.join(self.poses_output_dir, category)
+            if os.path.exists(category_dir):
+                for file_name in os.listdir(category_dir):
+                    if file_name.endswith('_poses.pkl'):
+                        poses_file = os.path.join(category_dir, file_name)
+                        if os.path.exists(poses_file):
+                            pose_files.append(poses_file)
+        
+        return sorted(pose_files)
+    
+    def _get_video_key_from_pose_path(self, pose_file: str) -> str:
+        """포즈 파일 경로에서 비디오 키 생성"""
+        file_name = os.path.basename(pose_file)
+        video_name = file_name.replace('_poses.pkl', '')
+        category = 'Fight' if '/Fight/' in pose_file else 'NonFight'
+        return f"{category}/{video_name}"
+    
+    def _get_processed_videos_stage2(self) -> set:
+        """2단계에서 이미 처리된 비디오 확인"""
+        processed = set()
+        
+        for category in ['Fight', 'NonFight']:
+            category_dir = os.path.join(self.tracking_output_dir, category)
+            if os.path.exists(category_dir):
+                for video_file in os.listdir(category_dir):
+                    if video_file.endswith('_windows.pkl'):
+                        video_name = video_file.replace('_windows.pkl', '')
+                        processed.add(f"{category}/{video_name}")
+        
+        return processed
+    
+    def _apply_tracking_to_video(self, poses_file: str):
+        """포즈 데이터에 트래킹 적용 (기존 로직 사용)"""
+        from enhanced_rtmo_bytetrack_pose_extraction import (
+            ByteTracker, create_detection_results, assign_track_ids_from_bytetrack,
+            create_enhanced_annotation
+        )
+        
+        # 포즈 데이터 로드
+        with open(poses_file, 'rb') as f:
+            pose_data = pickle.load(f)
+        
+        video_name = pose_data['video_name']
+        category = pose_data['category']
+        poses = pose_data['poses']
+        
+        print(f"  Processing: {video_name} ({len(poses)} frames)")
+        
+        # 최소 프레임 패딩 적용 (윈도우 생성 전에 수행)
+        if len(poses) < self.config.clip_len:
+            print(f"    Applying padding: {len(poses)} -> {self.config.clip_len} frames")
+            poses = self._apply_temporal_padding(poses, self.config.clip_len)
+        
+        # 윈도우 생성
+        windows = self._create_windows_from_poses(poses)
+        processed_windows = []
+        
+        # 포즈 모델 (어노테이션 생성에 필요)
+        pose_model = self.pose_extractor.pose_model
+        
+        print(f"    Processing {len(windows)} windows...")
+        
+        for window_idx, window_poses in enumerate(windows):
+            try:
+                # ByteTracker 초기화 (각 윈도우마다 새로 초기화)
+                tracker = ByteTracker(
+                    high_thresh=self.config.track_high_thresh,
+                    low_thresh=self.config.track_low_thresh,
+                    max_disappeared=self.config.track_max_disappeared,
+                    min_hits=self.config.track_min_hits
+                )
+                
+                # 포즈 데이터에 트래킹 적용
+                tracked_pose_results = []
+                for pose_result in window_poses:
+                    detections = create_detection_results(pose_result)
+                    active_tracks = tracker.update(detections)
+                    tracked_result = assign_track_ids_from_bytetrack(pose_result, active_tracks)
+                    tracked_pose_results.append(tracked_result)
+                
+                # 기존 로직으로 복합점수 계산 및 어노테이션 생성
+                annotation, status_message = create_enhanced_annotation(
+                    tracked_pose_results, 
+                    video_name,  # video_path 대신 video_name 사용
+                    pose_model,
+                    min_track_length=self.config.min_track_length,
+                    quality_threshold=self.config.quality_threshold,
+                    weights=self._get_weights_as_list()
+                )
+                
+                if annotation is None:
+                    print(f"      Warning: Window {window_idx} annotation failed: {status_message}")
+                    continue
+                
+                # 윈도우 데이터 구성 (unified_pose_processor 형식과 동일)
+                start_frame = window_idx * self.config.training_stride
+                end_frame = min(start_frame + self.config.clip_len, len(poses))
+                
+                window_result = {
+                    'window_idx': window_idx,
+                    'start_frame': start_frame,
+                    'end_frame': end_frame,
+                    'num_frames': end_frame - start_frame,
+                    'annotation': annotation,
+                    'segment_video_path': None,  # 분리된 파이프라인에서는 비디오 생성 안함
+                    'persons_ranking': self._extract_persons_ranking(annotation)
                 }
+                
+                processed_windows.append(window_result)
+                
+            except Exception as e:
+                print(f"      Error processing window {window_idx}: {str(e)}")
+                continue
+        
+        if not processed_windows:
+            raise ValueError(f"No valid windows processed for {video_name}")
+        
+        # 윈도우들을 복합점수로 정렬 (내림차순)
+        processed_windows = self._sort_windows_by_composite_score(processed_windows)
+        
+        # 비디오 결과 구성
+        video_result = {
+            'video_name': video_name,
+            'label_folder': category,
+            'label': 1 if category == 'Fight' else 0,
+            'dataset_name': 'separated_pipeline',
+            'total_frames': len(poses),
+            'num_windows': len(processed_windows),
+            'windows': processed_windows,
+            'tracking_settings': {
+                'track_high_thresh': self.config.track_high_thresh,
+                'track_low_thresh': self.config.track_low_thresh,
+                'track_max_disappeared': self.config.track_max_disappeared,
+                'track_min_hits': self.config.track_min_hits,
+                'quality_threshold': self.config.quality_threshold,
+                'min_track_length': self.config.min_track_length,
+                'weights': self.config.weights,
+                'clip_len': self.config.clip_len,
+                'training_stride': self.config.training_stride
             }
+        }
+        
+        # PKL 파일로 저장
+        output_pkl = os.path.join(self.tracking_output_dir, category, f"{video_name}_windows.pkl")
+        with open(output_pkl, 'wb') as f:
+            pickle.dump(video_result, f)
+        
+        print(f"  Successfully processed {len(processed_windows)} windows for {video_name}")
+        print(f"  Saved to: {output_pkl}")
+    
+    def _create_windows_from_poses(self, poses: List) -> List[List]:
+        """포즈 데이터에서 윈도우 생성 (패딩은 이미 적용된 상태)"""
+        windows = []
+        total_frames = len(poses)
+        
+        # 이미 패딩이 적용되어 total_frames >= clip_len 보장됨
+        for start_frame in range(0, total_frames - self.config.clip_len + 1, self.config.training_stride):
+            end_frame = start_frame + self.config.clip_len
+            window_poses = poses[start_frame:end_frame]
+            windows.append(window_poses)
+        
+        return windows
+    
+    def _apply_temporal_padding(self, poses: List, target_length: int) -> List:
+        """시간적 패딩 적용 - modulo 루핑 방식"""
+        if len(poses) >= target_length:
+            return poses[:target_length]
+        
+        if not poses:
+            # 빈 포즈 리스트인 경우 빈 프레임으로 채움
+            return [[]] * target_length
+        
+        # modulo 루핑 방식으로 패딩
+        padded_poses = []
+        
+        for i in range(target_length):
+            # 순환 인덱스 사용 (비디오 전체를 반복)
+            pose_idx = i % len(poses)
+            padded_poses.append(poses[pose_idx])
+        
+        return padded_poses
+    
+    def _extract_persons_ranking(self, annotation: Dict) -> List[Dict]:
+        """어노테이션에서 person 랭킹 추출"""
+        if 'annotation' not in annotation:
+            return []
+        
+        persons = []
+        for person_key, person_data in annotation['annotation'].items():
+            if person_key.startswith('person_'):
+                persons.append({
+                    'person_id': person_key,
+                    'rank': person_data.get('rank', 999),
+                    'composite_score': person_data.get('composite_score', 0.0),
+                    'track_id': person_data.get('track_id', -1)
+                })
+        
+        # 랭킹 순서로 정렬
+        persons.sort(key=lambda x: x['rank'])
+        return persons
+    
+    def _sort_windows_by_composite_score(self, windows: List[Dict]) -> List[Dict]:
+        """윈도우들을 복합점수로 정렬"""
+        def get_window_composite_score(window: Dict) -> float:
+            """윈도우의 복합점수 계산 (모든 person의 평균)"""
+            annotation = window.get('annotation', {})
+            if 'annotation' not in annotation:
+                return 0.0
             
-            return sample
+            scores = []
+            for person_key, person_data in annotation['annotation'].items():
+                if person_key.startswith('person_'):
+                    score = person_data.get('composite_score', 0.0)
+                    scores.append(score)
             
-        except Exception as e:
-            print(f"Error converting window to STGCN sample: {str(e)}")
-            return None
+            return sum(scores) / len(scores) if scores else 0.0
+        
+        # 각 윈도우에 복합점수 추가
+        for window in windows:
+            window['composite_score'] = get_window_composite_score(window)
+        
+        # 복합점수로 내림차순 정렬
+        windows.sort(key=lambda x: x.get('composite_score', 0.0), reverse=True)
+        
+        return windows
+    
+    def _collect_tracking_results(self) -> List[str]:
+        """2단계 트래킹 결과 수집"""
+        tracking_files = []
+        
+        for category in ['Fight', 'NonFight']:
+            category_dir = os.path.join(self.tracking_output_dir, category)
+            if os.path.exists(category_dir):
+                for pkl_file in glob.glob(os.path.join(category_dir, '*_windows.pkl')):
+                    tracking_files.append(pkl_file)
+        
+        return sorted(tracking_files)
+    
+    def _create_unified_dataset(self, tracking_results: List[str]):
+        """통합 데이터셋 생성"""
+        print(f"Creating unified dataset from {len(tracking_results)} tracking results...")
+        
+        # 모든 트래킹 결과 로드
+        all_video_data = []
+        for pkl_file in tracking_results:
+            try:
+                with open(pkl_file, 'rb') as f:
+                    video_data = pickle.load(f)
+                    all_video_data.append(video_data)
+            except Exception as e:
+                print(f"Error loading {pkl_file}: {str(e)}")
+                continue
+        
+        if not all_video_data:
+            print("No valid tracking results found")
+            return
+        
+        print(f"Loaded {len(all_video_data)} video results")
+        
+        # 카테고리별로 분리
+        fight_videos = [v for v in all_video_data if v['label'] == 1]
+        nonfight_videos = [v for v in all_video_data if v['label'] == 0]
+        
+        print(f"Fight videos: {len(fight_videos)}, NonFight videos: {len(nonfight_videos)}")
+        
+        # 데이터셋 분할
+        train_data, val_data, test_data = self._split_dataset(fight_videos, nonfight_videos)
+        
+        # 통합 PKL 파일 생성
+        dataset_name = os.path.basename(self.config.input_dir.rstrip('/\\'))
+        
+        splits = {
+            'train': train_data,
+            'val': val_data, 
+            'test': test_data
+        }
+        
+        for split_name, split_data in splits.items():
+            if split_data:
+                pkl_filename = f"{dataset_name}_{split_name}_windows.pkl"
+                pkl_path = os.path.join(self.unified_output_dir, pkl_filename)
+                
+                with open(pkl_path, 'wb') as f:
+                    pickle.dump(split_data, f)
+                
+                print(f"  {split_name}: {len(split_data)} videos -> {pkl_path}")
+            else:
+                print(f"  {split_name}: No data")
+        
+        # 통계 정보 저장
+        self._save_dataset_statistics(all_video_data, dataset_name)
+    
+    def _split_dataset(self, fight_videos: List[Dict], nonfight_videos: List[Dict]) -> Tuple[List[Dict], List[Dict], List[Dict]]:
+        """데이터셋을 train/val/test로 분할"""
+        import random
+        
+        # 재현 가능한 분할을 위한 시드 설정
+        random.seed(42)
+        
+        def split_category(videos: List[Dict]) -> Tuple[List[Dict], List[Dict], List[Dict]]:
+            """카테고리별 분할"""
+            random.shuffle(videos)
+            total = len(videos)
+            
+            train_end = int(total * self.config.train_ratio)
+            val_end = train_end + int(total * self.config.val_ratio)
+            
+            train = videos[:train_end]
+            val = videos[train_end:val_end]
+            test = videos[val_end:]
+            
+            return train, val, test
+        
+        # 각 카테고리별로 분할
+        fight_train, fight_val, fight_test = split_category(fight_videos)
+        nonfight_train, nonfight_val, nonfight_test = split_category(nonfight_videos)
+        
+        # 통합
+        train_data = fight_train + nonfight_train
+        val_data = fight_val + nonfight_val
+        test_data = fight_test + nonfight_test
+        
+        # 셔플
+        random.shuffle(train_data)
+        random.shuffle(val_data)
+        random.shuffle(test_data)
+        
+        return train_data, val_data, test_data
+    
+    def _save_dataset_statistics(self, all_video_data: List[Dict], dataset_name: str):
+        """데이터셋 통계 정보 저장"""
+        stats = {
+            'dataset_name': dataset_name,
+            'total_videos': len(all_video_data),
+            'fight_videos': len([v for v in all_video_data if v['label'] == 1]),
+            'nonfight_videos': len([v for v in all_video_data if v['label'] == 0]),
+            'total_windows': sum(v['num_windows'] for v in all_video_data),
+            'avg_windows_per_video': sum(v['num_windows'] for v in all_video_data) / len(all_video_data),
+            'avg_frames_per_video': sum(v['total_frames'] for v in all_video_data) / len(all_video_data),
+            'config': {
+                'clip_len': self.config.clip_len,
+                'training_stride': self.config.training_stride,
+                'score_thr': self.config.score_thr,
+                'nms_thr': self.config.nms_thr,
+                'track_high_thresh': self.config.track_high_thresh,
+                'track_low_thresh': self.config.track_low_thresh,
+                'quality_threshold': self.config.quality_threshold,
+                'min_track_length': self.config.min_track_length,
+                'weights': self.config.weights
+            },
+            'split_ratios': {
+                'train': self.config.train_ratio,
+                'val': self.config.val_ratio,
+                'test': self.config.test_ratio
+            }
+        }
+        
+        # 윈도우별 통계
+        all_windows = []
+        for video in all_video_data:
+            all_windows.extend(video['windows'])
+        
+        if all_windows:
+            window_scores = [w.get('composite_score', 0.0) for w in all_windows]
+            stats['window_statistics'] = {
+                'total_windows': len(all_windows),
+                'avg_composite_score': sum(window_scores) / len(window_scores),
+                'max_composite_score': max(window_scores),
+                'min_composite_score': min(window_scores)
+            }
+        
+        # 통계 파일 저장
+        import json
+        stats_file = os.path.join(self.unified_output_dir, f"{dataset_name}_statistics.json")
+        with open(stats_file, 'w', encoding='utf-8') as f:
+            json.dump(stats, f, indent=2)
+        
+        print(f"Dataset statistics saved to: {stats_file}")
+        
+        # 간단한 요약 출력
+        print(f"\nDataset Summary:")
+        print(f"  Total Videos: {stats['total_videos']} (Fight: {stats['fight_videos']}, NonFight: {stats['nonfight_videos']})")
+        print(f"  Total Windows: {stats['total_windows']}")
+        print(f"  Avg Windows/Video: {stats['avg_windows_per_video']:.1f}")
+        print(f"  Avg Frames/Video: {stats['avg_frames_per_video']:.1f}")
+        if 'window_statistics' in stats:
+            print(f"  Avg Composite Score: {stats['window_statistics']['avg_composite_score']:.3f}")
+            print(f"  Score Range: {stats['window_statistics']['min_composite_score']:.3f} - {stats['window_statistics']['max_composite_score']:.3f}")
+
+
+def load_config(config_path: str):
+    """Python 설정 파일 로드"""
+    spec = importlib.util.spec_from_file_location("config", config_path)
+    config_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config_module)
+    return config_module
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Separated Pose Estimation and Tracking Pipeline')
-    
-    # 모드 설정
-    parser.add_argument('--mode', type=str, 
-                       choices=['pose_only', 'tracking_only', 'unified_only', 'full'], 
-                       default='full',
-                       help='Processing mode: pose_only, tracking_only, unified_only, or full')
-    
-    # 기본 설정
-    parser.add_argument('--input-dir', type=str, required=True,
-                       help='Input video directory')
-    parser.add_argument('--output-dir', type=str, required=True,
-                       help='Output directory')
-    
-    # 포즈 추정 설정
-    parser.add_argument('--detector-config', type=str,
-                       default='/workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py',
-                       help='RTMO detector config file')
-    parser.add_argument('--detector-checkpoint', type=str,
-                       default='/workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth',
-                       help='RTMO detector checkpoint')
-    parser.add_argument('--score-thr', type=float, default=0.3,
-                       help='Pose detection score threshold')
-    parser.add_argument('--nms-thr', type=float, default=0.35,
-                       help='NMS threshold for pose detection')
-    
-    # 트래킹 설정
-    parser.add_argument('--track-high-thresh', type=float, default=0.6,
-                       help='High threshold for ByteTracker')
-    parser.add_argument('--track-low-thresh', type=float, default=0.1,
-                       help='Low threshold for ByteTracker')
-    parser.add_argument('--track-max-disappeared', type=int, default=30,
-                       help='Maximum frames a track can be lost')
-    parser.add_argument('--track-min-hits', type=int, default=3,
-                       help='Minimum hits required for valid track')
-    parser.add_argument('--quality-threshold', type=float, default=0.3,
-                       help='Minimum quality threshold for tracks')
-    parser.add_argument('--min-track-length', type=int, default=10,
-                       help='Minimum track length for valid tracks')
-    
-    # 복합 점수 가중치
-    parser.add_argument('--movement-weight', type=float, default=0.45,
-                       help='Weight for movement score')
-    parser.add_argument('--position-weight', type=float, default=0.10,
-                       help='Weight for position score')
-    parser.add_argument('--interaction-weight', type=float, default=0.30,
-                       help='Weight for interaction score')
-    parser.add_argument('--temporal-weight', type=float, default=0.10,
-                       help='Weight for temporal consistency')
-    parser.add_argument('--persistence-weight', type=float, default=0.05,
-                       help='Weight for persistence score')
-    
-    # 윈도우 설정
-    parser.add_argument('--clip-len', type=int, default=100,
-                       help='Segment clip length (frames)')
-    parser.add_argument('--training-stride', type=int, default=10,
-                       help='Stride for dense training segments')
-    
-    # 데이터 분할
-    parser.add_argument('--train-split', type=float, default=0.7,
-                       help='Training split ratio')
-    parser.add_argument('--val-split', type=float, default=0.2,
-                       help='Validation split ratio')
-    
-    # GPU 설정
-    parser.add_argument('--gpu', type=str, default='0',
-                       help='GPU to use')
+    parser = argparse.ArgumentParser(description="Separated Pose Pipeline")
+    parser.add_argument('--config', type=str, 
+                       default='configs/separated_pipeline_config.py',
+                       help='Configuration file path')
+    parser.add_argument('--stage', type=str, choices=['1', '2', '3', 'all'], default='all',
+                       help='Pipeline stage to run (1: pose extraction, 2: tracking, 3: unification)')
+    parser.add_argument('--verbose', action='store_true',
+                       help='Enable verbose output')
+    parser.add_argument('--resume', action='store_true',
+                       help='Resume from last checkpoint (smart resume)')
+    parser.add_argument('--force', action='store_true',
+                       help='Force reprocessing of all files (ignore existing results)')
     
     args = parser.parse_args()
     
-    # GPU 설정
-    device = f'cuda:{args.gpu}' if args.gpu != 'cpu' else 'cpu'
+    # 인자 검증
+    if args.resume and args.force:
+        print("Error: --resume and --force options are mutually exclusive")
+        print("--resume: Skip already processed files (default behavior)")
+        print("--force: Reprocess all files")
+        sys.exit(1)
     
-    # 처리기 초기화
-    processor = SeparatedPoseProcessor(
-        detector_config=args.detector_config,
-        detector_checkpoint=args.detector_checkpoint,
-        device=device,
-        score_thr=args.score_thr,
-        nms_thr=args.nms_thr,
-        track_high_thresh=args.track_high_thresh,
-        track_low_thresh=args.track_low_thresh,
-        track_max_disappeared=args.track_max_disappeared,
-        track_min_hits=args.track_min_hits,
-        quality_threshold=args.quality_threshold,
-        min_track_length=args.min_track_length,
-        weights=[
-            args.movement_weight,
-            args.position_weight,
-            args.interaction_weight,
-            args.temporal_weight,
-            args.persistence_weight
-        ],
-        clip_len=args.clip_len,
-        training_stride=args.training_stride
-    )
+    # Config 파일 확인
+    if not os.path.exists(args.config):
+        print(f"Error: Config file not found: {args.config}")
+        sys.exit(1)
     
-    dataset_name = os.path.basename(args.input_dir.rstrip('/\\\\'))
+    # Config 로드
+    try:
+        config = load_config(args.config)
+    except Exception as e:
+        print(f"Error loading config: {str(e)}")
+        sys.exit(1)
+    
+    # 입력 디렉토리 확인
+    if not os.path.exists(config.input_dir):
+        print(f"Error: Input directory not found: {config.input_dir}")
+        sys.exit(1)
+    
+    # 파이프라인 초기화
+    pipeline = SeparatedPosePipeline(config)
+    
+    print("=" * 80)
+    print("SEPARATED POSE PIPELINE")
+    print("=" * 80)
+    print(f"Input Directory: {config.input_dir}")
+    print(f"Output Directory: {config.output_dir}")
+    print(f"Detector: {config.detector_config}")
+    print(f"Device: {config.device}")
+    print(f"Clip Length: {config.clip_len}, Stride: {config.training_stride}")
+    print(f"Stage to run: {args.stage}")
+    
+    # Resume/Force 모드 정보 출력
+    if args.resume:
+        print("Resume Mode: Skipping already processed files")
+    if args.force:
+        print("Force Mode: Reprocessing all files")
+    print()
     
     try:
-        if args.mode in ['pose_only', 'full']:
-            print("Starting pose extraction...")
-            success = processor.extract_poses_only(args.input_dir, args.output_dir)
-            if not success:
-                print("Pose extraction failed")
-                return
+        # 단계별 실행
+        if args.stage in ['1', 'all']:
+            print("Starting Stage 1: Pose Extraction...")
+            pipeline.run_stage1_pose_extraction(force_reprocess=args.force)
+            print("Stage 1 completed!\n")
         
-        if args.mode in ['tracking_only', 'full']:
-            print("Starting tracking application...")
-            success = processor.apply_tracking_to_poses(args.input_dir, args.output_dir)
-            if not success:
-                print("Tracking application failed")
-                return
+        if args.stage in ['2', 'all']:
+            print("Starting Stage 2: Tracking and Scoring...")
+            pipeline.run_stage2_tracking(force_reprocess=args.force)
+            print("Stage 2 completed!\n")
         
-        if args.mode in ['unified_only', 'full']:
-            print("Creating unified PKL files...")
-            success = processor.create_unified_pkl(
-                args.output_dir, 
-                dataset_name,
-                args.train_split, 
-                args.val_split
-            )
-            if not success:
-                print("Unified PKL creation failed")
-                return
+        if args.stage in ['3', 'all']:
+            print("Starting Stage 3: Dataset Unification...")
+            pipeline.run_stage3_unification(force_reprocess=args.force)
+            print("Stage 3 completed!\n")
         
-        print("\\n🎉 Pipeline completed successfully!")
+        print("=" * 80)
+        print("PIPELINE COMPLETED SUCCESSFULLY!")
+        print("=" * 80)
         
+        # 결과 요약
+        dataset_name = os.path.basename(config.input_dir.rstrip('/\\'))
+        print("\nOutput Structure:")
+        print(f"├── {config.output_dir}")
+        print(f"│   └── {dataset_name}/")
+        print("│       ├── step1_poses/")
+        print("│       │   └── score{}_nms{}/".format(config.score_thr, config.nms_thr))
+        print("│       │       ├── Fight/")
+        print("│       │       │   └── [video_name]_poses.pkl")
+        print("│       │       └── NonFight/")
+        print("│       │           └── [video_name]_poses.pkl")
+        print("│       ├── step2_tracking/")
+        print("│       │   └── clip{}_stride{}_thresh{}_{}_quality{}/".format(
+            config.clip_len, config.training_stride, 
+            config.track_high_thresh, config.track_low_thresh, 
+            config.quality_threshold))
+        print("│       │       ├── Fight/")
+        print("│       │       │   └── [video_name]_windows.pkl")
+        print("│       │       └── NonFight/")
+        print("│       │           └── [video_name]_windows.pkl")
+        print("│       └── step3_unified/")
+        print("│           ├── {}_train_windows.pkl".format(dataset_name))
+        print("│           ├── {}_val_windows.pkl".format(dataset_name))
+        print("│           ├── {}_test_windows.pkl".format(dataset_name))
+        print("│           └── {}_statistics.json".format(dataset_name))
+        
+    except KeyboardInterrupt:
+        print("\nPipeline interrupted by user")
+        sys.exit(1)
     except Exception as e:
-        print(f"\\nPipeline failed with error: {str(e)}")
-        raise
+        print(f"\nPipeline failed with error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

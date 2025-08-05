@@ -24,9 +24,13 @@ class ProcessingErrorLogger:
         self.dataset_name = dataset_name
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        # 로그 파일 경로들 - dataset_name 폴더 내부에 생성
-        dataset_output_dir = os.path.join(output_dir, dataset_name)
-        os.makedirs(dataset_output_dir, exist_ok=True)
+        # 로그 파일 경로들 - dataset_name이 있으면 하위 폴더 생성
+        if dataset_name:
+            dataset_output_dir = os.path.join(output_dir, dataset_name)
+            os.makedirs(dataset_output_dir, exist_ok=True)
+        else:
+            dataset_output_dir = output_dir
+            os.makedirs(dataset_output_dir, exist_ok=True)
         
         self.error_log_file = os.path.join(dataset_output_dir, f"processing_errors_{self.session_id}.log")
         self.failed_videos_file = os.path.join(dataset_output_dir, f"failed_videos_{self.session_id}.json")

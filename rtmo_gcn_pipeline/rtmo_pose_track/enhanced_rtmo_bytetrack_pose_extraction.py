@@ -33,6 +33,17 @@ from mmpose.registry import VISUALIZERS
 # Core Tracking Classes
 # =============================================================================
 
+class Detection:
+    """바운딩 박스 검출 결과를 담는 클래스"""
+    
+    def __init__(self, bbox, confidence=None):
+        self.bbox = bbox  # [x1, y1, x2, y2, score] 또는 [x1, y1, x2, y2]
+        self.confidence = confidence or (bbox[4] if len(bbox) > 4 else 1.0)
+    
+    def to_bbox(self):
+        """바운딩 박스 좌표 반환"""
+        return self.bbox[:4] if len(self.bbox) >= 4 else self.bbox
+
 class KalmanFilter:
     """2D 바운딩 박스 트래킹을 위한 간단한 칼만 필터"""
     
@@ -163,6 +174,10 @@ class Track:
         if self.time_since_update > 0:
             self.hit_streak = 0
         self.time_since_update += 1
+    
+    def to_bbox(self):
+        """바운딩 박스 좌표 반환"""
+        return self.bbox[:4] if len(self.bbox) >= 4 else self.bbox
 
 
 class ByteTracker:
@@ -420,11 +435,18 @@ class AdaptiveRegionImportance:
             curr_frame = frame_indices[i]
             
             if 'keypoints' in track_data[prev_frame] and 'keypoints' in track_data[curr_frame]:
-                prev_kpts = track_data[prev_frame]['keypoints']
-                curr_kpts = track_data[curr_frame]['keypoints']
-                
-                movement = np.linalg.norm(curr_kpts - prev_kpts, axis=1)
-                intensities.append(np.mean(movement))
+                try:
+                    prev_kpts = np.array(track_data[prev_frame]['keypoints'])
+                    curr_kpts = np.array(track_data[curr_frame]['keypoints'])
+                    
+                    # 배열 크기 확인
+                    if prev_kpts.shape == curr_kpts.shape and prev_kpts.size > 0:
+                        movement = np.linalg.norm(curr_kpts - prev_kpts, axis=-1)
+                        if movement.size > 0:
+                            intensities.append(float(np.mean(movement)))
+                except Exception as e:
+                    print(f"Error calculating movement intensity: {str(e)}")
+                    continue
         
         return np.mean(intensities) if intensities else 0.0
     
@@ -551,12 +573,20 @@ class EnhancedFightInvolvementScorer:
             curr_frame = frame_indices[i]
             
             if 'keypoints' in track_data[prev_frame] and 'keypoints' in track_data[curr_frame]:
-                prev_kpts = track_data[prev_frame]['keypoints']
-                curr_kpts = track_data[curr_frame]['keypoints']
-                
-                movement = np.linalg.norm(curr_kpts - prev_kpts, axis=1)
-                rapid_movement = np.sum(movement > movement.mean() + 2*movement.std())
-                intensities.append(rapid_movement / len(movement))
+                try:
+                    prev_kpts = np.array(track_data[prev_frame]['keypoints'])
+                    curr_kpts = np.array(track_data[curr_frame]['keypoints'])
+                    
+                    # 배열 크기 확인
+                    if prev_kpts.shape == curr_kpts.shape and prev_kpts.size > 0:
+                        movement = np.linalg.norm(curr_kpts - prev_kpts, axis=-1)
+                        if movement.size > 0:
+                            threshold = movement.mean() + 2*movement.std()
+                            rapid_movement = np.sum(movement > threshold)
+                            intensities.append(float(rapid_movement / len(movement)))
+                except Exception as e:
+                    print(f"Error calculating rapid movement: {str(e)}")
+                    continue
         
         return np.mean(intensities) if intensities else 0.0
     
@@ -670,26 +700,48 @@ class EnhancedFightInvolvementScorer:
     
     def _get_movement_vector(self, prev_data, curr_data):
         """움직임 벡터 계산"""
-        if 'keypoints' in prev_data and 'keypoints' in curr_data:
-            prev_kpts = prev_data['keypoints']
-            curr_kpts = curr_data['keypoints']
-            movement = curr_kpts - prev_kpts
-            return np.mean(movement, axis=0)  # 평균 움직임 벡터
-        else:
+        try:
+            if 'keypoints' in prev_data and 'keypoints' in curr_data:
+                prev_kpts = np.array(prev_data['keypoints'])
+                curr_kpts = np.array(curr_data['keypoints'])
+                
+                # 배열 크기 확인
+                if prev_kpts.shape == curr_kpts.shape and prev_kpts.size > 0:
+                    movement = curr_kpts - prev_kpts
+                    return np.mean(movement, axis=0)  # 평균 움직임 벡터
+            
             # 바운딩박스 중심점 기반 움직임
-            prev_center = np.array([(prev_data['bbox'][0] + prev_data['bbox'][2])/2,
-                                   (prev_data['bbox'][1] + prev_data['bbox'][3])/2])
-            curr_center = np.array([(curr_data['bbox'][0] + curr_data['bbox'][2])/2,
-                                   (curr_data['bbox'][1] + curr_data['bbox'][3])/2])
-            return curr_center - prev_center
+            if 'bbox' in prev_data and 'bbox' in curr_data:
+                prev_center = np.array([(prev_data['bbox'][0] + prev_data['bbox'][2])/2,
+                                       (prev_data['bbox'][1] + prev_data['bbox'][3])/2])
+                curr_center = np.array([(curr_data['bbox'][0] + curr_data['bbox'][2])/2,
+                                       (curr_data['bbox'][1] + curr_data['bbox'][3])/2])
+                return curr_center - prev_center
+                
+            return np.zeros(2)  # 기본값
+            
+        except Exception as e:
+            print(f"Error calculating movement vector: {str(e)}")
+            return np.zeros(2)
     
     def _calculate_vector_similarity(self, vec1, vec2):
         """벡터 유사도 계산 (코사인 유사도)"""
-        if np.linalg.norm(vec1) == 0 or np.linalg.norm(vec2) == 0:
+        try:
+            vec1 = np.array(vec1)
+            vec2 = np.array(vec2)
+            
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            
+            if norm1 == 0 or norm2 == 0:
+                return 0.0
+            
+            cosine_sim = np.dot(vec1, vec2) / (norm1 * norm2)
+            return max(0, float(cosine_sim))  # 음수 유사도는 0으로 처리
+            
+        except Exception as e:
+            print(f"Error calculating vector similarity: {str(e)}")
             return 0.0
-        
-        cosine_sim = np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
-        return max(0, cosine_sim)  # 음수 유사도는 0으로 처리
     
     def _get_total_frames(self, all_tracks_data):
         """전체 프레임 수 계산"""
@@ -1197,6 +1249,8 @@ class EnhancedRTMOPoseExtractor:
             if not poses_data or len(poses_data) == 0:
                 return None
             
+            print(f"    Debug: Window {window_idx} processing {len(poses_data)} frames")
+            
             # ByteTracker 초기화
             tracker = ByteTracker(
                 high_thresh=self.track_high_thresh,
@@ -1208,33 +1262,33 @@ class EnhancedRTMOPoseExtractor:
             # 트래킹 적용
             tracked_poses = []
             for frame_idx, pose_result in enumerate(poses_data):
-                if pose_result and len(pose_result) > 0:
-                    # 바운딩 박스 추출
-                    detections = []
-                    for person in pose_result:
-                        if 'bbox' in person:
-                            bbox = person['bbox']
-                            if len(bbox) >= 5:  # [x1, y1, x2, y2, score]
-                                detections.append(Detection(bbox))
+                try:
+                    # PoseDataSample 객체를 표준 형식으로 변환
+                    converted_pose = self._convert_pose_data_sample(pose_result)
                     
-                    # 트래킹 업데이트
+                    # ByteTracker에 전달할 detection 생성
+                    detections = np.array([p['bbox'] for p in converted_pose if 'bbox' in p]) if converted_pose else np.empty((0, 5))
+                    
+                    # 트래커 업데이트 및 활성 트랙 가져오기
                     tracks = tracker.update(detections)
                     
-                    # 트래킹 결과를 포즈 데이터에 매핑
-                    tracked_frame = self._map_tracks_to_poses(pose_result, tracks)
-                    tracked_poses.append(tracked_frame)
-                else:
+                    if converted_pose and len(converted_pose) > 0:
+                        # 트래킹 결과를 포즈 데이터에 매핑
+                        tracked_frame = self._map_tracks_to_poses(converted_pose, tracks)
+                        tracked_poses.append(tracked_frame)
+                    else:
+                        # 포즈가 없는 프레임도 빈 리스트로 추가
+                        tracked_poses.append([])
+                        
+                except Exception as e:
+                    print(f"      Error in frame {frame_idx}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
                     tracked_poses.append([])
             
             # 복합점수 계산 및 어노테이션 생성
-            annotation_generator = AnnotationGenerator(
-                quality_threshold=self.quality_threshold,
-                min_track_length=self.min_track_length,
-                weights=self.weights
-            )
-            
-            # 전체 윈도우에 대한 어노테이션 생성
-            annotation = annotation_generator.generate_annotation(tracked_poses)
+            # 간단한 어노테이션 생성
+            annotation = self._generate_simple_annotation(tracked_poses)
             
             if not annotation or 'persons' not in annotation or not annotation['persons']:
                 return None
@@ -1255,6 +1309,224 @@ class EnhancedRTMOPoseExtractor:
             print(f"Error applying tracking to poses: {str(e)}")
             return None
     
+    def _convert_pose_data_sample(self, pose_data_sample):
+        """PoseDataSample 객체를 표준 형식으로 변환"""
+        try:
+            # MMPose의 PoseDataSample 형식인지 확인
+            if hasattr(pose_data_sample, 'pred_instances'):
+                instances = pose_data_sample.pred_instances
+                converted_poses = []
+                
+                # 각 인스턴스를 표준 형식으로 변환
+                if hasattr(instances, 'keypoints') and hasattr(instances, 'bboxes'):
+                    # torch tensor이면 cpu로 이동, numpy array이면 그대로 사용
+                    if hasattr(instances.keypoints, 'cpu'):
+                        keypoints = instances.keypoints.cpu().numpy()
+                    else:
+                        keypoints = np.array(instances.keypoints)
+                    
+                    if hasattr(instances.bboxes, 'cpu'):
+                        bboxes = instances.bboxes.cpu().numpy()
+                    else:
+                        bboxes = np.array(instances.bboxes)
+                    
+                    # keypoint_scores 처리 (visibility scores)
+                    keypoint_scores = None
+                    if hasattr(instances, 'keypoint_scores'):
+                        if hasattr(instances.keypoint_scores, 'cpu'):
+                            keypoint_scores = instances.keypoint_scores.cpu().numpy()
+                        else:
+                            keypoint_scores = np.array(instances.keypoint_scores)
+                    
+                    # bbox_scores 처리
+                    bbox_scores = None
+                    if hasattr(instances, 'bbox_scores'):
+                        if hasattr(instances.bbox_scores, 'cpu'):
+                            bbox_scores = instances.bbox_scores.cpu().numpy()
+                        else:
+                            bbox_scores = np.array(instances.bbox_scores)
+                    
+                    for i in range(len(keypoints)):
+                        person_keypoints = keypoints[i]  # 원본 keypoints
+                        
+                        # keypoints가 (17, 2) 형태인 경우 (17, 3)으로 확장
+                        if person_keypoints.shape[-1] == 2:
+                            # visibility scores 추가
+                            if keypoint_scores is not None and i < len(keypoint_scores):
+                                # keypoint_scores가 있으면 사용
+                                visibility = keypoint_scores[i]
+                                person_keypoints = np.concatenate([
+                                    person_keypoints, 
+                                    visibility.reshape(-1, 1)
+                                ], axis=1)
+                            else:
+                                # keypoint_scores가 없으면 기본값 1.0 사용
+                                visibility = np.ones((person_keypoints.shape[0], 1), dtype=np.float32)
+                                person_keypoints = np.concatenate([person_keypoints, visibility], axis=1)
+                        
+                        person_data = {
+                            'keypoints': person_keypoints,  # (17, 3) 형태로 보장
+                            'bbox': list(bboxes[i]) + [bbox_scores[i] if bbox_scores is not None else 1.0],
+                            'score': bbox_scores[i] if bbox_scores is not None else 1.0
+                        }
+                        converted_poses.append(person_data)
+                
+                return converted_poses
+            
+            # 이미 표준 형식인 경우
+            elif isinstance(pose_data_sample, list):
+                return pose_data_sample
+            
+            # 빈 결과
+            else:
+                return []
+                
+        except Exception as e:
+            print(f"Error converting PoseDataSample: {str(e)}")
+            return []
+    
+    def _safe_array_check(self, arr, min_length):
+        """배열 크기를 안전하게 체크"""
+        try:
+            if isinstance(arr, (list, tuple)):
+                return len(arr) >= min_length
+            elif isinstance(arr, np.ndarray):
+                return arr.shape[0] >= min_length
+            else:
+                return False
+        except Exception:
+            return False
+    
+    def _has_valid_keypoints(self, keypoints):
+        """키포인트가 유효한지 안전하게 확인"""
+        try:
+            if keypoints is None:
+                return False
+            
+            if isinstance(keypoints, (list, tuple)):
+                return len(keypoints) > 0
+            elif isinstance(keypoints, np.ndarray):
+                return keypoints.size > 0 and not np.all(keypoints == 0)
+            else:
+                return bool(keypoints) if keypoints is not None else False
+        except Exception:
+            return False
+    
+    def _generate_simple_annotation(self, tracked_poses):
+        """간단한 어노테이션 생성"""
+        try:
+            if not tracked_poses:
+                return None
+            
+            # 트랙 ID별로 데이터 수집
+            track_data = {}
+            
+            for frame_idx, frame_poses in enumerate(tracked_poses):
+                if frame_poses:
+                    for person in frame_poses:
+                        if 'track_id' in person:
+                            track_id = person['track_id']
+                            if track_id not in track_data:
+                                track_data[track_id] = []
+                            
+                            track_data[track_id].append({
+                                'frame_idx': frame_idx,
+                                'keypoints': person.get('keypoints', []),
+                                'bbox': person.get('bbox', []),
+                                'score': person.get('score', 0.0)
+                            })
+            
+            if not track_data:
+                return None
+            
+            # 각 트랙에 대해 복합 점수 계산 (간단화)
+            persons = {}
+            for track_id, frames in track_data.items():
+                if len(frames) >= self.min_track_length:
+                    # 평균 점수 계산 (안전한 스칼라 변환)
+                    scores = []
+                    for f in frames:
+                        score = f['score']
+                        if isinstance(score, np.ndarray):
+                            score = float(score.item()) if score.size == 1 else float(score.mean())
+                        scores.append(float(score))
+                    avg_score = np.mean(scores)
+                    
+                    # 키포인트 데이터 구성
+                    num_frames = len(tracked_poses)
+                    keypoints_data = np.zeros((1, num_frames, 17, 2), dtype=np.float32)
+                    scores_data = np.zeros((1, num_frames, 17), dtype=np.float32)
+                    
+                    for frame_data in frames:
+                        frame_idx = frame_data['frame_idx']
+                        # 키포인트 존재 여부를 안전하게 확인
+                        keypoints = frame_data.get('keypoints', [])
+                        if self._has_valid_keypoints(keypoints):
+                            try:
+                                kpts = np.array(keypoints)
+                                
+                                # 키포인트 형태 확인 및 처리
+                                if kpts.ndim == 1 and len(kpts) >= 51:
+                                    # 평면화된 경우 (51,) -> (17, 3)으로 변형
+                                    kpts = kpts.reshape(-1, 3)
+                                elif kpts.ndim == 2:
+                                    # 이미 (17, 3) 또는 (N, 3) 형태인 경우
+                                    if kpts.shape[0] >= 17 and kpts.shape[1] >= 3:
+                                        pass  # 올바른 형태
+                                    else:
+                                        print(f"Invalid 2D keypoint shape for track {track_id}, frame {frame_idx}: {kpts.shape}")
+                                        continue
+                                elif kpts.ndim == 3:
+                                    # (1, 17, 3) 형태인 경우 squeeze
+                                    kpts = kpts.squeeze(0)
+                                else:
+                                    print(f"Unsupported keypoint dimension for track {track_id}, frame {frame_idx}: {kpts.ndim}")
+                                    continue
+                                
+                                if self._safe_array_check(kpts, 17):
+                                    # 안전한 인덱싱 및 배열 크기 검증
+                                    try:
+                                        # 배열 크기 체크
+                                        kpts_subset = kpts[:17]
+                                        if kpts_subset.ndim >= 2 and kpts_subset.shape[1] >= 3:
+                                            keypoints_data[0, frame_idx, :17, 0] = kpts_subset[:, 0]
+                                            keypoints_data[0, frame_idx, :17, 1] = kpts_subset[:, 1]
+                                            scores_data[0, frame_idx, :17] = kpts_subset[:, 2]
+                                        else:
+                                            print(f"Invalid keypoint subset shape for track {track_id}, frame {frame_idx}: {kpts_subset.shape}")
+                                    except (IndexError, ValueError) as idx_err:
+                                        print(f"Index error for track {track_id}, frame {frame_idx}: {str(idx_err)}")
+                                        continue
+                            except Exception as e:
+                                print(f"Error processing keypoints for track {track_id}, frame {frame_idx}: {str(e)}")
+                                continue
+                    
+                    persons[track_id] = {
+                        'keypoint': keypoints_data,
+                        'keypoint_score': scores_data,
+                        'num_keypoints': 17,
+                        'track_id': track_id,
+                        'composite_score': float(avg_score)
+                    }
+            
+            if not persons:
+                return None
+            
+            return {
+                'persons': persons,
+                'metadata': {
+                    'num_persons': len(persons),
+                    'frame_count': len(tracked_poses),
+                    'quality_threshold': self.quality_threshold
+                }
+            }
+            
+        except Exception as e:
+            print(f"Error generating annotation: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
     def _map_tracks_to_poses(self, pose_result: list, tracks: list) -> list:
         """트래킹 결과를 포즈 데이터에 매핑"""
         try:
@@ -1265,32 +1537,41 @@ class EnhancedRTMOPoseExtractor:
             
             # 각 트랙에 대해 가장 가까운 포즈 찾기
             for track in tracks:
-                track_bbox = track.to_bbox()
-                track_center = [(track_bbox[0] + track_bbox[2]) / 2, 
-                               (track_bbox[1] + track_bbox[3]) / 2]
-                
-                best_match = None
-                best_distance = float('inf')
-                
-                for person in pose_result:
-                    if 'bbox' in person:
-                        person_bbox = person['bbox']
-                        person_center = [(person_bbox[0] + person_bbox[2]) / 2,
-                                       (person_bbox[1] + person_bbox[3]) / 2]
+                try:
+                    track_bbox = track.to_bbox()
+                    track_center = [(track_bbox[0] + track_bbox[2]) / 2, 
+                                   (track_bbox[1] + track_bbox[3]) / 2]
+                    
+                    best_match = None
+                    best_distance = float('inf')
+                    
+                    for person in pose_result:
+                        if 'bbox' in person:
+                            person_bbox = person['bbox'][:4]  # [x1, y1, x2, y2]만 사용
+                            person_center = [(person_bbox[0] + person_bbox[2]) / 2,
+                                           (person_bbox[1] + person_bbox[3]) / 2]
+                            
+                            # 중심점 간 거리 계산
+                            distance = np.sqrt((track_center[0] - person_center[0])**2 + 
+                                             (track_center[1] - person_center[1])**2)
+                            
+                            if distance < best_distance:
+                                best_distance = distance
+                                best_match = person.copy()
+                    
+                    if best_match is not None:
+                        # 트랙 ID 추가
+                        best_match['track_id'] = int(track.track_id) if hasattr(track, 'track_id') else -1
+                        # numpy 배열을 안전하게 리스트로 변환
+                        if isinstance(track_bbox, np.ndarray):
+                            best_match['track_bbox'] = track_bbox.tolist()
+                        else:
+                            best_match['track_bbox'] = list(track_bbox)
+                        tracked_poses.append(best_match)
                         
-                        # 중심점 간 거리 계산
-                        distance = np.sqrt((track_center[0] - person_center[0])**2 + 
-                                         (track_center[1] - person_center[1])**2)
-                        
-                        if distance < best_distance:
-                            best_distance = distance
-                            best_match = person.copy()
-                
-                if best_match is not None:
-                    # 트랙 ID 추가
-                    best_match['track_id'] = track.track_id
-                    best_match['track_bbox'] = track_bbox
-                    tracked_poses.append(best_match)
+                except Exception as e:
+                    print(f"        Error processing track {track.track_id}: {str(e)}")
+                    continue
             
             return tracked_poses
             

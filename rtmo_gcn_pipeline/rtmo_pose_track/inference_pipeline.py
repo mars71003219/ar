@@ -2,6 +2,22 @@
 """
 Inference Pipeline (Config-based)
 Pose Estimation -> Tracking -> MMAction2 Inference -> Consecutive Event Processing -> Performance Evaluation
+
+사용법:
+  # 기본 실행 (resume 모드 - 이미 처리된 비디오 건너뛰기)
+  python inference_pipeline.py --config configs/inference_config.py
+  
+  # 모든 비디오 강제 재처리
+  python inference_pipeline.py --config configs/inference_config.py --force
+  
+  # Resume 모드 비활성화 (모든 비디오 처리)
+  python inference_pipeline.py --config configs/inference_config.py --no-resume
+  
+  # Config 오버라이드와 함께 사용
+  python inference_pipeline.py --config configs/inference_config.py gpu=1 debug_mode=True
+  
+  # Force 모드와 config 오버라이드
+  python inference_pipeline.py --force gpu=0,1 classification_threshold=0.7
 """
 
 import os
@@ -10,6 +26,7 @@ import json
 import pickle
 import glob
 import numpy as np
+import argparse
 from pathlib import Path
 from typing import Dict, List, Any
 import multiprocessing as mp
@@ -79,18 +96,53 @@ class FightInferenceProcessor:
         action_model = init_recognizer(self.config.action_config, self.config.action_checkpoint, device=self.device)
         return pose_extractor, action_model
 
-    def run_inference(self):
-        """Executes the full inference pipeline."""
+    def run_inference(self, resume_mode=True, force_reprocess=False):
+        """Executes the full inference pipeline with resume capability."""
         print("=" * 70 + " Fight Detection Inference Pipeline" + "=" * 70)
         output_dir, windows_dir, results_dir = self._setup_directories()
+        
+        # Check if final results already exist
+        if not force_reprocess and self._check_existing_results(results_dir):
+            print("Final results already exist:")
+            print(f"  - window_results.json")  
+            print(f"  - video_results.json")
+            print(f"  - performance_metrics.json")
+            print("Use --force to reprocess all videos")
+            return
+        
         video_files = self._collect_video_files(self.config.input_dir)
-
-        if len(self.gpu_ids) > 1:
-            print(f"Using multi-GPU processing with GPUs: {self.gpu_ids}")
-            all_window_results, all_video_results = self._run_multi_gpu_inference(video_files, windows_dir)
+        
+        if force_reprocess:
+            remaining_videos = video_files
+            print("Force mode: Reprocessing all videos")
+        elif resume_mode:
+            processed_videos = self._get_processed_videos(windows_dir)
+            remaining_videos = [v for v in video_files if self._get_video_key(v) not in processed_videos]
+            print(f"Total videos: {len(video_files)}")
+            print(f"Already processed: {len(processed_videos)}")
+            print(f"Remaining videos: {len(remaining_videos)}")
         else:
-            print(f"Using single GPU processing with GPU: {self.device}")
-            all_window_results, all_video_results = self._run_single_gpu_inference(video_files, windows_dir)
+            remaining_videos = video_files
+            print(f"Processing all {len(video_files)} videos")
+        
+        if not remaining_videos:
+            print("All videos already processed")
+            # Load existing results for final summary
+            all_window_results, all_video_results = self._load_existing_results(windows_dir)
+        else:
+            # Process remaining videos
+            if len(self.gpu_ids) > 1:
+                print(f"Using multi-GPU processing with GPUs: {self.gpu_ids}")
+                all_window_results, all_video_results = self._run_multi_gpu_inference(remaining_videos, windows_dir)
+            else:
+                print(f"Using single GPU processing with GPU: {self.device}")
+                all_window_results, all_video_results = self._run_single_gpu_inference(remaining_videos, windows_dir)
+            
+            # If resume mode, combine with existing results
+            if resume_mode and not force_reprocess:
+                existing_window_results, existing_video_results = self._load_existing_results(windows_dir)
+                all_window_results.extend(existing_window_results)
+                all_video_results.extend(existing_video_results)
 
         self._save_results(all_window_results, all_video_results, results_dir)
         print("Inference pipeline completed.")
@@ -165,12 +217,91 @@ class FightInferenceProcessor:
         """Collects video files from the input directory."""
         extensions = ['*.mp4', '*.avi', '*.mov', '*.mkv']
         return sorted([p for ext in extensions for p in glob.glob(os.path.join(input_dir, '**', ext), recursive=True)])
+    
+    def _get_processed_videos(self, windows_dir: str) -> set:
+        """Get already processed videos by checking window results."""
+        processed = set()
+        
+        for category in ['Fight', 'NonFight']:
+            category_dir = os.path.join(windows_dir, category)
+            if os.path.exists(category_dir):
+                for file_name in os.listdir(category_dir):
+                    if file_name.endswith('_windows.pkl'):
+                        # Extract video name from file name
+                        video_name = file_name.replace('_windows.pkl', '')
+                        processed.add(f"{category}/{video_name}")
+        
+        return processed
+    
+    def _get_video_key(self, video_path: str) -> str:
+        """Generate key from video path for comparison."""
+        video_name = Path(video_path).stem
+        label_folder = Path(video_path).parent.name
+        return f"{label_folder}/{video_name}"
+    
+    def _check_existing_results(self, results_dir: str) -> bool:
+        """Check if final results already exist."""
+        result_files = [
+            'window_results.json',
+            'video_results.json', 
+            'performance_metrics.json'
+        ]
+        
+        return all(os.path.exists(os.path.join(results_dir, f)) for f in result_files)
+    
+    def _load_existing_results(self, windows_dir: str) -> tuple:
+        """Load existing window results from previous runs."""
+        all_window_results = []
+        all_video_results = []
+        
+        for category in ['Fight', 'NonFight']:
+            category_dir = os.path.join(windows_dir, category)
+            if os.path.exists(category_dir):
+                for pkl_file in glob.glob(os.path.join(category_dir, '*_windows.pkl')):
+                    try:
+                        with open(pkl_file, 'rb') as f:
+                            window_results = pickle.load(f)
+                            
+                        if window_results:
+                            all_window_results.extend(window_results)
+                            
+                            # Extract video summary from window results
+                            video_name = window_results[0]['video_name']
+                            true_label = window_results[0]['true_label']
+                            label_folder = window_results[0]['label_folder']
+                            
+                            # Apply consecutive event rule
+                            video_prediction = _apply_consecutive_event_rule_static(
+                                window_results, getattr(self.config, 'consecutive_event_threshold', 3)
+                            )
+                            
+                            video_summary = {
+                                'video_name': video_name,
+                                'true_label': true_label,
+                                'label_folder': label_folder,
+                                'video_prediction': video_prediction,
+                                'window_count': len(window_results),
+                                'fight_windows': sum(1 for w in window_results if w['predicted_label'] == 1),
+                                'avg_prediction_score': np.mean([w['prediction'] for w in window_results]) if window_results else 0.0,
+                                'max_prediction_score': np.max([w['prediction'] for w in window_results]) if window_results else 0.0
+                            }
+                            all_video_results.append(video_summary)
+                            
+                    except Exception as e:
+                        print(f"Error loading {pkl_file}: {e}")
+                        continue
+        
+        return all_window_results, all_video_results
 
     def _augment_frames(self, pose_results: List, clip_len: int) -> List:
         """Augments frames if the video is shorter than the clip length."""
         original_length = len(pose_results)
-        if original_length >= clip_len: return pose_results
-        if original_length == 0: return []
+        if original_length >= clip_len: 
+            return pose_results
+        if original_length == 0: 
+            return []
+        
+        print(f"    Applying padding: {original_length} -> {clip_len} frames")
         augmented_results = list(pose_results)
         while len(augmented_results) < clip_len:
             augmented_results.extend(pose_results)
@@ -282,6 +413,10 @@ class FightInferenceProcessor:
         print(f"  Precision: {metrics.get('precision', 0.0):.4f}")
         print(f"  Recall:    {metrics.get('recall', 0.0):.4f}")
         print(f"  F1-Score:  {metrics.get('f1_score', 0.0):.4f}")
+        print("=" * 70)
+        
+        # Total videos processed
+        print(f"Total videos processed: {performance['total_videos']}")
         print("=" * 70)
 
     def _convert_numpy_to_serializable(self, obj: Any) -> Any:
@@ -406,8 +541,12 @@ def _process_single_video(video_path: str, windows_dir: str, config: Any,
 def _augment_frames_static(pose_results: List, clip_len: int) -> List:
     """Static function: Augments frames."""
     original_length = len(pose_results)
-    if original_length >= clip_len: return pose_results
-    if original_length == 0: return []
+    if original_length >= clip_len: 
+        return pose_results
+    if original_length == 0: 
+        return []
+    
+    print(f"    Applying padding: {original_length} -> {clip_len} frames")
     augmented_results = list(pose_results)
     while len(augmented_results) < clip_len:
         augmented_results.extend(pose_results)
@@ -620,24 +759,71 @@ def _save_window_results_static(window_results: List[Dict], windows_dir: str, la
 
 def main():
     """Main execution function with proper signal handling."""
+    # Argument parsing
+    parser = argparse.ArgumentParser(description="Fight Detection Inference Pipeline")
+    parser.add_argument('--config', type=str, default='configs/inference_config.py',
+                       help='Configuration file path')
+    parser.add_argument('--resume', action='store_true', default=True,
+                       help='Resume from last checkpoint (skip already processed videos)')
+    parser.add_argument('--force', action='store_true',
+                       help='Force reprocessing of all videos (ignore existing results)')
+    parser.add_argument('--no-resume', action='store_true',
+                       help='Disable resume mode (process all videos)')
+    
+    # Support for config overrides (key=value format)
+    parser.add_argument('overrides', nargs='*', 
+                       help='Config overrides in key=value format (e.g., gpu=0 debug_mode=True)')
+    
+    args = parser.parse_args()
+    
+    # Argument validation
+    if args.resume and args.force:
+        print("Error: --resume and --force options are mutually exclusive")
+        print("--resume: Skip already processed videos (default)")
+        print("--force: Reprocess all videos")
+        sys.exit(1)
+    
+    # Handle no-resume flag
+    resume_mode = args.resume and not args.no_resume and not args.force
+    
+    # Parse config overrides
+    overrides = {}
+    for override in args.overrides:
+        if '=' in override:
+            key, value = override.split('=', 1)
+            overrides[key] = value
+    
     processor = None
     def signal_handler(signum, frame):
         print(f"\nReceived signal {signum}. Shutting down gracefully...")
-        if processor and hasattr(processor, 'gpu_ids'): _cleanup_all_gpus()
+        if processor and hasattr(processor, 'gpu_ids'):
+            for gpu_id in processor.gpu_ids:
+                _cleanup_gpu_process(gpu_id)
         print("Shutdown completed.")
         sys.exit(0)
     
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    config_file = next((arg for arg in sys.argv[1:] if not '=' in arg), None)
-    overrides = {k: v for arg in sys.argv[1:] if '=' in arg for k, v in [arg.split('=', 1)]}
-    
     try:
-        config = load_config(config_file or 'configs/inference_config.py', overrides=overrides)
+        config = load_config(args.config, overrides=overrides)
+        
+        # Print execution mode
+        print("=" * 80)
+        print("FIGHT DETECTION INFERENCE PIPELINE")
+        print("=" * 80)
+        print(f"Config file: {args.config}")
+        if args.force:
+            print("Mode: Force reprocessing all videos")
+        elif resume_mode:
+            print("Mode: Resume (skip already processed videos)")
+        else:
+            print("Mode: Process all videos")
+        print()
+        
         config.print_config()
         processor = FightInferenceProcessor(config)
-        processor.run_inference()
+        processor.run_inference(resume_mode=resume_mode, force_reprocess=args.force)
         print("Inference pipeline completed successfully!")
     except Exception as e:
         print(f"An error occurred in main process: {e}")

@@ -29,8 +29,25 @@ track_min_hits = 3
 quality_threshold = 0.3
 min_track_length = 10
 
-# 복합점수 가중치 [movement, position, interaction, temporal_consistency, persistence]
-weights = [0.40, 0.15, 0.30, 0.08, 0.02]
+# 복합점수 가중치 설정
+weights = {
+    'movement': 0.40,           # 움직임 강도 (가장 중요)
+    'position': 0.15,           # 위치 점수 (영역별 중요도)
+    'interaction': 0.30,        # 상호작용 점수 (두 번째로 중요)
+    'temporal_consistency': 0.08,  # 시간적 일관성
+    'persistence': 0.02         # 지속성 점수
+}
+
+# 기존 리스트 방식과의 호환성을 위한 헬퍼 함수
+def get_weights_list():
+    """가중치를 리스트 형태로 반환 (기존 코드 호환성)"""
+    return [
+        weights['movement'],
+        weights['position'],
+        weights['interaction'],
+        weights['temporal_consistency'],
+        weights['persistence']
+    ]
 
 # 데이터셋 분할 비율
 train_ratio = 0.7
