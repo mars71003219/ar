@@ -46,17 +46,18 @@ class VisualizerConfig:
         self.nonfight_color = (0, 255, 0)   # 초록색 (NonFight)
         self.text_color = (255, 255, 255)   # 흰색 (텍스트)
         self.bg_color = (0, 0, 0)           # 검은색 (배경)
+        self.overlap_color = (255, 0, 255)  # 자주색 (겹침 구간)
         
         # --- 폰트 설정 ---
-        self.font_scale = 0.7
-        self.font_thickness = 2
-        self.title_font_scale = 0.8
-        self.title_font_thickness = 2
+        self.font_scale = 0.4
+        self.font_thickness = 1
+        self.title_font_scale = 0.4
+        self.title_font_thickness = 1
         
         # --- UI 레이아웃 설정 ---
         self.box_padding = 10
-        self.line_thickness = 2
-        self.keypoint_radius = 3
+        self.line_thickness = 1
+        self.keypoint_radius = 1
         
         # --- 스켈레톤 설정 ---
         # COCO 17 keypoint 연결 정보 (1-based → 0-based로 자동 변환)
@@ -108,6 +109,21 @@ class VisualizerConfig:
         self.debug_mode = False
         self.save_debug_frames = False
         self.debug_output_dir = 'debug_frames'
+
+        # --- 비디오 저장 및 오버레이 ---
+        self.SAVE_OVERLAY_VIDEO = True
+        self.OVERLAY_SUB_DIR = 'overlay'
+        self.PKL_SEARCH_SUBDIR = 'windows'
+
+        # --- 판정 로직 ---
+        self.consecutive_threshold = 3
+
+        # --- UI 위치 및 여백 ---
+        self.window_info_x = 10
+        self.window_info_y_start = 25
+        self.window_info_y_step = 30  # 텍스트 박스 높이(25px)보다 큰 값으로 설정
+        self.frame_info_margin = 5
+        self.final_result_margin = 5
     
     def get_color(self, index: int) -> Tuple[int, int, int]:
         """인덱스에 따른 색상 반환"""
@@ -151,34 +167,3 @@ class VisualizerConfig:
 
 # 전역 설정 인스턴스
 config = VisualizerConfig()
-
-
-# 레거시 호환성을 위한 변수들 (기존 코드와의 호환성)
-input_dir = config.default_input_dir
-output_dir = config.default_output_dir
-num_persons = config.max_persons
-confidence_threshold = config.confidence_threshold
-verbose = config.verbose
-supported_video_extensions = [ext.lstrip('.') for ext in config.supported_video_extensions]
-person_colors = config.colors[:5]  # 기존 5개 색상만
-fight_color = config.fight_color
-nonfight_color = config.nonfight_color
-font_scale = config.font_scale
-font_thickness = config.font_thickness
-title_font_scale = config.title_font_scale
-title_font_thickness = config.title_font_thickness
-output_video_codec = config.fourcc_codec
-skeleton_connections = config.skeleton_connections
-
-# 새로운 설정들
-SAVE_OVERLAY_VIDEO = True
-OVERLAY_SUB_DIR = 'overlay'
-PKL_SEARCH_SUBDIR = 'windows'
-
-# UI 위치 설정 (레거시 호환성)
-window_info_x = 10
-window_info_y_start = 20
-window_info_y_step = 15
-frame_info_margin = 5
-final_result_margin = 5
-consecutive_threshold = 3

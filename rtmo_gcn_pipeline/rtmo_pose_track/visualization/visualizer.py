@@ -10,6 +10,7 @@ Enhanced Visualizer with Inference and Separated Pipeline Overlay
 
 import os
 import sys
+import json
 import cv2
 import pickle
 import numpy as np
@@ -18,69 +19,28 @@ import argparse
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 
-# 설정 파일에서 모든 설정 로드
-try:
-    from ..configs.visualizer_config import *
-except ImportError as e:
-    try:
-        # 상대 경로 실패 시 절대 경로로 시도
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(current_dir)
-        sys.path.insert(0, parent_dir)
-        from configs.visualizer_config import *
-    except ImportError as e2:
-        print(f"Error: visualizer_config.py 파일을 찾을 수 없습니다!")
-        print(f"파일 경로를 확인하세요: configs/visualizer_config.py")
-        print(f"상세 오류: {e2}")
-        sys.exit(1)
+
 
 
 class EnhancedVisualizer:
     """향상된 시각화 클래스 - Inference 및 Separated Pipeline 지원"""
     
     def __init__(self, mode='inference', video_dir=None, pkl_dir=None, 
-                 save=False, save_dir=None, num_person=2):
-        """
-        Args:
-            mode: 'inference_overlay' 또는 'separated_overlay'
-            video_dir: 입력 비디오 디렉토리 또는 파일 경로
-            pkl_dir: PKL 파일 디렉토리 경로
-            save: 파일 저장 여부
-            save_dir: 파일 저장 경로
-            num_person: 표시할 상위 N명의 사람 수
-        """
+                 save=False, save_dir=None, num_person=2, config=None):
+        if config is None:
+            raise ValueError("A config object must be provided.")
+
+        self.config = config
         self.mode = mode
-        self.video_dir = video_dir
-        self.pkl_dir = pkl_dir
+        self.video_dir = video_dir or self.config.default_input_dir
+        self.pkl_dir = pkl_dir or self.config.default_output_dir
         self.save = save
-        self.save_dir = save_dir
+        self.save_dir = save_dir or self.config.default_output_dir
+        self.output_dir = self.save_dir
         self.num_persons = num_person
-        
-        # 기본값 설정
-        if not self.video_dir:
-            self.video_dir = getattr(globals(), 'input_dir', './test_data')
-        if not self.pkl_dir:
-            self.pkl_dir = getattr(globals(), 'output_dir', './output')
-        if not self.save_dir:
-            self.save_dir = './overlay_output'
-        
-        # COCO 17 keypoints 연결 정보
-        self.skeleton = skeleton_connections
-        
-        # 색상 설정
-        self.person_colors = person_colors
-        self.overlap_color = overlap_color
-        self.fight_color = fight_color
-        self.nonfight_color = nonfight_color
-        self.final_fight_color = final_fight_color
-        self.final_nonfight_color = final_nonfight_color
-        
+
         # UI 폰트 설정
         self.font = cv2.FONT_HERSHEY_SIMPLEX
-        self.font_scale = font_scale
-        self.font_thickness = font_thickness
-        self.title_font_scale = title_font_scale
-        self.title_font_thickness = title_font_thickness
         
         # 비디오-PKL 매칭 정보
         self.video_pkl_pairs = []
@@ -105,7 +65,8 @@ class EnhancedVisualizer:
             pkl_files = []
             for root, dirs, files in os.walk(self.pkl_dir):
                 for file in files:
-                    if file.endswith('_windows.pkl'):
+                    # _windows.pkl 파일이나 일반 .pkl 파일 모두 허용
+                    if file.endswith('_windows.pkl') or (file.endswith('.pkl') and 'window' in file):
                         pkl_path = os.path.join(root, file)
                         pkl_files.append(pkl_path)
         
@@ -155,7 +116,7 @@ class EnhancedVisualizer:
     def get_inference_results_from_pkl(self, video_name: str) -> Dict:
         """PKL 파일에서 추론 결과 로드"""
         # windows/{label}/{video_name}_windows.pkl 형태에서 inference 결과 찾기
-        inference_dir = os.path.join(self.output_dir, "windows")
+        inference_dir = os.path.join(self.pkl_dir, "windows")
         
         for label_folder in ['Fight', 'NonFight']:
             inference_pkl = os.path.join(inference_dir, label_folder, f"{video_name}_windows.pkl")
@@ -169,6 +130,29 @@ class EnhancedVisualizer:
         
         return {}
     
+    def get_final_video_result(self, video_name: str) -> Dict[str, Any]:
+        """video_results.json에서 최종 비디오 분류 결과 로드"""
+        try:
+            results_file = os.path.join(self.pkl_dir, "results", "video_results.json")
+            if os.path.exists(results_file):
+                with open(results_file, 'r', encoding='utf-8') as f:
+                    video_results = json.load(f)
+                
+                # 해당 비디오 찾기
+                for result in video_results:
+                    if result.get('video_name') == video_name:
+                        return {
+                            'video_prediction': result.get('video_prediction', 0),
+                            'avg_prediction_score': result.get('avg_prediction_score', 0.0),
+                            'max_prediction_score': result.get('max_prediction_score', 0.0),
+                            'fight_windows': result.get('fight_windows', 0),
+                            'window_count': result.get('window_count', 0)
+                        }
+        except Exception as e:
+            print(f"Error loading video results: {e}")
+        
+        return {'video_prediction': 0, 'avg_prediction_score': 0.0}
+    
     def draw_skeleton(self, img: np.ndarray, keypoints: np.ndarray, person_idx: int, 
                      is_overlap: bool = False) -> np.ndarray:
         """스켈레톤 그리기"""
@@ -177,9 +161,9 @@ class EnhancedVisualizer:
             
         # 색상 선택
         if is_overlap:
-            color = self.overlap_color
+            color = self.config.overlap_color
         else:
-            color = self.person_colors[person_idx % len(self.person_colors)]
+            color = self.config.colors[person_idx % len(self.config.colors)]
         
         # keypoints 형태 확인 및 처리
         try:
@@ -201,18 +185,18 @@ class EnhancedVisualizer:
                 
             # 관절점 그리기
             for i, (x, y, score) in enumerate(coords_scores):
-                if score > confidence_threshold:  # 신뢰도 임계값
-                    cv2.circle(img, (int(x), int(y)), 4, color, -1)
+                if score > self.config.confidence_threshold:
+                    cv2.circle(img, (int(x), int(y)), self.config.keypoint_radius, color, -1)
             
             # 스켈레톤 연결선 그리기  
-            for connection in self.skeleton:
+            for connection in self.config.skeleton_connections:
                 pt1_idx, pt2_idx = connection[0] - 1, connection[1] - 1  # 1-based to 0-based
                 if pt1_idx < len(coords_scores) and pt2_idx < len(coords_scores):
                     x1, y1, score1 = coords_scores[pt1_idx]
                     x2, y2, score2 = coords_scores[pt2_idx]
                     
-                    if score1 > confidence_threshold and score2 > confidence_threshold:
-                        cv2.line(img, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+                    if score1 > self.config.confidence_threshold and score2 > self.config.confidence_threshold:
+                        cv2.line(img, (int(x1), int(y1)), (int(x2), int(y2)), color, self.config.line_thickness)
         
         except Exception as e:
             print(f"Error drawing skeleton: {e}, keypoints shape: {keypoints.shape}")
@@ -231,40 +215,150 @@ class EnhancedVisualizer:
         
         return overlap_persons
     
+    def get_head_position(self, keypoints: np.ndarray) -> Optional[Tuple[int, int]]:
+        """키포인트에서 머리 위치 계산"""
+        try:
+            # COCO-17 키포인트 인덱스 (0-based)
+            nose_idx = 0
+            left_eye_idx = 1
+            right_eye_idx = 2
+            left_ear_idx = 3
+            right_ear_idx = 4
+            
+            # 키포인트가 (V, C) 형태인지 확인
+            if len(keypoints.shape) != 2 or keypoints.shape[0] < 5:
+                return None
+            
+            # 머리 부위 키포인트들의 유효성 확인 (confidence가 있는 경우)
+            head_points = []
+            confidence_threshold = self.config.confidence_threshold
+            
+            for idx in [nose_idx, left_eye_idx, right_eye_idx, left_ear_idx, right_ear_idx]:
+                if keypoints.shape[1] >= 3:  # (x, y, confidence)
+                    x, y, conf = keypoints[idx]
+                    if conf > confidence_threshold:
+                        head_points.append((x, y))
+                elif keypoints.shape[1] >= 2:  # (x, y)
+                    x, y = keypoints[idx]
+                    if x > 0 and y > 0:  # 유효한 좌표인지 확인
+                        head_points.append((x, y))
+            
+            if not head_points:
+                return None
+            
+            # 머리 중심점 계산
+            avg_x = sum(point[0] for point in head_points) / len(head_points)
+            avg_y = sum(point[1] for point in head_points) / len(head_points)
+            
+            # 머리 위쪽으로 오프셋 (30픽셀 위)
+            head_top_y = avg_y - 30
+            
+            return (int(avg_x), int(head_top_y))
+            
+        except Exception as e:
+            print(f"Error calculating head position: {e}")
+            return None
+    
+    def draw_person_info_on_head(self, img: np.ndarray, head_pos: Tuple[int, int], 
+                                person_idx: int, track_id: str, composite_score: float) -> np.ndarray:
+        """사람 머리 위에 정보 표시"""
+        try:
+            x, y = head_pos
+            
+            # 텍스트 내용
+            text = f"#{person_idx+1} T:{track_id} {composite_score:.3f}"
+            
+            # 텍스트 크기 측정
+            text_size, baseline = cv2.getTextSize(text, self.font, self.config.font_scale, self.config.font_thickness)
+            text_width, text_height = text_size
+            
+            # 텍스트가 화면 밖으로 나가지 않도록 조정
+            img_height, img_width = img.shape[:2]
+            
+            # X 좌표 조정 (텍스트 중앙 정렬)
+            text_x = max(5, min(x - text_width // 2, img_width - text_width - 5))
+            
+            # Y 좌표 조정 (머리 위에 표시하되 화면 위쪽 경계 고려)
+            text_y = max(text_height + 10, y - 15)  # 머리 위 15px 위치에, 최소 화면 상단에서 text_height + 10px
+            
+            # 배경 사각형 계산
+            padding = 3
+            rect_x1 = text_x - padding
+            rect_y1 = text_y - text_height - padding
+            rect_x2 = text_x + text_width + padding
+            rect_y2 = text_y + baseline + padding
+            
+            # 배경 사각형 그리기 (완전 검은색)
+            cv2.rectangle(img, (rect_x1, rect_y1), (rect_x2, rect_y2), (0, 0, 0), -1)
+            
+            # 텍스트 그리기 (흰색으로 통일)
+            text_color = (255, 255, 255)  # 흰색
+            cv2.putText(img, text, (text_x, text_y), 
+                       self.font, self.config.font_scale, text_color, self.config.font_thickness)
+            
+            return img
+            
+        except Exception as e:
+            print(f"Error drawing person info on head: {e}")
+            return img
+    
     def draw_track_info(self, img: np.ndarray, persons_data: Dict, num_persons: int) -> np.ndarray:
         """trackId와 내림차순 idx 번호 표시 (separated_overlay용)"""
         h, w = img.shape[:2]
         
-        # persons_data를 rank 기준으로 정렬
-        persons_list = sorted(persons_data.items(), 
-                             key=lambda x: x[1].get('composite_score', 0.0), reverse=True)
+        # persons_data 구조 검증
+        if not isinstance(persons_data, dict):
+            print(f"Warning: persons_data is not a dict, type: {type(persons_data)}")
+            return img
+            
+        try:
+            # persons_data를 rank 기준으로 정렬
+            persons_list = sorted(persons_data.items(), 
+                                 key=lambda x: x[1].get('composite_score', 0.0) if isinstance(x[1], dict) else 0.0, reverse=True)
+        except Exception as e:
+            print(f"Error sorting persons_data: {e}")
+            print(f"persons_data structure: {persons_data}")
+            return img
         
         # 상위 N명만 표시
         displayed_persons = persons_list[:num_persons]
         
         # 정보 표시 영역 설정 (왼쪽 상단)
-        start_x = 20
-        start_y = 50
-        line_height = 25
+        start_x = self.config.box_padding
+        start_y = self.config.window_info_y_start
         
         for idx, (person_id, person_info) in enumerate(displayed_persons):
+            # person_info 구조 검증
+            if not isinstance(person_info, dict):
+                print(f"Warning: person_info is not a dict for person {person_id}, type: {type(person_info)}")
+                continue
+                
             track_id = person_info.get('track_id', person_id)
             composite_score = person_info.get('composite_score', 0.0)
             
             # 텍스트 내용
             text = f"#{idx+1} Track:{track_id} Score:{composite_score:.3f}"
             
-            # 배경 사각형
-            text_size = cv2.getTextSize(text, self.font, self.font_scale, self.font_thickness)[0]
-            cv2.rectangle(img, (start_x-5, start_y-20), 
-                         (start_x + text_size[0] + 10, start_y + 5), 
-                         (0, 0, 0), -1)  # 검은색 배경
+            # 텍스트 크기 측정
+            text_size, baseline = cv2.getTextSize(text, self.font, self.config.font_scale, self.config.font_thickness)
+            text_width, text_height = text_size
+            
+            # 배경 사각형 계산 (padding 포함)
+            padding = 5
+            rect_x1 = start_x - padding
+            rect_y1 = start_y - text_height - padding
+            rect_x2 = start_x + text_width + padding
+            rect_y2 = start_y + baseline + padding
+            
+            # 배경 사각형 그리기
+            cv2.rectangle(img, (rect_x1, rect_y1), (rect_x2, rect_y2), (0, 0, 0), -1)  # 검은색 배경
             
             # 텍스트 그리기
             cv2.putText(img, text, (start_x, start_y), 
-                       self.font, self.font_scale, (255, 255, 255), self.font_thickness)
+                       self.font, self.config.font_scale, self.config.text_color, self.config.font_thickness)
             
-            start_y += line_height
+            # 다음 텍스트 위치 계산 (텍스트 높이 + padding 기반)
+            start_y += text_height + baseline + padding * 2 + 5  # 추가 간격 5px
         
         return img
     
@@ -290,8 +384,12 @@ class EnhancedVisualizer:
                 next_windows.append(window)
         
         # 왼쪽 상단에 윈도우 정보 표시
-        y_offset = 50
-        line_height = 25
+        y_offset = self.config.window_info_y_start
+        
+        # 텍스트 높이 계산 (기본 텍스트로 높이 측정)
+        sample_text = "Sample Window 0: Fight (0.000)"
+        text_height = cv2.getTextSize(sample_text, self.font, self.config.font_scale, self.config.font_thickness)[0][1]
+        line_height = text_height + 35  # 텍스트 높이 + 충분한 여백 (배경 박스 + 간격)
         
         # 이전 윈도우 (최근 1개만)
         if prev_windows:
@@ -301,11 +399,13 @@ class EnhancedVisualizer:
             predicted_label = recent_prev.get('predicted_label', 0)
             
             text = f"Prev Window {window_idx}: {'Fight' if predicted_label == 1 else 'NonFight'} ({prediction:.3f})"
-            text_size = cv2.getTextSize(text, self.font, self.font_scale, self.font_thickness)[0]
+            text_size = cv2.getTextSize(text, self.font, self.config.font_scale, self.config.font_thickness)[0]
             
-            # 회색 배경 (이전 윈도우)
-            cv2.rectangle(img, (20-5, y_offset-20), (20 + text_size[0] + 10, y_offset + 5), (100, 100, 100), -1)
-            cv2.putText(img, text, (20, y_offset), self.font, self.font_scale, (255, 255, 255), self.font_thickness)
+            # 회색 배경 (이전 윈도우) - 정확한 박스 높이 계산
+            box_padding = 5
+            cv2.rectangle(img, (20-box_padding, y_offset-text_height-box_padding), 
+                         (20 + text_size[0] + box_padding, y_offset + box_padding), (100, 100, 100), -1)
+            cv2.putText(img, text, (20, y_offset), self.font, self.config.font_scale, self.config.text_color, self.config.font_thickness)
             y_offset += line_height
         
         # 현재 윈도우
@@ -315,13 +415,16 @@ class EnhancedVisualizer:
             predicted_label = window.get('predicted_label', 0)
             
             # 배경 색상 (Fight: 빨간색, NonFight: 파란색)
-            bg_color = (0, 0, 255) if predicted_label == 1 else (255, 0, 0)
+            bg_color = self.config.fight_color if predicted_label == 1 else self.config.nonfight_color
             
             text = f"Current Window {window_idx}: {'Fight' if predicted_label == 1 else 'NonFight'} ({prediction:.3f})"
-            text_size = cv2.getTextSize(text, self.font, self.font_scale, self.font_thickness)[0]
+            text_size = cv2.getTextSize(text, self.font, self.config.font_scale, self.config.font_thickness)[0]
             
-            cv2.rectangle(img, (20-5, y_offset-20), (20 + text_size[0] + 10, y_offset + 5), bg_color, -1)
-            cv2.putText(img, text, (20, y_offset), self.font, self.font_scale, (255, 255, 255), self.font_thickness)
+            # 정확한 박스 높이 계산
+            box_padding = 5
+            cv2.rectangle(img, (20-box_padding, y_offset-text_height-box_padding), 
+                         (20 + text_size[0] + box_padding, y_offset + box_padding), bg_color, -1)
+            cv2.putText(img, text, (20, y_offset), self.font, self.config.font_scale, self.config.text_color, self.config.font_thickness)
             y_offset += line_height
         
         # 다음 윈도우 (가장 가까운 1개만)
@@ -332,11 +435,13 @@ class EnhancedVisualizer:
             predicted_label = upcoming_next.get('predicted_label', 0)
             
             text = f"Next Window {window_idx}: {'Fight' if predicted_label == 1 else 'NonFight'} ({prediction:.3f})"
-            text_size = cv2.getTextSize(text, self.font, self.font_scale, self.font_thickness)[0]
+            text_size = cv2.getTextSize(text, self.font, self.config.font_scale, self.config.font_thickness)[0]
             
-            # 연한 회색 배경 (다음 윈도우)
-            cv2.rectangle(img, (20-5, y_offset-20), (20 + text_size[0] + 10, y_offset + 5), (150, 150, 150), -1)
-            cv2.putText(img, text, (20, y_offset), self.font, self.font_scale, (0, 0, 0), self.font_thickness)
+            # 연한 회색 배경 (다음 윈도우) - 정확한 박스 높이 계산
+            box_padding = 5
+            cv2.rectangle(img, (20-box_padding, y_offset-text_height-box_padding), 
+                         (20 + text_size[0] + box_padding, y_offset + box_padding), (150, 150, 150), -1)
+            cv2.putText(img, text, (20, y_offset), self.font, self.config.font_scale, (0, 0, 0), self.config.font_thickness)
         
         return img
     
@@ -349,24 +454,24 @@ class EnhancedVisualizer:
         confidence_text = f"Confidence: {confidence:.3f}"
         
         # 색상 설정
-        bg_color = self.final_fight_color if final_prediction == 1 else self.final_nonfight_color
-        text_color = (255, 255, 255)
+        bg_color = self.config.fight_color if final_prediction == 1 else self.config.nonfight_color
+        text_color = self.config.text_color
         
         # 텍스트 크기 계산
         (final_text_width, final_text_height), _ = cv2.getTextSize(
-            final_text, self.font, self.title_font_scale, self.title_font_thickness)
+            final_text, self.font, self.config.title_font_scale, self.config.title_font_thickness)
         (conf_text_width, conf_text_height), _ = cv2.getTextSize(
-            confidence_text, self.font, self.font_scale, self.font_thickness)
+            confidence_text, self.font, self.config.font_scale, self.config.font_thickness)
         
         # 배경 사각형 너비
-        rect_w = max(final_text_width, conf_text_width) + 20
+        rect_w = max(final_text_width, conf_text_width) + self.config.box_padding * 2
         
         # 동적 높이 및 Y 좌표 계산
-        top_margin = 15
-        line_spacing = 10
-        bottom_margin = 15
+        top_margin = self.config.box_padding
+        line_spacing = self.config.box_padding
+        bottom_margin = self.config.box_padding
         
-        rect_y = final_result_margin
+        rect_y = self.config.final_result_margin
         
         # 첫 줄 Y 좌표 (텍스트의 baseline 기준)
         final_text_y = rect_y + top_margin + final_text_height
@@ -377,7 +482,7 @@ class EnhancedVisualizer:
         rect_h = top_margin + final_text_height + line_spacing + conf_text_height + bottom_margin
         
         # 배경 사각형 위치 (우상단)
-        rect_x = w - rect_w - final_result_margin
+        rect_x = w - rect_w - self.config.final_result_margin
         
         # 배경 사각형 그리기
         cv2.rectangle(img, (rect_x, rect_y), (rect_x + rect_w, rect_y + rect_h), bg_color, -1)
@@ -387,9 +492,9 @@ class EnhancedVisualizer:
         
         # 텍스트 그리기
         cv2.putText(img, final_text, (rect_x + 10, final_text_y), self.font, 
-                   self.title_font_scale, text_color, self.title_font_thickness)
+                   self.config.title_font_scale, text_color, self.config.title_font_thickness)
         cv2.putText(img, confidence_text, (rect_x + 10, conf_text_y), self.font, 
-                   self.font_scale, text_color, self.font_thickness)
+                   self.config.font_scale, text_color, self.config.font_thickness)
         
         return img
     
@@ -407,6 +512,7 @@ class EnhancedVisualizer:
             if not pkl_data:
                 print(f"Failed to load PKL data from {pkl_path}")
                 return False
+            
             
             # 비디오 캡처 초기화
             cap = cv2.VideoCapture(video_path)
@@ -446,15 +552,19 @@ class EnhancedVisualizer:
                     if 'persons' in annotation:
                         persons_data = annotation['persons']
                         
-                        # trackId와 idx 정보 표시
-                        frame = self.draw_track_info(frame, persons_data, self.num_persons)
+                        # trackId와 idx 정보는 각 객체 머리 위에 개별 표시 (아래에서 처리)
                         
                         # 상위 N명의 키포인트 그리기
                         persons_list = sorted(persons_data.items(), 
-                                            key=lambda x: x[1].get('composite_score', 0.0), reverse=True)
+                                            key=lambda x: x[1].get('composite_score', 0.0) if isinstance(x[1], dict) else 0.0, reverse=True)
                         
                         for person_idx, (person_id, person_info) in enumerate(persons_list[:self.num_persons]):
                             try:
+                                # person_info 타입 검증
+                                if not isinstance(person_info, dict):
+                                    print(f"Skipping person {person_id}: person_info is not dict, type: {type(person_info)}")
+                                    continue
+                                    
                                 keypoints = person_info.get('keypoint')
                                 if keypoints is not None:
                                     # keypoints 형태 처리 (separated는 보통 (1, T, V, C) 형태)
@@ -477,13 +587,24 @@ class EnhancedVisualizer:
                                     # 스켈레톤 그리기 (중복 객체 감지는 separated에서는 적용하지 않음)
                                     frame = self.draw_skeleton(frame, current_keypoints, person_idx, False)
                                     
+                                    # 머리 위에 정보 표시
+                                    head_pos = self.get_head_position(current_keypoints)
+                                    if head_pos:
+                                        track_id = person_info.get('track_id', person_id)
+                                        composite_score = person_info.get('composite_score', 0.0)
+                                        frame = self.draw_person_info_on_head(frame, head_pos, person_idx, 
+                                                                             track_id, composite_score)
+                                    
                             except Exception as e:
                                 print(f"Error processing person {person_idx}: {e}")
+                                if keypoints is not None:
+                                    print(f"  keypoints shape: {keypoints.shape}")
+                                print(f"  relative_frame_idx: {relative_frame_idx}")
                 
                 # 프레임 정보 표시
                 frame_text = f"Frame: {frame_idx}/{total_frames}"
-                cv2.putText(frame, frame_text, (20, height - 30), 
-                           self.font, self.font_scale, (255, 255, 255), self.font_thickness)
+                cv2.putText(frame, frame_text, (self.config.box_padding, height - self.config.frame_info_margin), 
+                           self.font, self.config.font_scale, self.config.text_color, self.config.font_thickness)
                 
                 # 화면 표시
                 if not self.save:
@@ -512,6 +633,8 @@ class EnhancedVisualizer:
             
         except Exception as e:
             print(f"Error in separated overlay visualization: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def visualize_video_with_results(self, video_path: str, pkl_path: str, 
@@ -540,7 +663,7 @@ class EnhancedVisualizer:
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             
-            if verbose:
+            if self.config.verbose:
                 print(f"Video: {video_path}")
                 print(f"PKL: {pkl_path}")
                 print(f"Frames: {total_frames}, FPS: {fps}")
@@ -548,7 +671,7 @@ class EnhancedVisualizer:
             # 출력 비디오 설정 (옵션)
             out = None
             if output_video_path:
-                fourcc = cv2.VideoWriter_fourcc(*output_video_codec)
+                fourcc = cv2.VideoWriter_fourcc(*self.config.fourcc_codec)
                 out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
             
             frame_idx = 0
@@ -618,18 +741,20 @@ class EnhancedVisualizer:
                 if inference_results:
                     frame = self.draw_window_results(frame, inference_results, frame_idx, total_frames)
                     
-                    # 최종 결과 표시
-                    final_prediction = self._get_final_prediction(inference_results)
-                    final_confidence = self._get_final_confidence(inference_results)
+                    # 최종 결과 표시 - video_results.json에서 로드한 결과 사용
+                    video_name = Path(video_path).stem
+                    final_video_result = self.get_final_video_result(video_name)
+                    final_prediction = final_video_result.get('video_prediction', 0)
+                    final_confidence = final_video_result.get('avg_prediction_score', 0.0)
                     frame = self.draw_final_result(frame, final_prediction, final_confidence)
                 
                 # 프레임 정보 표시
                 frame_text = f"Frame: {frame_idx}/{total_frames}"
-                cv2.putText(frame, frame_text, (window_info_x, height - frame_info_margin), 
-                           self.font, self.font_scale, (255, 255, 255), self.font_thickness)
+                cv2.putText(frame, frame_text, (self.config.window_info_x, height - self.config.frame_info_margin), 
+                           self.font, self.config.font_scale, self.config.text_color, self.config.font_thickness)
                 
                 # 화면 표시
-                cv2.imshow('Inference Result Visualization', frame)
+                cv2.imshow(f'{self.mode} Visualization', frame)
                 
                 # 출력 비디오에 저장
                 if out:
@@ -678,19 +803,50 @@ class EnhancedVisualizer:
     def _get_frame_data_separated(self, pkl_data: Dict, frame_idx: int) -> Tuple[Dict, int]:
         """Separated pipeline용 프레임 데이터 추출"""
         # separated pipeline pkl 구조: 윈도우 단위의 데이터
-        if 'annotation' in pkl_data:
-            # 단일 윈도우 데이터인 경우
+        
+        # 1. 단일 윈도우 데이터인 경우 (dict with annotation)
+        if isinstance(pkl_data, dict) and 'annotation' in pkl_data:
             return pkl_data, frame_idx
         
-        # 여러 윈도우가 있는 경우 (리스트 형태)
+        # 2. 'windows' 키가 있는 경우 - 분리된 파이프라인의 일반적인 구조
+        if isinstance(pkl_data, dict) and 'windows' in pkl_data:
+            windows_data = pkl_data['windows']
+            if isinstance(windows_data, list):
+                for window_result in windows_data:
+                    if isinstance(window_result, dict):
+                        start_frame = window_result.get('start_frame', 0)
+                        end_frame = window_result.get('end_frame', 0)
+                        
+                        if start_frame <= frame_idx < end_frame:
+                            relative_frame_idx = frame_idx - start_frame
+                            return window_result, relative_frame_idx
+        
+        # 3. 여러 윈도우가 있는 경우 (리스트 형태)
         if isinstance(pkl_data, list):
             for window_result in pkl_data:
-                start_frame = window_result.get('start_frame', 0)
-                end_frame = window_result.get('end_frame', 0)
-                
-                if start_frame <= frame_idx < end_frame:
-                    relative_frame_idx = frame_idx - start_frame
-                    return window_result, relative_frame_idx
+                if isinstance(window_result, dict):
+                    start_frame = window_result.get('start_frame', 0)
+                    end_frame = window_result.get('end_frame', 0)
+                    
+                    if start_frame <= frame_idx < end_frame:
+                        relative_frame_idx = frame_idx - start_frame
+                        return window_result, relative_frame_idx
+        
+        # 4. dict인데 다른 구조인 경우 - 윈도우별 키가 있을 수 있음
+        if isinstance(pkl_data, dict):
+            # 윈도우 키들을 찾아봄 (예: 'window_0', 'window_1', etc.)
+            for key, window_data in pkl_data.items():
+                if isinstance(window_data, dict) and 'start_frame' in window_data and 'end_frame' in window_data:
+                    start_frame = window_data.get('start_frame', 0)
+                    end_frame = window_data.get('end_frame', 0)
+                    
+                    if start_frame <= frame_idx < end_frame:
+                        relative_frame_idx = frame_idx - start_frame
+                        return window_data, relative_frame_idx
+            
+            # 키 기반 접근이 안되면 첫 번째 윈도우 데이터 반환 시도
+            if pkl_data:
+                return pkl_data, frame_idx
         
         return {}, 0
     
@@ -711,7 +867,7 @@ class EnhancedVisualizer:
                 consecutive_fights = 0
         
         # 설정된 임계값 이상이면 Fight로 판정
-        return 1 if max_consecutive >= consecutive_threshold else 0
+        return 1 if max_consecutive >= self.config.consecutive_threshold else 0
     
     def _get_final_confidence(self, inference_results: List[Dict]) -> float:
         """최종 신뢰도 계산"""
@@ -743,10 +899,25 @@ class EnhancedVisualizer:
 
             output_video_path = None
             if self.save:
-                # 저장할 디렉토리 생성
-                os.makedirs(self.save_dir, exist_ok=True)
+                # OVERLAY_SUB_DIR 설정을 사용하여 저장할 디렉토리 생성
+                if self.config.debug_mode:
+                    print(f"Debug: self.save_dir = {self.save_dir}")
+                    print(f"Debug: SAVE_OVERLAY_VIDEO = {self.config.SAVE_OVERLAY_VIDEO}")
+                    print(f"Debug: OVERLAY_SUB_DIR = {self.config.OVERLAY_SUB_DIR}")
+                
+                if self.config.SAVE_OVERLAY_VIDEO and self.config.OVERLAY_SUB_DIR:
+                    actual_save_dir = os.path.join(self.save_dir, self.config.OVERLAY_SUB_DIR)
+                else:
+                    actual_save_dir = self.save_dir
+                
+                if self.config.debug_mode:
+                    print(f"Debug: actual_save_dir = {actual_save_dir}")
+                os.makedirs(actual_save_dir, exist_ok=True)
+                if self.config.debug_mode:
+                    print(f"Debug: Directory created/exists: {os.path.exists(actual_save_dir)}")
+                
                 video_filename = Path(video_path).name
-                output_video_path = os.path.join(self.save_dir, f"{self.mode}_{video_filename}")
+                output_video_path = os.path.join(actual_save_dir, f"{self.mode}_{video_filename}")
                 print(f"Overlay video will be saved to: {output_video_path}")
             
             # 모드에 따라 적절한 시각화 메서드 호출
@@ -760,6 +931,14 @@ class EnhancedVisualizer:
             
             if not success:
                 print("Failed to visualize current pair")
+            else:
+                print(f"Successfully processed: {Path(video_path).name}")
+                if self.save and output_video_path:
+                    if os.path.exists(output_video_path):
+                        file_size = os.path.getsize(output_video_path)
+                        print(f"Saved overlay video: {output_video_path} ({file_size} bytes)")
+                    else:
+                        print(f"Warning: Expected output file not found: {output_video_path}")
         
         print("\nAll videos processed!")
     
@@ -777,7 +956,14 @@ class EnhancedVisualizer:
             print(f"PKL file not found: {pkl_path}")
             return False
         
-        success = self.visualize_video_with_results(video_path, pkl_path, output_path)
+        # 모드에 따라 적절한 메서드 호출
+        if self.mode == 'inference_overlay':
+            success = self.visualize_video_with_results(video_path, pkl_path, output_path)
+        elif self.mode == 'separated_overlay':
+            success = self.visualize_separated_overlay(video_path, pkl_path, output_path)
+        else:
+            print(f"Unknown mode: {self.mode}")
+            return False
         
         if success:
             print("Visualization completed successfully!")
@@ -844,6 +1030,37 @@ Examples:
             print(f"Error: PKL directory not found: {args.pkl_dir}")
             return
         
+        # config.py에서 설정 로드 시도
+        try:
+            from ..configs.visualizer_config import config as vis_config
+        except ImportError:
+            print("Warning: visualizer_config.py not found. Using default settings.")
+            # 기본 설정으로 대체할 클래스나 딕셔너리 정의
+            class DefaultConfig:
+                def __init__(self):
+                    self.default_input_dir = './test_data'
+                    self.default_output_dir = './output'
+                    self.max_persons = 2
+                    self.confidence_threshold = 0.3
+                    self.verbose = True
+                    self.fourcc_codec = 'mp4v'
+                    self.colors = [(255,0,0), (0,255,0), (0,0,255)]
+                    self.fight_color = (0,0,255)
+                    self.nonfight_color = (0,255,0)
+                    self.text_color = (255,255,255)
+                    self.font_scale = 0.7
+                    self.font_thickness = 2
+                    self.title_font_scale = 0.8
+                    self.title_font_thickness = 2
+                    self.box_padding = 10
+                    self.line_thickness = 2
+                    self.keypoint_radius = 3
+                    self.skeleton_connections = []
+                    self.SAVE_OVERLAY_VIDEO = True
+                    self.OVERLAY_SUB_DIR = 'overlay'
+                    self.debug_mode = False
+            vis_config = DefaultConfig()
+
         # 시각화 도구 실행
         visualizer = EnhancedVisualizer(
             mode=args.mode,
@@ -851,7 +1068,8 @@ Examples:
             pkl_dir=args.pkl_dir,
             save=args.save,
             save_dir=args.save_dir,
-            num_person=args.num_person
+            num_person=args.num_person,
+            config=vis_config  # 설정 객체 전달
         )
         
         visualizer.run()
