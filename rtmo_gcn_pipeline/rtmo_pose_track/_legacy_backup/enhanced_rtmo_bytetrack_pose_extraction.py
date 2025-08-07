@@ -33,17 +33,6 @@ from mmpose.registry import VISUALIZERS
 # Core Tracking Classes
 # =============================================================================
 
-class Detection:
-    """바운딩 박스 검출 결과를 담는 클래스"""
-    
-    def __init__(self, bbox, confidence=None):
-        self.bbox = bbox  # [x1, y1, x2, y2, score] 또는 [x1, y1, x2, y2]
-        self.confidence = confidence or (bbox[4] if len(bbox) > 4 else 1.0)
-    
-    def to_bbox(self):
-        """바운딩 박스 좌표 반환"""
-        return self.bbox[:4] if len(self.bbox) >= 4 else self.bbox
-
 class KalmanFilter:
     """2D 바운딩 박스 트래킹을 위한 간단한 칼만 필터"""
     
@@ -1124,7 +1113,7 @@ class EnhancedRTMOPoseExtractor:
     """개선된 RTMO 포즈 추출기 클래스"""
     
     def __init__(self, config_file, checkpoint_file, device='cuda:0', 
-                 gpu_ids=None, multi_gpu=False,
+                 gpu_ids=None,
                  score_thr=0.3, nms_thr=0.35,
                  track_high_thresh=0.6, track_low_thresh=0.1,
                  track_max_disappeared=30, track_min_hits=3,
@@ -1136,7 +1125,6 @@ class EnhancedRTMOPoseExtractor:
             checkpoint_file: RTMO 체크포인트 파일 경로
             device: 추론에 사용할 디바이스
             gpu_ids: 사용할 GPU ID 리스트
-            multi_gpu: 멀티 GPU 사용 여부
             score_thr: 포즈 검출 점수 임계값
             nms_thr: NMS 임계값
             track_high_thresh: ByteTracker 높은 임계값
@@ -1151,7 +1139,6 @@ class EnhancedRTMOPoseExtractor:
         self.checkpoint_path = checkpoint_file
         self.device = device
         self.gpu_ids = gpu_ids or []
-        self.multi_gpu = multi_gpu
         self.score_thr = score_thr
         self.nms_thr = nms_thr
         

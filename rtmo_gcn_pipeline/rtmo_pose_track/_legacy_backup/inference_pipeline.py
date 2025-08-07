@@ -44,6 +44,11 @@ except ImportError as e:
     print(f"MMAction2 is not available: {e}")
     sys.exit("Please install MMAction2 or check the installation.")
 
+# 상위 디렉토리를 path에 추가
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+
 from configs import load_config
 from enhanced_rtmo_bytetrack_pose_extraction import EnhancedRTMOPoseExtractor
 from error_logger import ProcessingErrorLogger, capture_exception_info
@@ -82,7 +87,6 @@ class FightInferenceProcessor:
             checkpoint_file=self.config.detector_checkpoint,
             device=self.device,
             gpu_ids=self.gpu_ids,
-            multi_gpu=len(self.gpu_ids) > 1,
             score_thr=self.config.score_thr,
             nms_thr=self.config.nms_thr,
             track_high_thresh=self.config.track_high_thresh,
@@ -442,7 +446,7 @@ def process_videos_on_gpu(video_files: List[str], windows_dir: str, config: Any,
         print(f"GPU {gpu_id} - Initializing models...")
         pose_extractor = EnhancedRTMOPoseExtractor(
             config_file=config.detector_config, checkpoint_file=config.detector_checkpoint, device=device, gpu_ids=[gpu_id],
-            multi_gpu=False, score_thr=config.score_thr, nms_thr=config.nms_thr, track_high_thresh=config.track_high_thresh,
+            score_thr=config.score_thr, nms_thr=config.nms_thr, track_high_thresh=config.track_high_thresh,
             track_low_thresh=config.track_low_thresh, track_max_disappeared=config.track_max_disappeared,
             track_min_hits=config.track_min_hits, quality_threshold=config.quality_threshold,
             min_track_length=config.min_track_length, weights=config.get_weights()
@@ -782,6 +786,7 @@ def main():
         print("--resume: Skip already processed videos (default)")
         print("--force: Reprocess all videos")
         sys.exit(1)
+        
     
     # Handle no-resume flag
     resume_mode = args.resume and not args.no_resume and not args.force

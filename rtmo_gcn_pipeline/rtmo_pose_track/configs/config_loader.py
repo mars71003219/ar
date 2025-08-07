@@ -175,15 +175,3 @@ def load_config(config_file: Optional[str] = None,
     return config
 
 
-# 설정 파일에서 사용 가능한 헬퍼 함수들
-def get_workspace_path(relative_path: str) -> str:
-    """워크스페이스 기준 경로 반환"""
-    return f"/workspace/{relative_path.lstrip('/')}"
-
-def get_data_path(relative_path: str) -> str:
-    """데이터 디렉토리 기준 경로 반환"""
-    return f"/aivanas/raw/surveillance/action/violence/action_recognition/data/{relative_path.lstrip('/')}"
-
-def get_output_path(relative_path: str) -> str:
-    """출력 디렉토리 기준 경로 반환"""
-    return f"/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/{relative_path.lstrip('/')}"

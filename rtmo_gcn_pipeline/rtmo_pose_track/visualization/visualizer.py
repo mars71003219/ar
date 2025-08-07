@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """
-Inference Result Visualizer
-원본 비디오와 추론 결과 PKL을 매칭하여 관절 오버레이와 분류 결과를 표시하는 시각화 시스템
+Enhanced Visualizer with Inference and Separated Pipeline Overlay
+원본 비디오와 추론/파이프라인 결과 PKL을 매칭하여 관절 오버레이와 분류 결과를 표시하는 시각화 시스템
+
+두 가지 오버레이 모드 지원:
+1. inference_overlay: inference 결과 pkl 파일 시각화
+2. separated_overlay: separated pipeline step2 결과 pkl 파일 시각화
 """
 
 import os
@@ -10,32 +14,55 @@ import cv2
 import pickle
 import numpy as np
 import glob
+import argparse
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 
 # 설정 파일에서 모든 설정 로드
 try:
-    from configs.visualizer_config import *
+    from ..configs.visualizer_config import *
 except ImportError as e:
-    print(f"Error: visualizer_config.py 파일을 찾을 수 없습니다!")
-    print(f"파일 경로를 확인하세요: configs/visualizer_config.py")
-    print(f"상세 오류: {e}")
-    sys.exit(1)
+    try:
+        # 상대 경로 실패 시 절대 경로로 시도
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        sys.path.insert(0, parent_dir)
+        from configs.visualizer_config import *
+    except ImportError as e2:
+        print(f"Error: visualizer_config.py 파일을 찾을 수 없습니다!")
+        print(f"파일 경로를 확인하세요: configs/visualizer_config.py")
+        print(f"상세 오류: {e2}")
+        sys.exit(1)
 
 
-class InferenceResultVisualizer:
-    """추론 결과 시각화 클래스"""
+class EnhancedVisualizer:
+    """향상된 시각화 클래스 - Inference 및 Separated Pipeline 지원"""
     
-    def __init__(self, input_dir_path=None, output_dir_path=None):
+    def __init__(self, mode='inference', video_dir=None, pkl_dir=None, 
+                 save=False, save_dir=None, num_person=2):
         """
         Args:
-            input_dir_path: 입력 비디오 디렉토리 경로
-            output_dir_path: 출력 PKL 디렉토리 경로
+            mode: 'inference_overlay' 또는 'separated_overlay'
+            video_dir: 입력 비디오 디렉토리 또는 파일 경로
+            pkl_dir: PKL 파일 디렉토리 경로
+            save: 파일 저장 여부
+            save_dir: 파일 저장 경로
+            num_person: 표시할 상위 N명의 사람 수
         """
-        # 설정에서 값들 가져오기
-        self.input_dir = input_dir_path or input_dir
-        self.output_dir = output_dir_path or output_dir
-        self.num_persons = num_persons
+        self.mode = mode
+        self.video_dir = video_dir
+        self.pkl_dir = pkl_dir
+        self.save = save
+        self.save_dir = save_dir
+        self.num_persons = num_person
+        
+        # 기본값 설정
+        if not self.video_dir:
+            self.video_dir = getattr(globals(), 'input_dir', './test_data')
+        if not self.pkl_dir:
+            self.pkl_dir = getattr(globals(), 'output_dir', './output')
+        if not self.save_dir:
+            self.save_dir = './overlay_output'
         
         # COCO 17 keypoints 연결 정보
         self.skeleton = skeleton_connections
@@ -57,47 +84,61 @@ class InferenceResultVisualizer:
         
         # 비디오-PKL 매칭 정보
         self.video_pkl_pairs = []
-        self.current_pair_idx = 0
         
     def find_video_pkl_pairs(self) -> List[Tuple[str, str, str]]:
-        """원본 비디오와 PKL 파일을 매칭하여 리스트 반환"""
-        pairs = []
-        
-        # 디렉토리 모드: 자동 매칭
-        pairs = self._find_pairs_from_directories()
-            
-        return pairs
-    
-    def _find_pairs_from_directories(self) -> List[Tuple[str, str, str]]:
         """디렉토리에서 비디오-PKL 쌍 찾기"""
         pairs = []
         
-        # output_dir에서 PKL 파일 찾기
-        pkl_files = []
-        for root, dirs, files in os.walk(self.output_dir):
-            for file in files:
-                if file.endswith('_windows.pkl'):
-                    pkl_path = os.path.join(root, file)
-                    pkl_files.append(pkl_path)
+        if self.mode == 'inference_overlay':
+            # inference 모드: windows 폴더에서 _windows.pkl 파일 찾기
+            pkl_files = []
+            windows_dir = os.path.join(self.pkl_dir, "windows")
+            if os.path.exists(windows_dir):
+                for root, dirs, files in os.walk(windows_dir):
+                    for file in files:
+                        if file.endswith('_windows.pkl'):
+                            pkl_path = os.path.join(root, file)
+                            pkl_files.append(pkl_path)
         
-        if verbose:
-            print(f"Found {len(pkl_files)} PKL files")
+        elif self.mode == 'separated_overlay':
+            # separated 모드: step2 폴더에서 _windows.pkl 파일 찾기
+            pkl_files = []
+            for root, dirs, files in os.walk(self.pkl_dir):
+                for file in files:
+                    if file.endswith('_windows.pkl'):
+                        pkl_path = os.path.join(root, file)
+                        pkl_files.append(pkl_path)
+        
+        else:
+            print(f"Unknown mode: {self.mode}")
+            return pairs
+        
+        print(f"Found {len(pkl_files)} PKL files")
         
         # 각 PKL 파일에 대해 매칭되는 비디오 찾기
         for pkl_path in pkl_files:
             video_name = Path(pkl_path).stem.replace('_windows', '')
             
-            # input_dir에서 매칭되는 비디오 찾기
-            for ext in supported_video_extensions:
-                pattern_path = os.path.join(self.input_dir, '**', f"{video_name}.{ext}")
-                matches = glob.glob(pattern_path, recursive=True)
-                if matches:
-                    video_path = matches[0]
-                    label_folder = Path(video_path).parent.name
-                    pairs.append((video_path, pkl_path, label_folder))
-                    if verbose:
+            # video_dir에서 매칭되는 비디오 찾기
+            video_extensions = ['mp4', 'avi', 'mov', 'mkv']
+            for ext in video_extensions:
+                if os.path.isfile(self.video_dir):
+                    # 단일 파일인 경우
+                    if Path(self.video_dir).stem == video_name:
+                        video_path = self.video_dir
+                        label_folder = "single_file"
+                        pairs.append((video_path, pkl_path, label_folder))
+                        break
+                else:
+                    # 디렉토리인 경우
+                    pattern_path = os.path.join(self.video_dir, '**', f"{video_name}.{ext}")
+                    matches = glob.glob(pattern_path, recursive=True)
+                    if matches:
+                        video_path = matches[0]
+                        label_folder = Path(video_path).parent.name
+                        pairs.append((video_path, pkl_path, label_folder))
                         print(f"Matched: {video_name} -> {label_folder}")
-                    break
+                        break
         
         return pairs
     
@@ -190,45 +231,112 @@ class InferenceResultVisualizer:
         
         return overlap_persons
     
-    def draw_window_results(self, img: np.ndarray, window_results: List[Dict], 
-                           current_frame: int, total_frames: int) -> np.ndarray:
-        """윈도우별 분류 결과 표시"""
+    def draw_track_info(self, img: np.ndarray, persons_data: Dict, num_persons: int) -> np.ndarray:
+        """trackId와 내림차순 idx 번호 표시 (separated_overlay용)"""
         h, w = img.shape[:2]
         
-        # 현재 프레임이 속한 윈도우 찾기
+        # persons_data를 rank 기준으로 정렬
+        persons_list = sorted(persons_data.items(), 
+                             key=lambda x: x[1].get('composite_score', 0.0), reverse=True)
+        
+        # 상위 N명만 표시
+        displayed_persons = persons_list[:num_persons]
+        
+        # 정보 표시 영역 설정 (왼쪽 상단)
+        start_x = 20
+        start_y = 50
+        line_height = 25
+        
+        for idx, (person_id, person_info) in enumerate(displayed_persons):
+            track_id = person_info.get('track_id', person_id)
+            composite_score = person_info.get('composite_score', 0.0)
+            
+            # 텍스트 내용
+            text = f"#{idx+1} Track:{track_id} Score:{composite_score:.3f}"
+            
+            # 배경 사각형
+            text_size = cv2.getTextSize(text, self.font, self.font_scale, self.font_thickness)[0]
+            cv2.rectangle(img, (start_x-5, start_y-20), 
+                         (start_x + text_size[0] + 10, start_y + 5), 
+                         (0, 0, 0), -1)  # 검은색 배경
+            
+            # 텍스트 그리기
+            cv2.putText(img, text, (start_x, start_y), 
+                       self.font, self.font_scale, (255, 255, 255), self.font_thickness)
+            
+            start_y += line_height
+        
+        return img
+    
+    def draw_window_results(self, img: np.ndarray, window_results: List[Dict], 
+                           current_frame: int, total_frames: int) -> np.ndarray:
+        """윈도우별 분류 결과 표시 (이전, 현재, 이후 윈도우 포함)"""
+        h, w = img.shape[:2]
+        
+        # 현재/이전/다음 윈도우 찾기
         current_windows = []
+        prev_windows = []
+        next_windows = []
+        
         for window in window_results:
             start_frame = window.get('start_frame', 0)
             end_frame = window.get('end_frame', 0)
+            
             if start_frame <= current_frame < end_frame:
                 current_windows.append(window)
+            elif end_frame <= current_frame:
+                prev_windows.append(window)
+            elif start_frame > current_frame:
+                next_windows.append(window)
         
-        # 윈도우 정보 표시
-        y_offset = window_info_y_start
+        # 왼쪽 상단에 윈도우 정보 표시
+        y_offset = 50
+        line_height = 25
+        
+        # 이전 윈도우 (최근 1개만)
+        if prev_windows:
+            recent_prev = prev_windows[-1]  # 가장 최근 이전 윈도우
+            window_idx = recent_prev.get('window_idx', 'prev')
+            prediction = recent_prev.get('prediction', 0.0)
+            predicted_label = recent_prev.get('predicted_label', 0)
+            
+            text = f"Prev Window {window_idx}: {'Fight' if predicted_label == 1 else 'NonFight'} ({prediction:.3f})"
+            text_size = cv2.getTextSize(text, self.font, self.font_scale, self.font_thickness)[0]
+            
+            # 회색 배경 (이전 윈도우)
+            cv2.rectangle(img, (20-5, y_offset-20), (20 + text_size[0] + 10, y_offset + 5), (100, 100, 100), -1)
+            cv2.putText(img, text, (20, y_offset), self.font, self.font_scale, (255, 255, 255), self.font_thickness)
+            y_offset += line_height
+        
+        # 현재 윈도우
         for i, window in enumerate(current_windows):
             window_idx = window.get('window_idx', i)
             prediction = window.get('prediction', 0.0)
             predicted_label = window.get('predicted_label', 0)
             
             # 배경 색상 (Fight: 빨간색, NonFight: 파란색)
-            bg_color = self.fight_color if predicted_label == 1 else self.nonfight_color
-            text_color = (255, 255, 255)
+            bg_color = (0, 0, 255) if predicted_label == 1 else (255, 0, 0)
             
-            # 텍스트 내용
-            text = f"Window {window_idx}: {'Fight' if predicted_label == 1 else 'NonFight'} ({prediction:.3f})"
-            
-            # 텍스트 크기 계산
+            text = f"Current Window {window_idx}: {'Fight' if predicted_label == 1 else 'NonFight'} ({prediction:.3f})"
             text_size = cv2.getTextSize(text, self.font, self.font_scale, self.font_thickness)[0]
             
-            # 배경 사각형 그리기
-            cv2.rectangle(img, (window_info_x, y_offset - 25), 
-                         (window_info_x + 10 + text_size[0], y_offset + 5), bg_color, -1)
+            cv2.rectangle(img, (20-5, y_offset-20), (20 + text_size[0] + 10, y_offset + 5), bg_color, -1)
+            cv2.putText(img, text, (20, y_offset), self.font, self.font_scale, (255, 255, 255), self.font_thickness)
+            y_offset += line_height
+        
+        # 다음 윈도우 (가장 가까운 1개만)
+        if next_windows:
+            upcoming_next = next_windows[0]  # 가장 가까운 다음 윈도우
+            window_idx = upcoming_next.get('window_idx', 'next')
+            prediction = upcoming_next.get('prediction', 0.0)
+            predicted_label = upcoming_next.get('predicted_label', 0)
             
-            # 텍스트 그리기
-            cv2.putText(img, text, (window_info_x + 5, y_offset), 
-                       self.font, self.font_scale, text_color, self.font_thickness)
+            text = f"Next Window {window_idx}: {'Fight' if predicted_label == 1 else 'NonFight'} ({prediction:.3f})"
+            text_size = cv2.getTextSize(text, self.font, self.font_scale, self.font_thickness)[0]
             
-            y_offset += window_info_y_step
+            # 연한 회색 배경 (다음 윈도우)
+            cv2.rectangle(img, (20-5, y_offset-20), (20 + text_size[0] + 10, y_offset + 5), (150, 150, 150), -1)
+            cv2.putText(img, text, (20, y_offset), self.font, self.font_scale, (0, 0, 0), self.font_thickness)
         
         return img
     
@@ -284,6 +392,127 @@ class InferenceResultVisualizer:
                    self.font_scale, text_color, self.font_thickness)
         
         return img
+    
+    def visualize_inference_overlay(self, video_path: str, pkl_path: str, 
+                                   output_video_path: str = None) -> bool:
+        """Inference 결과 오버레이 시각화"""
+        return self.visualize_video_with_results(video_path, pkl_path, output_video_path)
+    
+    def visualize_separated_overlay(self, video_path: str, pkl_path: str, 
+                                   output_video_path: str = None) -> bool:
+        """Separated pipeline 결과 오버레이 시각화"""
+        try:
+            # PKL 데이터 로드
+            pkl_data = self.load_pkl_data(pkl_path)
+            if not pkl_data:
+                print(f"Failed to load PKL data from {pkl_path}")
+                return False
+            
+            # 비디오 캡처 초기화
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                print(f"Failed to open video {video_path}")
+                return False
+            
+            # 비디오 정보
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            print(f"Video: {video_path}")
+            print(f"PKL: {pkl_path}")
+            print(f"Frames: {total_frames}, FPS: {fps}")
+            
+            # 출력 비디오 설정 (옵션)
+            out = None
+            if output_video_path:
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+            
+            frame_idx = 0
+            
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                
+                # 현재 프레임의 포즈 데이터 가져오기
+                frame_data, relative_frame_idx = self._get_frame_data_separated(pkl_data, frame_idx)
+                
+                # 관절 오버레이 그리기
+                if frame_data and 'annotation' in frame_data:
+                    annotation = frame_data['annotation']
+                    if 'persons' in annotation:
+                        persons_data = annotation['persons']
+                        
+                        # trackId와 idx 정보 표시
+                        frame = self.draw_track_info(frame, persons_data, self.num_persons)
+                        
+                        # 상위 N명의 키포인트 그리기
+                        persons_list = sorted(persons_data.items(), 
+                                            key=lambda x: x[1].get('composite_score', 0.0), reverse=True)
+                        
+                        for person_idx, (person_id, person_info) in enumerate(persons_list[:self.num_persons]):
+                            try:
+                                keypoints = person_info.get('keypoint')
+                                if keypoints is not None:
+                                    # keypoints 형태 처리 (separated는 보통 (1, T, V, C) 형태)
+                                    if len(keypoints.shape) == 4:  # (1, T, V, C)
+                                        keypoints_3d = keypoints.squeeze(0)  # (T, V, C)
+                                        if relative_frame_idx < keypoints_3d.shape[0]:
+                                            current_keypoints = keypoints_3d[relative_frame_idx]
+                                        else:
+                                            continue
+                                    elif len(keypoints.shape) == 3:  # (T, V, C)
+                                        if relative_frame_idx < keypoints.shape[0]:
+                                            current_keypoints = keypoints[relative_frame_idx]
+                                        else:
+                                            continue
+                                    elif len(keypoints.shape) == 2:  # (V, C)
+                                        current_keypoints = keypoints
+                                    else:
+                                        continue
+                                    
+                                    # 스켈레톤 그리기 (중복 객체 감지는 separated에서는 적용하지 않음)
+                                    frame = self.draw_skeleton(frame, current_keypoints, person_idx, False)
+                                    
+                            except Exception as e:
+                                print(f"Error processing person {person_idx}: {e}")
+                
+                # 프레임 정보 표시
+                frame_text = f"Frame: {frame_idx}/{total_frames}"
+                cv2.putText(frame, frame_text, (20, height - 30), 
+                           self.font, self.font_scale, (255, 255, 255), self.font_thickness)
+                
+                # 화면 표시
+                if not self.save:
+                    cv2.imshow('Separated Overlay Visualization', frame)
+                
+                # 출력 비디오에 저장
+                if out:
+                    out.write(frame)
+                
+                # 키보드 입력 처리
+                if not self.save:
+                    key = cv2.waitKey(30) & 0xFF
+                    if key == ord('q'):
+                        break
+                
+                frame_idx += 1
+            
+            # 정리
+            cap.release()
+            if out:
+                out.release()
+            if not self.save:
+                cv2.destroyAllWindows()
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error in separated overlay visualization: {e}")
+            return False
     
     def visualize_video_with_results(self, video_path: str, pkl_path: str, 
                                    output_video_path: str = None) -> bool:
@@ -446,6 +675,25 @@ class InferenceResultVisualizer:
                     
         return {}, 0
     
+    def _get_frame_data_separated(self, pkl_data: Dict, frame_idx: int) -> Tuple[Dict, int]:
+        """Separated pipeline용 프레임 데이터 추출"""
+        # separated pipeline pkl 구조: 윈도우 단위의 데이터
+        if 'annotation' in pkl_data:
+            # 단일 윈도우 데이터인 경우
+            return pkl_data, frame_idx
+        
+        # 여러 윈도우가 있는 경우 (리스트 형태)
+        if isinstance(pkl_data, list):
+            for window_result in pkl_data:
+                start_frame = window_result.get('start_frame', 0)
+                end_frame = window_result.get('end_frame', 0)
+                
+                if start_frame <= frame_idx < end_frame:
+                    relative_frame_idx = frame_idx - start_frame
+                    return window_result, relative_frame_idx
+        
+        return {}, 0
+    
     def _get_final_prediction(self, inference_results: List[Dict]) -> int:
         """최종 예측 결과 계산"""
         if not inference_results:
@@ -474,8 +722,8 @@ class InferenceResultVisualizer:
         return float(np.mean(predictions))
     
     def run(self):
-        """단순 실행 모드"""
-        print("=== Inference Result Visualizer ===")
+        """실행 모드"""
+        print(f"=== Enhanced Visualizer ({self.mode}) ===")
         
         # 비디오-PKL 쌍 찾기
         self.video_pkl_pairs = self.find_video_pkl_pairs()
@@ -490,20 +738,25 @@ class InferenceResultVisualizer:
             print(f"\n[{idx + 1}/{len(self.video_pkl_pairs)}]")
             print(f"Video: {Path(video_path).name}")
             print(f"Label: {label}")
-            print("Press 'q' to close current video and move to next")
+            if not self.save:
+                print("Press 'q' to close current video and move to next")
 
             output_video_path = None
-            if SAVE_OVERLAY_VIDEO:
+            if self.save:
                 # 저장할 디렉토리 생성
-                save_directory = os.path.join(self.output_dir, OVERLAY_SUB_DIR, label)
-                os.makedirs(save_directory, exist_ok=True)
-
-                # 저장할 파일 경로와 이름 지정
+                os.makedirs(self.save_dir, exist_ok=True)
                 video_filename = Path(video_path).name
-                output_video_path = os.path.join(save_directory, video_filename)
+                output_video_path = os.path.join(self.save_dir, f"{self.mode}_{video_filename}")
                 print(f"Overlay video will be saved to: {output_video_path}")
             
-            success = self.visualize_video_with_results(video_path, pkl_path, output_video_path)
+            # 모드에 따라 적절한 시각화 메서드 호출
+            if self.mode == 'inference_overlay':
+                success = self.visualize_inference_overlay(video_path, pkl_path, output_video_path)
+            elif self.mode == 'separated_overlay':
+                success = self.visualize_separated_overlay(video_path, pkl_path, output_video_path)
+            else:
+                print(f"Unknown mode: {self.mode}")
+                continue
             
             if not success:
                 print("Failed to visualize current pair")
@@ -534,64 +787,72 @@ class InferenceResultVisualizer:
         return success
 
 
-def print_usage():
-    """사용법 출력"""
-    print("=" * 50)
-    print(" Simple Inference Result Visualizer")
-    print("=" * 50)
-    print()
-    print("사용법:")
-    print("  python visualizer.py [input_dir] [output_dir]")
-    print()
-    print("예시:")
-    print("  # 기본 디렉토리 사용")
-    print("  python visualizer.py")
-    print()
-    print("  # 사용자 지정 디렉토리")
-    print("  python visualizer.py /path/to/videos /path/to/output")
-    print()
-    print("  # 단일 파일 모드")
-    print("  python -c \"from visualizer import InferenceResultVisualizer; v = InferenceResultVisualizer(); v.run_single_file('/path/to/video.mp4', '/path/to/result.pkl')\"")
-    print()
-    print("제어:")
-    print("  q: 현재 비디오 종료 후 다음으로 이동")
-    print("=" * 50)
-
-
 def main():
     """메인 실행 함수"""
+    parser = argparse.ArgumentParser(
+        description="Enhanced Visualizer with Inference and Separated Pipeline Overlay",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Inference overlay mode
+  python visualizer.py inference_overlay --video-dir ./test_data --pkl-dir ./output/windows --num-person 2
+
+  # Separated overlay mode with saving
+  python visualizer.py separated_overlay --video-dir ./test_data --pkl-dir ./output/step2 --save --save-dir ./overlay_results
+
+  # Single file processing
+  python visualizer.py inference_overlay --video-dir ./video.mp4 --pkl-dir ./results.pkl --save --save-dir ./output
+        """
+    )
+    
+    # 위치 인수: 모드 선택
+    parser.add_argument('mode', choices=['inference_overlay', 'separated_overlay'], 
+                       help='Overlay mode: inference_overlay or separated_overlay')
+    
+    # 필수 인수
+    parser.add_argument('--video-dir', required=True, 
+                       help='Input video directory or file path')
+    parser.add_argument('--pkl-dir', required=True, 
+                       help='PKL files directory path (windows for inference, step2 for separated)')
+    
+    # 선택적 인수
+    parser.add_argument('--save', action='store_true', 
+                       help='Save overlay video to file (default: real-time display only)')
+    parser.add_argument('--save-dir', default='./overlay_output', 
+                       help='Output directory for saved overlay videos (default: ./overlay_output)')
+    parser.add_argument('--num-person', type=int, default=2, 
+                       help='Number of top persons to display skeleton overlay (default: 2)')
+    
+    args = parser.parse_args()
+    
     try:
-        args = sys.argv[1:]
-        
-        # 도움말 요청 확인
-        if '--help' in args or '-h' in args:
-            print_usage()
-            return
-        
-        input_dir_arg = None
-        output_dir_arg = None
-        
-        if len(args) >= 1:
-            input_dir_arg = args[0]
-        if len(args) >= 2:
-            output_dir_arg = args[1]
-        
-        print("Simple Inference Result Visualizer를 시작합니다...")
+        print(f"=== Enhanced Visualizer ({args.mode}) ===")
+        print(f"Video Directory: {args.video_dir}")
+        print(f"PKL Directory: {args.pkl_dir}")
+        print(f"Save Mode: {args.save}")
+        if args.save:
+            print(f"Save Directory: {args.save_dir}")
+        print(f"Number of Persons: {args.num_person}")
         print()
-        
-        # 시각화 도구 실행
-        visualizer = InferenceResultVisualizer(input_dir_arg, output_dir_arg)
         
         # 경로 확인
-        if not os.path.exists(visualizer.input_dir):
-            print(f"Warning: Input directory not found: {visualizer.input_dir}")
+        if not os.path.exists(args.video_dir):
+            print(f"Error: Video directory/file not found: {args.video_dir}")
+            return
             
-        if not os.path.exists(visualizer.output_dir):
-            print(f"Warning: Output directory not found: {visualizer.output_dir}")
-            
-        print(f"Input Directory: {visualizer.input_dir}")
-        print(f"Output Directory: {visualizer.output_dir}")
-        print()
+        if not os.path.exists(args.pkl_dir):
+            print(f"Error: PKL directory not found: {args.pkl_dir}")
+            return
+        
+        # 시각화 도구 실행
+        visualizer = EnhancedVisualizer(
+            mode=args.mode,
+            video_dir=args.video_dir,
+            pkl_dir=args.pkl_dir,
+            save=args.save,
+            save_dir=args.save_dir,
+            num_person=args.num_person
+        )
         
         visualizer.run()
             

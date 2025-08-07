@@ -56,19 +56,13 @@ class SeparatedPosePipeline:
     
     def _get_weights_as_list(self):
         """가중치를 리스트 형태로 반환 (기존 코드 호환성)"""
-        if isinstance(self.config.weights, dict):
-            return [
-                self.config.weights.get('movement', 0.40),
-                self.config.weights.get('position', 0.15),
-                self.config.weights.get('interaction', 0.30),
-                self.config.weights.get('temporal_consistency', 0.08),
-                self.config.weights.get('persistence', 0.02)
-            ]
-        elif isinstance(self.config.weights, list):
-            return self.config.weights
-        else:
-            # 기본값 반환
-            return [0.40, 0.15, 0.30, 0.08, 0.02]
+        return [
+            self.config.movement_weight,
+            self.config.position_weight,
+            self.config.interaction_weight,
+            self.config.temporal_consistency_weight,
+            self.config.persistence_weight
+        ]
     
     def _create_output_directories(self):
         """출력 디렉토리 구조 생성"""
@@ -456,7 +450,7 @@ class SeparatedPosePipeline:
                 'track_min_hits': self.config.track_min_hits,
                 'quality_threshold': self.config.quality_threshold,
                 'min_track_length': self.config.min_track_length,
-                'weights': self.config.weights,
+                'weights': self._get_weights_as_list(),
                 'clip_len': self.config.clip_len,
                 'training_stride': self.config.training_stride
             }
@@ -668,7 +662,7 @@ class SeparatedPosePipeline:
                 'track_low_thresh': self.config.track_low_thresh,
                 'quality_threshold': self.config.quality_threshold,
                 'min_track_length': self.config.min_track_length,
-                'weights': self.config.weights
+                'weights': self._get_weights_as_list()
             },
             'split_ratios': {
                 'train': self.config.train_ratio,

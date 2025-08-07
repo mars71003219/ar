@@ -9,9 +9,15 @@
 import os
 import sys
 import glob
+
+# 상위 디렉토리를 path에 추가
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+
 from configs import load_config
-from unified_pose_processor import UnifiedPoseProcessor
-from error_logger import ProcessingErrorLogger, capture_exception_info
+from _legacy_backup.unified_pose_processor import UnifiedPoseProcessor
+from logging.error_logger import ProcessingErrorLogger, capture_exception_info
 
 
 def _is_successful_result(result):
@@ -45,7 +51,6 @@ def _setup_gpu_environment(config):
     
     device = 'cpu'
     gpu_ids = []
-    multi_gpu = False
     
     if config.gpu.lower() == 'cpu':
         print("Using CPU")
@@ -68,12 +73,10 @@ def _setup_gpu_environment(config):
                 if len(valid_gpu_ids) > 1:
                     device = f'cuda:{valid_gpu_ids[0]}'
                     gpu_ids = valid_gpu_ids
-                    multi_gpu = True
                     print(f"Multi-GPU mode: GPUs {valid_gpu_ids}")
                 else:
                     device = f'cuda:{valid_gpu_ids[0]}'
                     gpu_ids = valid_gpu_ids
-                    multi_gpu = False
                     print(f"Single GPU mode: GPU {valid_gpu_ids[0]}")
         except ValueError:
             print(f"Warning: Invalid GPU specification '{config.gpu}'. Using CPU")
@@ -83,7 +86,7 @@ def _setup_gpu_environment(config):
         else:
             print("Using CPU (PyTorch not available)")
     
-    return device, gpu_ids, multi_gpu
+    return device, gpu_ids
 
 def get_unprocessed_videos(input_dir, output_dir):
     """output 디렉토리를 기준으로 처리되지 않은 비디오 목록을 가져옵니다."""
@@ -311,11 +314,10 @@ def main():
             # 간단한 프로세서 초기화 (merge 모드에서는 GPU 설정 불필요)
             processor = UnifiedPoseProcessor(
                 detector_config="",  # merge 모드에서는 불필요
-                detector_checkpoint="",  # merge 모드에서는 불필요
-                device='cpu',
-                gpu_ids=[],
-                multi_gpu=False,
-                clip_len=config.clip_len,
+            detector_checkpoint="",  # merge 모드에서는 불필요
+            device='cpu',
+            gpu_ids=[],
+            clip_len=config.clip_len,
                 num_person=config.num_person,
                 save_overlay=False,  # merge 모드에서는 오버레이 생성 안함
                 overlay_fps=config.overlay_fps,
@@ -377,7 +379,7 @@ def main():
             return
         
         # Full 모드 처리 (기존 로직)
-        device, gpu_ids, multi_gpu = _setup_gpu_environment(config)
+        device, gpu_ids = _setup_gpu_environment(config)
         
         # 처리 정보 출력 (설정에서 이미 출력했으므로 간단히)
         print("\n" + "=" * 70)
@@ -385,7 +387,6 @@ def main():
         print("=" * 70)
         print(f"Final Device: {device}")
         print(f"Final GPU IDs: {gpu_ids}")
-        print(f"Final Multi-GPU: {multi_gpu}")
         print()
         
         # 모델을 한 번만 로드하기 위해 멀티프로세싱 비활성화 옵션 추가
@@ -399,7 +400,6 @@ def main():
             detector_checkpoint=config.detector_checkpoint,
             device=device,
             gpu_ids=gpu_ids,
-            multi_gpu=multi_gpu,
             clip_len=config.clip_len,
             num_person=config.num_person,
             save_overlay=config.save_overlay,

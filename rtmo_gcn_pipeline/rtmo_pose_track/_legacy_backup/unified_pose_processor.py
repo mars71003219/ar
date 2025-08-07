@@ -25,7 +25,7 @@ except RuntimeError:
 class UnifiedPoseProcessor:
     """통합 포즈 처리기 - 비디오에서 최종 STGCN 데이터까지 원스톱"""
     
-    def __init__(self, detector_config, detector_checkpoint, device='cuda:0', gpu_ids=[0], multi_gpu=False,
+    def __init__(self, detector_config, detector_checkpoint, device='cuda:0', gpu_ids=[0],
                  clip_len=100, num_person=5, save_overlay=True, overlay_fps=30,
                  # 포즈 추출 파라미터
                  score_thr=0.3, nms_thr=0.35, quality_threshold=0.3, min_track_length=10,
@@ -39,7 +39,6 @@ class UnifiedPoseProcessor:
         self.detector_checkpoint = detector_checkpoint
         self.device = device
         self.gpu_ids = gpu_ids if isinstance(gpu_ids, list) else [gpu_ids]
-        self.multi_gpu = multi_gpu
         self.clip_len = clip_len
         self.num_person = num_person
         self.save_overlay = save_overlay

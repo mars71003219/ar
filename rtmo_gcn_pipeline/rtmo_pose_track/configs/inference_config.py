@@ -12,7 +12,18 @@ current_dir = Path(__file__).parent
 if str(current_dir) not in sys.path:
     sys.path.insert(0, str(current_dir))
 
-from config_loader import get_workspace_path, get_data_path, get_output_path
+# 설정 파일에서 사용 가능한 헬퍼 함수들
+def get_workspace_path(relative_path: str) -> str:
+    """워크스페이스 기준 경로 반환"""
+    return f"/workspace/{relative_path.lstrip('/')}"
+
+def get_data_path(relative_path: str) -> str:
+    """데이터 디렉토리 기준 경로 반환"""
+    return f"/aivanas/raw/surveillance/action/violence/action_recognition/data/{relative_path.lstrip('/')}"
+
+def get_output_path(relative_path: str) -> str:
+    """출력 디렉토리 기준 경로 반환"""
+    return f"/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/{relative_path.lstrip('/')}"
 
 class InferenceConfig:
     """추론 전용 설정"""
@@ -23,8 +34,10 @@ class InferenceConfig:
     # 경로 설정
     # input_dir = get_data_path('RWF-2001')
     # output_dir = get_output_path('test_visualizer')
-    input_dir = get_data_path('UBI_FIGHTS/videos')
-    output_dir = get_output_path('UBI_FIGHTS')
+    # input_dir = get_data_path('UBI_FIGHTS/videos')
+    # output_dir = get_output_path('UBI_FIGHTS')
+    input_dir = "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/test_data"
+    output_dir = "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/inference"
     
     # 포즈 추정 관련 설정 (기존 코드 재사용)
     detector_config = get_workspace_path('mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py')
