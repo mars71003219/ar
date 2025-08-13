@@ -61,30 +61,35 @@ class ModuleInitializer:
     @staticmethod
     def init_pose_estimator(factory: ModuleFactory, config_dict: Dict[str, Any]):
         """포즈 추정기 초기화"""
-        return factory.create_pose_estimator(config_dict)
+        model_name = config_dict.get('model_name', 'rtmo')
+        return factory.create_pose_estimator(model_name, config_dict)
     
     @staticmethod
     def init_tracker(factory: ModuleFactory, config_dict: Dict[str, Any]):
         """트래커 초기화"""
-        return factory.create_tracker(config_dict)
+        tracker_name = config_dict.get('tracker_name', 'bytetrack')
+        return factory.create_tracker(tracker_name, config_dict)
     
     @staticmethod
     def init_scorer(factory: ModuleFactory, config_dict: Dict[str, Any]):
         """스코어링 모듈 초기화"""
-        return factory.create_scorer(config_dict)
+        scorer_name = config_dict.get('scorer_name', 'region_based')
+        return factory.create_scorer(scorer_name, config_dict)
     
     @staticmethod
     def init_classifier(factory: ModuleFactory, config_dict: Dict[str, Any]):
         """분류기 초기화"""
-        return factory.create_classifier(config_dict)
+        model_name = config_dict.get('model_name', 'stgcn')
+        return factory.create_classifier(model_name, config_dict)
     
     @staticmethod
     def init_window_processor(factory: ModuleFactory, window_size: int, window_stride: int):
         """윈도우 프로세서 초기화"""
-        return factory.create_window_processor({
+        config = {
             'window_size': window_size,
             'window_stride': window_stride
-        })
+        }
+        return factory.create_window_processor('sliding_window', config)
 
 
 class PerformanceTracker:
