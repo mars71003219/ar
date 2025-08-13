@@ -47,7 +47,8 @@ class SkeletonRenderer:
             self.confidence_threshold = 0.3
     
     def draw_skeleton(self, image: np.ndarray, keypoints: np.ndarray, 
-                     color: Optional[Tuple[int, int, int]] = None) -> np.ndarray:
+                     color: Optional[Tuple[int, int, int]] = None, 
+                     stage: str = None) -> np.ndarray:
         """
         스켈레톤을 이미지에 그리기
         
@@ -94,10 +95,17 @@ class SkeletonRenderer:
                     start_point = keypoints[start_idx]
                     end_point = keypoints[end_idx]
                     
-                    # 신룰도 확인 (3차원인 경우)
+                    # 신뢰도 임계값 조정 (stage2는 더 관대하게)
+                    threshold = self.confidence_threshold
+                    if stage and stage in ['stage2', 'step2']:
+                        threshold = 0.1  # tracking 데이터는 더 낮은 임계값 사용
+                    
+                    # 신뢰도 확인 (3차원인 경우)
                     if (len(start_point) >= 3 and len(end_point) >= 3 and
-                        start_point[2] > self.confidence_threshold and 
-                        end_point[2] > self.confidence_threshold):
+                        start_point[2] > threshold and 
+                        end_point[2] > threshold and
+                        start_point[0] > 0 and start_point[1] > 0 and
+                        end_point[0] > 0 and end_point[1] > 0):
                         
                         start_pos = (int(start_point[0]), int(start_point[1]))
                         end_pos = (int(end_point[0]), int(end_point[1]))
@@ -106,8 +114,10 @@ class SkeletonRenderer:
                         
                         cv2.line(result_image, start_pos, end_pos, 
                                 line_color, self.line_thickness)
-                    elif len(start_point) >= 2 and len(end_point) >= 2:
-                        # 2차원인 경우 신룰도 확인 없이 그리기
+                    elif (len(start_point) >= 2 and len(end_point) >= 2 and
+                          start_point[0] > 0 and start_point[1] > 0 and
+                          end_point[0] > 0 and end_point[1] > 0):
+                        # 2차원인 경우 좌표값만 확인
                         start_pos = (int(start_point[0]), int(start_point[1]))
                         end_pos = (int(end_point[0]), int(end_point[1]))
                         
@@ -119,8 +129,13 @@ class SkeletonRenderer:
             # 키포인트 그리기
             for i, point in enumerate(keypoints):
                 if len(point) >= 2:
-                    # 신룰도 확인 (3차원인 경우)
-                    if (len(point) >= 3 and point[2] > self.confidence_threshold) or len(point) == 2:
+                    # 신뢰도 임계값 조정 (stage2는 더 관대하게)
+                    threshold = self.confidence_threshold
+                    if stage and stage in ['stage2', 'step2']:
+                        threshold = 0.1
+                    
+                    # 신뢰도 확인 (3차원인 경우) 및 좌표값 확인
+                    if ((len(point) >= 3 and point[2] > threshold) or len(point) == 2) and point[0] > 0 and point[1] > 0:
                         pos = (int(point[0]), int(point[1]))
                         point_color = color if color else self.keypoint_color
                         cv2.circle(result_image, pos, self.keypoint_radius, 

@@ -1,0 +1,206 @@
+# Recognizer 메인 설정 파일
+# 모든 기능과 파이프라인을 이 설정 파일 하나로 제어합니다.
+
+# 실행 모드 설정
+execution:
+  mode: "inference"  # inference, separated, annotation, unified
+  input: "data/test_video.mp4"  # 입력 소스
+  output_dir: "output/main_results"  # 출력 디렉토리
+  
+# 기능 활성화 설정
+features:
+  enable_evaluation: true     # 성능 평가 기능
+  enable_visualization: true  # 시각화 생성 기능
+  enable_gpu_acceleration: true
+  enable_multiprocessing: false
+
+# 성능 설정
+performance:
+  # GPU 설정 (단일 선택)
+  device: "cuda:0"  # 기본 디바이스
+  
+  # 멀티GPU 설정 (선택 옵션)
+  multi_gpu:
+    enable: false           # --multi_gpu 플래그로 활성화
+    gpus: [0, 1, 2, 3]     # 사용할 GPU 목록
+    strategy: "data_parallel"  # data_parallel, model_parallel
+    batch_per_gpu: 1       # GPU당 배치 크기
+  
+  # 멀티프로세스 설정 (선택 옵션)
+  multiprocess:
+    enable: false          # --multiprocess 플래그로 활성화
+    workers: 4            # 워커 프로세스 수
+    strategy: "pipeline"   # pipeline, data, hybrid
+    shared_memory: true    # 공유 메모리 사용
+    queue_size: 100       # 프로세스간 큐 크기
+  
+  # 추론 설정
+  window_size: 100
+  inference_stride: 25
+  batch_size: 1
+  mixed_precision: false  # 혼합 정밀도 (성능 향상)
+
+# 모델 설정
+models:
+  # 포즈 추정 모델
+  pose_estimation:
+    model_name: "rtmo"
+    config_file: "configs/rtmo/rtmo-m_16xb16-600e_coco-640x640.py"
+    checkpoint_path: "checkpoints/rtmo-m_16xb16-600e_coco-640x640.pth"
+    device: "cuda:0"
+  
+  # 트래킹 모델
+  tracking:
+    tracker_name: "bytetrack"
+    track_high_thresh: 0.6
+    track_low_thresh: 0.1
+    track_max_disappeared: 30
+  
+  # 스코어링 시스템
+  scoring:
+    scorer_name: "region_based"
+    movement_weight: 0.3
+    position_weight: 0.2
+    posture_weight: 0.2
+    interaction_weight: 0.15
+    temporal_weight: 0.1
+    appearance_weight: 0.05
+  
+  # 액션 분류 모델
+  action_classification:
+    model_name: "stgcn"
+    config_file: "configs/stgcnpp/stgcnpp_enhanced_fight_detection.py"
+    checkpoint_path: "checkpoints/stgcnpp_enhanced_fight_detection.pth"
+    device: "cuda:0"
+    num_classes: 2
+    class_names: ["NonFight", "Fight"]
+
+# 모드별 상세 설정
+modes:
+  # 추론 모드 설정
+  inference:
+    source_type: "file"  # file, rtsp, webcam
+    duration: null  # 처리 시간 제한 (초, null이면 전체)
+    target_fps: 30.0
+    save_intermediate: false  # 중간 결과 저장 여부
+    
+    # 실시간 처리 설정 (RTSP/웹캠 전용)
+    realtime:
+      max_queue_size: 200
+      skip_frames: 1
+      resize_input: null  # [width, height] 또는 null
+      alert_threshold: 0.7
+      min_confidence: 0.5
+  
+  # 분리 파이프라인 모드 설정
+  separated:
+    config_file: "configs/separated_pipeline_config.yaml"
+    stages:
+      stage1_pose: true      # 포즈 추정
+      stage2_tracking: true  # 트래킹 & 스코어링
+      stage3_unification: true  # 통합 & 분류
+    
+    # 멀티프로세싱 설정 (separated 전용)
+    multiprocess_config:
+      pose_workers: 2
+      tracking_workers: 2
+      classification_workers: 2
+      batch_size: 4
+  
+  # 어노테이션 모드 설정
+  annotation:
+    pkl_file: null  # PKL 파일 경로
+    video_file: null  # 원본 비디오 파일
+    output_video: null  # 출력 비디오 경로
+    visualization_type: "stage2"  # stage1, stage2, unified
+    show_windows: true
+    show_scores: true
+    fps: 30.0
+
+# 평가 설정
+evaluation:
+  output_subdir: "evaluation"
+  class_names: ["NonFight", "Fight"]
+  
+  # 저장할 결과 타입
+  save_options:
+    detailed_results: true  # JSON/CSV 결과
+    overlay_data: true      # 시각화용 PKL
+    performance_metrics: true  # 성능 지표
+  
+  # 메트릭 계산 옵션
+  metrics:
+    calculate_confusion_matrix: true
+    calculate_per_class_metrics: true
+    calculate_confidence_stats: true
+    calculate_processing_stats: true
+
+# 시각화 설정
+visualization:
+  output_subdir: "visualizations"
+  
+  # 생성할 시각화 타입
+  types:
+    performance_charts: true     # 성능 차트
+    timeline_visualization: true # 타임라인
+    confusion_matrix: true       # 혼동 행렬
+    overlay_videos: true         # 오버레이 비디오
+    summary_images: true         # 요약 이미지
+  
+  # 시각화 품질 설정
+  quality:
+    dpi: 300
+    figsize: [12, 8]
+    video_fps: 30.0
+    video_quality: "high"  # low, medium, high
+
+# 로깅 설정
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(levelname)s - %(message)s"
+  save_to_file: true
+  log_file: "recognizer.log"
+
+# 출력 설정
+output:
+  # 디렉토리 구조
+  create_subdirs: true
+  subdir_names:
+    evaluation: "evaluation"
+    visualizations: "visualizations"
+    intermediate: "intermediate"
+    logs: "logs"
+  
+  # 파일 명명 규칙
+  naming:
+    include_timestamp: true
+    include_mode: true
+    include_config_hash: false
+
+# 고급 설정
+advanced:
+  # 메모리 관리
+  memory_management:
+    enable_garbage_collection: true
+    gc_interval: 100  # 프레임 단위
+    max_cache_size: 1000  # MB
+  
+  # 오류 처리
+  error_handling:
+    continue_on_error: true
+    max_consecutive_errors: 10
+    error_recovery_strategy: "skip"  # skip, retry, abort
+  
+  # 최적화
+  optimization:
+    enable_tensorrt: false
+    enable_mixed_precision: false
+    enable_torch_compile: false
+
+# 프로파일링 (디버그용)
+profiling:
+  enable: false
+  output_dir: "profiling"
+  profile_memory: true
+  profile_time: true
+  profile_gpu: true

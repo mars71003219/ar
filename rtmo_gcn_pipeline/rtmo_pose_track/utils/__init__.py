@@ -22,7 +22,7 @@ from .data_utils import (
     merge_stgcn_samples
 )
 from .annotation_utils import (
-    create_enhanced_annotation,
+    create_simple_annotation,
     extract_persons_ranking,
     calculate_composite_score,
     sort_windows_by_score
@@ -46,7 +46,7 @@ __all__ = [
     'split_dataset',
     'merge_stgcn_samples',
     # annotation_utils
-    'create_enhanced_annotation',
+    'create_simple_annotation',
     'extract_persons_ranking',
     'calculate_composite_score',
     'sort_windows_by_score'

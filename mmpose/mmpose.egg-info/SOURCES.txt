@@ -1,4 +1,3 @@
-MANIFEST.in
 README.md
 setup.cfg
 setup.py
@@ -11,8 +10,6 @@ mmpose.egg-info/dependency_links.txt
 mmpose.egg-info/not-zip-safe
 mmpose.egg-info/requires.txt
 mmpose.egg-info/top_level.txt
-mmpose/.mim/dataset-index.yml
-mmpose/.mim/model-index.yml
 mmpose/.mim/configs/_base_/default_runtime.py
 mmpose/.mim/configs/_base_/datasets/300vw.py
 mmpose/.mim/configs/_base_/datasets/300w.py

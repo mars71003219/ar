@@ -1,0 +1,25 @@
+# 어노테이션 시각화 모드 프리셋
+# 사용법: python main.py --config configs/presets/annotation_visualization.yaml --pkl_file stage2.pkl --video_file video.mp4
+
+execution:
+  mode: "annotation"
+  output_dir: "output/annotation_visualization"
+
+features:
+  enable_evaluation: false
+  enable_visualization: true
+
+modes:
+  annotation:
+    visualization_type: "stage2"
+    show_windows: true
+    show_scores: true
+    fps: 30.0
+
+visualization:
+  types:
+    overlay_videos: true
+    summary_images: true
+  quality:
+    video_fps: 30.0
+    video_quality: "high"

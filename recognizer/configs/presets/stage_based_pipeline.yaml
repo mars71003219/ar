@@ -1,0 +1,90 @@
+# 단계별 파이프라인 전체 실행 프리셋
+# 사용법: python main.py --config configs/presets/stage_based_pipeline.yaml --input videos/
+
+execution:
+  mode: "separated"
+  output_dir: "output/stage_based_pipeline"
+
+# 통합 파이프라인 설정
+pipeline:
+  type: "AnnotationIntegratedPipeline"  # 통합 클래스 사용
+  
+  # 모드 설정
+  annotation_mode: false  # False: 전체 파이프라인 실행 (stage1-4)
+  stages_to_run: ["stage1", "stage2", "stage3", "stage4"]  # 모든 단계 실행
+  
+  # 윈도우 설정
+  window_size: 100
+  window_stride: 50
+  
+  # annotation_pipeline 품질 관리 설정 통합
+  min_pose_confidence: 0.3
+  min_track_length: 10
+  max_persons_per_frame: 10
+  
+  # 출력 형식 제어
+  output_format: "pickle"  # pickle, json
+  save_poses: true
+  save_tracking: true
+  save_bboxes: true
+  save_keypoints: true
+
+# 단계별 출력 디렉터리 (시각화 지원)
+stage_outputs:
+  stage1_output_dir: "output/stage_based_pipeline/stage1_poses"           # 포즈 추정 → 시각화
+  stage2_output_dir: "output/stage_based_pipeline/stage2_tracking"        # 트래킹 → 시각화
+  stage3_output_dir: "output/stage_based_pipeline/stage3_scoring"         # 복합점수 정렬 → 시각화
+  stage4_output_dir: "output/stage_based_pipeline/stage4_unified"         # STGCN 훈련용 통합
+
+# 데이터셋 분할 (STGCN 훈련용)
+dataset:
+  train_ratio: 0.7
+  val_ratio: 0.2
+  test_ratio: 0.1
+
+features:
+  enable_visualization: true   # 시각화 활성화
+  enable_resume: true         # Resume 기능
+  save_visualization_pkl: true   # 시각화용 PKL 저장
+  save_stgcn_pkl: true          # STGCN 훈련용 PKL 저장
+
+performance:
+  multi_gpu: false
+  multiprocess: true
+  num_workers: 4
+  device: "cuda:0"
+
+# 모듈 설정
+pose_estimation:
+  model_name: "rtmo"
+  config_file: "configs/rtmo/rtmo-m_16xb16-600e_coco-640x640.py"
+  model_path: "checkpoints/rtmo-m_16xb16-600e_coco-640x640.pth"
+  device: "cuda:0"
+
+tracking:
+  tracker_name: "bytetrack"  # mmtracking: bytetrack, deepsort, sort
+  device: "cuda:0"
+  # mmtracking 특화 설정
+  tracker_type: "mmtracking"
+  high_threshold: 0.6
+  low_threshold: 0.1
+  max_disappeared: 30
+  min_hits: 3
+
+scoring:
+  scorer_name: "composite_scorer"
+
+classification:
+  model_name: "stgcnpp"
+  config_file: "configs/stgcn/stgcnpp_8xb16-bone-u100-80e_ntu60-xsub-keypoint-2d.py"
+  model_path: "checkpoints/stgcnpp_8xb16-bone-u100-80e_ntu60-xsub-keypoint-2d.pth"
+  device: "cuda:0"
+
+# 시각화 설정
+visualization:
+  types:
+    stage1_visualization: true    # 포즈 추정 시각화
+    stage2_visualization: true    # 트래킹 시각화
+    stage3_visualization: true    # 복합점수 정렬 시각화
+    performance_charts: true
+    timeline_visualization: true

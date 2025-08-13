@@ -7,8 +7,8 @@ import numpy as np
 from typing import Dict, List, Any, Tuple
 
 
-def create_enhanced_annotation(persons_data: Dict, frame_idx: int, img_shape: Tuple[int, int]) -> Dict:
-    """향상된 어노테이션 생성"""
+def create_simple_annotation(persons_data: Dict, frame_idx: int, img_shape: Tuple[int, int]) -> Dict:
+    """간단한 어노테이션 생성 (프레임별)"""
     annotation = {
         'frame_ind': frame_idx,
         'img_shape': img_shape,

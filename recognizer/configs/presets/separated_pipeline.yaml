@@ -1,0 +1,27 @@
+# 분리 파이프라인 모드 프리셋
+# 사용법: python main.py --config configs/presets/separated_pipeline.yaml --input data/videos
+
+execution:
+  mode: "separated"
+  output_dir: "output/separated_pipeline"
+
+features:
+  enable_evaluation: true
+  enable_visualization: true
+
+performance:
+  multiprocess: true
+  workers: 4
+
+modes:
+  separated:
+    stages:
+      stage1_pose: true
+      stage2_tracking: true
+      stage3_unification: true
+    
+    multiprocess_config:
+      pose_workers: 2
+      tracking_workers: 2
+      classification_workers: 2
+      batch_size: 4

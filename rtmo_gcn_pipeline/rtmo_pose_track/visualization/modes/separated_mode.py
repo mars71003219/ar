@@ -26,7 +26,7 @@ except ImportError:
 class SeparatedVisualizerMode(BaseVisualizer):
     """분리된 파이프라인 모드 시각화자"""
     
-    def __init__(self, input_dir=None, output_dir=None, config=None):
+    def __init__(self, input_dir=None, output_dir=None, config=None, stage='stage1'):
         # 설정 로드
         self.mode_config = config or default_config
         super().__init__(input_dir, output_dir, self.mode_config)
@@ -38,6 +38,7 @@ class SeparatedVisualizerMode(BaseVisualizer):
         
         # 모드 설정
         self.mode = 'separated'
+        self.stage = stage  # stage1/step1 (poses) or stage2/step2 (tracking)
         
         # 설정 파일에서 모드별 설정 로드
         if self.mode_config:
@@ -250,7 +251,7 @@ class SeparatedVisualizerMode(BaseVisualizer):
             for i, keypoints in enumerate(keypoints_list):
                 color = self.get_color(i)
                 result_frame = self.skeleton_renderer.draw_skeleton(
-                    result_frame, keypoints, color)
+                    result_frame, keypoints, color, stage=self.stage)
                 
                 # 트랙 정보 표시
                 if self.show_track_info and len(keypoints) > 0:
@@ -302,19 +303,24 @@ class SeparatedVisualizerMode(BaseVisualizer):
             valid_points = []
             for point in keypoints:
                 if len(point) >= 2:
-                    # 신룰도 임계값 (설정 파일에서 가져오기)
+                    # 신뢰도 임계값 (설정 파일에서 가져오기)
                     if self.mode_config and hasattr(self.mode_config, 'confidence_threshold'):
                         threshold = self.mode_config.confidence_threshold
                     else:
                         threshold = 0.3
                     
-                    # 신룰도 확인 (3차원인 경우)
+                    # stage2는 tracking 데이터이므로 더 관대한 임계값 적용
+                    if hasattr(self, 'stage') and self.stage in ['stage2', 'step2']:
+                        threshold = 0.1  # stage2는 더 낮은 임계값 사용
+                    
+                    # 신뢰도 확인 (3차원인 경우)
                     if len(point) >= 3:
-                        if point[2] > threshold:
+                        if point[2] > threshold and point[0] > 0 and point[1] > 0:
                             valid_points.append([point[0], point[1]])
                     else:
-                        # 2차원인 경우 바로 사용
-                        valid_points.append([point[0], point[1]])
+                        # 2차원인 경우 좌표값만 확인
+                        if point[0] > 0 and point[1] > 0:
+                            valid_points.append([point[0], point[1]])
             
             if len(valid_points) < 2:
                 return None

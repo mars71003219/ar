@@ -12,7 +12,6 @@ from typing import Dict, List, Any, Optional, Tuple
 
 try:
     from mmpose.apis import inference_bottomup, init_model
-    from mmpose.registry import VISUALIZERS
 except ImportError as e:
     print(f"MMPose import error: {e}")
 

@@ -1,0 +1,104 @@
+# 분리형 파이프라인 설정 파일
+# 레거시 separated_pose_pipeline.py와 동일한 3단계 분리 처리
+
+# 포즈 추정 설정
+pose_estimation:
+  model_name: "rtmo"
+  config_file: "configs/rtmo/rtmo-m_16xb16-600e_coco-640x640.py"
+  model_path: "checkpoints/rtmo-m_16xb16-600e_coco-640x640.pth"
+  device: "cuda:0"
+  batch_size: 1
+  input_size: [640, 640]
+  score_threshold: 0.3
+  # 멀티 GPU 설정
+  gpu_allocation_strategy: "round_robin"
+  use_data_parallel: false
+  use_distributed: false
+
+# 트래킹 설정
+tracking:
+  tracker_name: "bytetrack"
+  frame_rate: 30
+  track_thresh: 0.5
+  track_buffer: 30
+  match_thresh: 0.8
+  track_high_thresh: 0.6
+  track_low_thresh: 0.1
+  new_track_thresh: 0.7
+
+# 복합점수 계산 설정
+scoring:
+  scorer_name: "region_based"
+  weights:
+    movement: 0.4
+    interaction: 0.3
+    position: 0.1
+    temporal_consistency: 0.1
+    persistence: 0.1
+  quality_threshold: 0.3
+  min_track_length: 10
+  image_size: [640, 640]
+
+# 행동 분류 설정
+action_classification:
+  model_name: "stgcn"
+  config_file: "configs/stgcnpp/stgcnpp_enhanced_fight_detection.py"
+  model_path: "checkpoints/stgcnpp_enhanced_fight_detection.pth"
+  window_size: 100
+  class_names: ["NonFight", "Fight"]
+  confidence_threshold: 0.5
+  device: "cuda:0"
+  input_format: "stgcn"
+  expected_keypoint_count: 17
+  coordinate_dimensions: 2
+  max_persons: 2
+  # GPU 설정
+  gpu_allocation_strategy: "round_robin"
+  use_data_parallel: false
+  use_distributed: false
+  batch_inference: false
+  max_batch_size: 1
+
+# 분리형 파이프라인 설정
+separated_pipeline:
+  # 윈도우 설정
+  window_size: 100
+  window_stride: 50
+  
+  # 출력 디렉토리 설정
+  stage1_output_dir: "output/separated/stage1_poses"
+  stage2_output_dir: "output/separated/stage2_tracking"
+  stage3_output_dir: "output/separated/stage3_results"
+  
+  # Resume 기능
+  enable_resume: true
+  
+  # 멀티프로세스 설정
+  num_workers: 8  # CPU 코어 수에 맞게 조정
+  enable_multiprocess: true
+  multiprocess_batch_size: 4
+  multiprocess_timeout: 600.0  # 10분
+
+# 출력 설정
+output:
+  base_dir: "output/separated"
+  log_level: "INFO"
+  save_logs: true
+  log_file: "logs/separated_pipeline.log"
+
+# 디버그 설정
+debug:
+  verbose: true
+  save_intermediate: true
+  profile_performance: true
+  validate_inputs: true
+
+# 성능 모니터링
+performance_monitoring:
+  enable_monitoring: true
+  monitoring_interval: 30
+  metrics_to_track:
+    - "processing_time"
+    - "memory_usage"
+    - "stage_success_rate"
+    - "error_rate"

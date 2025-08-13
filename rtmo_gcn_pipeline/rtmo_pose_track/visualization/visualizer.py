@@ -19,6 +19,16 @@ import argparse
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 
+# 분석 로거 import
+try:
+    from ..utils.pose_analysis_logger import PoseAnalysisLogger
+except ImportError:
+    try:
+        from utils.pose_analysis_logger import PoseAnalysisLogger
+    except ImportError:
+        print("Warning: Could not import PoseAnalysisLogger. Analysis logging disabled.")
+        PoseAnalysisLogger = None
+
 
 
 
@@ -26,12 +36,13 @@ class EnhancedVisualizer:
     """향상된 시각화 클래스 - Inference 및 Separated Pipeline 지원"""
     
     def __init__(self, mode='inference', video_dir=None, pkl_dir=None, 
-                 save=False, save_dir=None, num_person=2, config=None):
+                 save=False, save_dir=None, num_person=2, config=None, stage='stage1'):
         if config is None:
             raise ValueError("A config object must be provided.")
 
         self.config = config
         self.mode = mode
+        self.stage = stage  # stage1/step1 (poses) or stage2/step2 (tracking)
         self.video_dir = video_dir or self.config.default_input_dir
         self.pkl_dir = pkl_dir or self.config.default_output_dir
         self.save = save
@@ -44,6 +55,12 @@ class EnhancedVisualizer:
         
         # 비디오-PKL 매칭 정보
         self.video_pkl_pairs = []
+        
+        # 분석 로거 초기화
+        self.analysis_logger = None
+        if PoseAnalysisLogger and mode == 'separated_overlay':
+            log_dir = os.path.join(self.save_dir, 'analysis_logs')
+            self.analysis_logger = PoseAnalysisLogger(log_dir, 'comparison_analysis')
         
     def find_video_pkl_pairs(self) -> List[Tuple[str, str, str]]:
         """디렉토리에서 비디오-PKL 쌍 찾기"""
@@ -61,12 +78,11 @@ class EnhancedVisualizer:
                             pkl_files.append(pkl_path)
         
         elif self.mode == 'separated_overlay':
-            # separated 모드: step2 폴더에서 _windows.pkl 파일 찾기
+            # separated 모드: 모든 .pkl 파일 찾기 (서브폴더 포함)
             pkl_files = []
             for root, dirs, files in os.walk(self.pkl_dir):
                 for file in files:
-                    # _windows.pkl 파일이나 일반 .pkl 파일 모두 허용
-                    if file.endswith('_windows.pkl') or (file.endswith('.pkl') and 'window' in file):
+                    if file.endswith('.pkl'):
                         pkl_path = os.path.join(root, file)
                         pkl_files.append(pkl_path)
         
@@ -78,7 +94,14 @@ class EnhancedVisualizer:
         
         # 각 PKL 파일에 대해 매칭되는 비디오 찾기
         for pkl_path in pkl_files:
-            video_name = Path(pkl_path).stem.replace('_windows', '')
+            pkl_filename = Path(pkl_path).stem
+            # stage에 따른 접미사 제거하여 비디오명 추출
+            if self.stage in ['stage1', 'step1']:
+                video_name = pkl_filename.replace('_poses', '').replace('_pose', '').replace('_skeleton', '').replace('_annotation', '')
+            elif self.stage in ['stage2', 'step2']:
+                video_name = pkl_filename.replace('_windows', '').replace('_tracking', '').replace('_annotation', '')
+            else:
+                video_name = pkl_filename.replace('_windows', '').replace('_poses', '').replace('_pose', '').replace('_skeleton', '').replace('_annotation', '')
             
             # video_dir에서 매칭되는 비디오 찾기
             video_extensions = ['mp4', 'avi', 'mov', 'mkv']
@@ -157,6 +180,7 @@ class EnhancedVisualizer:
                      is_overlap: bool = False) -> np.ndarray:
         """스켈레톤 그리기"""
         if keypoints is None or len(keypoints) == 0:
+            print(f"No keypoints to draw for person {person_idx}")
             return img
             
         # 색상 선택
@@ -183,9 +207,70 @@ class EnhancedVisualizer:
                 print(f"Unexpected keypoints shape: {keypoints.shape}")
                 return img
                 
+            # stage별 신뢰도 임계값 조정
+            confidence_threshold = self.config.confidence_threshold
+            if hasattr(self, 'stage') and self.stage in ['stage2', 'step2']:
+                confidence_threshold = 0.1  # tracking 데이터는 더 낮은 임계값 사용
+            
+            # 관절점 그리기
+            drawn_points = 0
+            skipped_points = 0
+            for i, (x, y, score) in enumerate(coords_scores):
+                if score > confidence_threshold and x > 0 and y > 0:
+                    cv2.circle(img, (int(x), int(y)), self.config.keypoint_radius, color, -1)
+                    drawn_points += 1
+                else:
+                    skipped_points += 1
+            
+            if drawn_points == 0 and skipped_points > 0:  # 그려진 점이 없을 때만 로그
+                print(f"Person {person_idx}: Drew {drawn_points} points, skipped {skipped_points} points (threshold: {confidence_threshold})")
+            
+            # 스켈레톤 연결선 그리기  
+            for connection in self.config.skeleton_connections:
+                pt1_idx, pt2_idx = connection[0] - 1, connection[1] - 1  # 1-based to 0-based
+                if pt1_idx < len(coords_scores) and pt2_idx < len(coords_scores):
+                    x1, y1, score1 = coords_scores[pt1_idx]
+                    x2, y2, score2 = coords_scores[pt2_idx]
+                    
+                    if score1 > confidence_threshold and score2 > confidence_threshold and x1 > 0 and y1 > 0 and x2 > 0 and y2 > 0:
+                        cv2.line(img, (int(x1), int(y1)), (int(x2), int(y2)), color, self.config.line_thickness)
+        
+        except Exception as e:
+            print(f"Error drawing skeleton: {e}, keypoints shape: {keypoints.shape}")
+            
+        return img
+    
+    def draw_skeleton_with_custom_color(self, img: np.ndarray, keypoints: np.ndarray, 
+                                       color: Tuple[int, int, int], is_overlap: bool = False) -> np.ndarray:
+        """커스텀 색상으로 스켈레톤 그리기"""
+        if keypoints is None or len(keypoints) == 0:
+            return img
+            
+        # keypoints 형태 확인 및 처리
+        try:
+            # keypoints가 (17, 3) 형태인지 확인
+            if keypoints.shape[-1] == 3:
+                # (x, y, score) 형태
+                coords_scores = keypoints
+            elif keypoints.shape[-1] == 2:
+                # (x, y) 형태인 경우 기본 score 1.0 추가
+                if len(keypoints.shape) == 2:  # (17, 2)
+                    ones_shape = (keypoints.shape[0], 1)
+                else:  # (T, 17, 2) 등의 경우
+                    ones_shape = keypoints.shape[:-1] + (1,)
+                coords_scores = np.concatenate([keypoints, np.ones(ones_shape)], axis=-1)
+            else:
+                print(f"Unexpected keypoints shape: {keypoints.shape}")
+                return img
+                
+            # stage별 신뢰도 임계값 조정
+            confidence_threshold = self.config.confidence_threshold
+            if hasattr(self, 'stage') and self.stage in ['stage2', 'step2']:
+                confidence_threshold = 0.1  # tracking 데이터는 더 낮은 임계값 사용
+            
             # 관절점 그리기
             for i, (x, y, score) in enumerate(coords_scores):
-                if score > self.config.confidence_threshold:
+                if score > confidence_threshold and x > 0 and y > 0:
                     cv2.circle(img, (int(x), int(y)), self.config.keypoint_radius, color, -1)
             
             # 스켈레톤 연결선 그리기  
@@ -195,25 +280,18 @@ class EnhancedVisualizer:
                     x1, y1, score1 = coords_scores[pt1_idx]
                     x2, y2, score2 = coords_scores[pt2_idx]
                     
-                    if score1 > self.config.confidence_threshold and score2 > self.config.confidence_threshold:
+                    if score1 > confidence_threshold and score2 > confidence_threshold and x1 > 0 and y1 > 0 and x2 > 0 and y2 > 0:
                         cv2.line(img, (int(x1), int(y1)), (int(x2), int(y2)), color, self.config.line_thickness)
         
         except Exception as e:
-            print(f"Error drawing skeleton: {e}, keypoints shape: {keypoints.shape}")
+            print(f"Error drawing skeleton with custom color: {e}, keypoints shape: {keypoints.shape}")
             
         return img
     
     def detect_overlap_persons(self, window_data: Dict, frame_idx: int) -> List[int]:
-        """겹침 구간의 사람 객체 감지"""
-        overlap_persons = []
-        
-        # 윈도우 경계 확인 (stride로 인한 겹침)
-        if 'overlap_info' in window_data:
-            overlap_info = window_data['overlap_info']
-            if frame_idx in overlap_info.get('overlap_frames', []):
-                overlap_persons = overlap_info.get('overlap_persons', [])
-        
-        return overlap_persons
+        """겹침 구간의 사람 객체 감지 - 기능 비활성화"""
+        # 중복 색상 기능 제거 - 항상 빈 리스트 반환
+        return []
     
     def get_head_position(self, keypoints: np.ndarray) -> Optional[Tuple[int, int]]:
         """키포인트에서 머리 위치 계산"""
@@ -547,8 +625,8 @@ class EnhancedVisualizer:
                 frame_data, relative_frame_idx = self._get_frame_data_separated(pkl_data, frame_idx)
                 
                 # 관절 오버레이 그리기
-                if frame_data and 'annotation' in frame_data:
-                    annotation = frame_data['annotation']
+                if frame_data and 'persons' in frame_data:
+                    annotation = frame_data  # 변환된 데이터는 이미 annotation 형태
                     if 'persons' in annotation:
                         persons_data = annotation['persons']
                         
@@ -567,25 +645,48 @@ class EnhancedVisualizer:
                                     
                                 keypoints = person_info.get('keypoint')
                                 if keypoints is not None:
+                                    print(f"Person {person_id}: keypoints shape {keypoints.shape}, relative_frame_idx={relative_frame_idx}")
+                                    
                                     # keypoints 형태 처리 (separated는 보통 (1, T, V, C) 형태)
                                     if len(keypoints.shape) == 4:  # (1, T, V, C)
                                         keypoints_3d = keypoints.squeeze(0)  # (T, V, C)
+                                        print(f"Person {person_id}: After squeeze: {keypoints_3d.shape}")
                                         if relative_frame_idx < keypoints_3d.shape[0]:
                                             current_keypoints = keypoints_3d[relative_frame_idx]
+                                            print(f"Person {person_id}: current_keypoints shape: {current_keypoints.shape}")
+                                            print(f"Person {person_id}: sample coords: {current_keypoints[:3, :].flatten()}")
                                         else:
+                                            print(f"Person {person_id}: relative_frame_idx {relative_frame_idx} >= {keypoints_3d.shape[0]}")
                                             continue
                                     elif len(keypoints.shape) == 3:  # (T, V, C)
                                         if relative_frame_idx < keypoints.shape[0]:
                                             current_keypoints = keypoints[relative_frame_idx]
+                                            print(f"Person {person_id}: current_keypoints shape: {current_keypoints.shape}")
                                         else:
+                                            print(f"Person {person_id}: relative_frame_idx {relative_frame_idx} >= {keypoints.shape[0]}")
                                             continue
                                     elif len(keypoints.shape) == 2:  # (V, C)
                                         current_keypoints = keypoints
+                                        print(f"Person {person_id}: using 2D keypoints: {current_keypoints.shape}")
                                     else:
+                                        print(f"Person {person_id}: unexpected keypoints shape: {keypoints.shape}")
                                         continue
                                     
+                                    # track_id 기반 색상 할당 (stage2에서만)
+                                    if self.stage in ['stage2', 'step2']:
+                                        track_id = person_info.get('track_id', person_id)
+                                        # track_id를 숫자로 변환하여 색상 인덱스로 사용
+                                        try:
+                                            color_idx = int(track_id) % len(self.config.colors)
+                                        except (ValueError, TypeError):
+                                            color_idx = person_idx % len(self.config.colors)
+                                    else:
+                                        color_idx = person_idx % len(self.config.colors)
+                                    
                                     # 스켈레톤 그리기 (중복 객체 감지는 separated에서는 적용하지 않음)
-                                    frame = self.draw_skeleton(frame, current_keypoints, person_idx, False)
+                                    color = self.config.colors[color_idx]
+                                    frame = self.draw_skeleton_with_custom_color(frame, current_keypoints, color, False)
+                                    print(f"Person {person_id}: skeleton drawn")
                                     
                                     # 머리 위에 정보 표시
                                     head_pos = self.get_head_position(current_keypoints)
@@ -780,35 +881,164 @@ class EnhancedVisualizer:
             return False
     
     def _get_frame_data(self, pkl_data: List[Dict], frame_idx: int) -> Tuple[Dict, int]:
-        """특정 프레임의 데이터 추출"""
-        # pkl_data는 window_results 리스트
-        # 현재 프레임이 속한 윈도우를 찾아서 해당 윈도우의 포즈 데이터에서 프레임 데이터 추출
-        for window_result in pkl_data:
-            start_frame = window_result.get('start_frame', 0)
-            end_frame = window_result.get('end_frame', 0)
+        """특정 프레임의 데이터 추출 - 순차적 윈도우 할당"""
+        # 윈도우를 start_frame 순으로 정렬
+        sorted_windows = sorted(pkl_data, key=lambda w: w.get('start_frame', 0))
+        
+        # 첫 번째 윈도우는 전체 clip_len 길이만큼 사용
+        if len(sorted_windows) > 0:
+            first_window = sorted_windows[0]
+            first_start = first_window.get('start_frame', 0)
+            first_end = first_start + 100  # clip_len
             
-            # 현재 프레임이 이 윈도우에 속하는지 확인
-            if start_frame <= frame_idx < end_frame:
+            if first_start <= frame_idx < first_end:
+                pose_data = first_window.get('pose_data', {})
+                if pose_data:
+                    relative_frame_idx = frame_idx - first_start
+                    return pose_data, relative_frame_idx
+        
+        # 두 번째 윈도우부터는 스트라이드 길이만큼만 사용
+        for i, window_result in enumerate(sorted_windows[1:], 1):
+            prev_window = sorted_windows[i-1]
+            current_start = window_result.get('start_frame', 0)
+            
+            # 이전 윈도우의 끝부터 현재 윈도우의 스트라이드 길이만큼
+            display_start = prev_window.get('start_frame', 0) + 100  # clip_len
+            display_end = current_start + 100  # clip_len
+            
+            if display_start <= frame_idx < display_end:
                 pose_data = window_result.get('pose_data', {})
                 if pose_data:
-                    # 윈도우 내에서의 상대적 프레임 인덱스 계산
-                    relative_frame_idx = frame_idx - start_frame
-                    
-                    # pose_data는 tracked_window 구조
-                    # annotation.persons에서 해당 프레임의 데이터와 상대적 프레임 인덱스 반환
+                    relative_frame_idx = frame_idx - current_start
                     return pose_data, relative_frame_idx
                     
         return {}, 0
     
+    def _convert_pose_data_sample_to_annotation(self, pose_sample, frame_idx: int) -> Dict:
+        """MMPose PoseDataSample을 annotation 형태로 변환"""
+        annotation = {
+            'persons': {}
+        }
+        
+        try:
+            # PoseDataSample에서 키포인트 데이터 추출
+            if hasattr(pose_sample, 'pred_instances'):
+                pred_instances = pose_sample.pred_instances
+                
+                # 키포인트와 점수 추출
+                if hasattr(pred_instances, 'keypoints'):
+                    keypoints = pred_instances.keypoints  # shape: (N, 17, 2) or (N, 17, 3)
+                    scores = getattr(pred_instances, 'keypoint_scores', None)  # shape: (N, 17)
+                    
+                    print(f"Frame {frame_idx}: Found {keypoints.shape[0]} persons, keypoints shape: {keypoints.shape}")
+                    
+                    # 각 사람별로 처리
+                    for person_idx in range(keypoints.shape[0]):
+                        person_keypoints = keypoints[person_idx]  # (17, 2) or (17, 3)
+                        
+                        # 키포인트 좌표 유효성 확인
+                        valid_keypoints = np.any(person_keypoints[:, :2] > 0, axis=1)
+                        valid_count = np.sum(valid_keypoints)
+                        print(f"Person {person_idx}: {valid_count}/17 valid keypoints")
+                        
+                        # confidence가 있는 경우 추가
+                        if scores is not None and scores.shape[0] > person_idx:
+                            person_scores = scores[person_idx]  # (17,)
+                            # keypoints와 scores를 결합하여 (17, 3) 형태로 만들기
+                            if person_keypoints.shape[1] == 2:  # (17, 2)인 경우
+                                confidence_keypoints = np.zeros((17, 3))
+                                confidence_keypoints[:, :2] = person_keypoints
+                                confidence_keypoints[:, 2] = person_scores
+                                person_keypoints = confidence_keypoints
+                        
+                        # annotation 형태로 변환 - (1, 1, 17, 2) 또는 (1, 1, 17, 3)
+                        if person_keypoints.shape[1] == 3:  # confidence 포함
+                            keypoint_data = person_keypoints[:, :2].reshape(1, 1, 17, 2)
+                        else:  # confidence 없음
+                            keypoint_data = person_keypoints.reshape(1, 1, 17, 2)
+                        
+                        annotation['persons'][str(person_idx)] = {
+                            'keypoint': keypoint_data
+                        }
+                        
+                        # 실제 키포인트 좌표값 확인
+                        sample_coords = keypoint_data[0, 0, :3, :]  # 첫 3개 키포인트만 확인
+                        print(f"Person {person_idx} sample coords: {sample_coords.flatten()}")
+                
+        except Exception as e:
+            print(f"Error converting PoseDataSample to annotation: {e}")
+            print(f"PoseDataSample type: {type(pose_sample)}")
+            if hasattr(pose_sample, '__dict__'):
+                print(f"Available attributes: {list(pose_sample.__dict__.keys())}")
+        
+        return annotation
+    
     def _get_frame_data_separated(self, pkl_data: Dict, frame_idx: int) -> Tuple[Dict, int]:
         """Separated pipeline용 프레임 데이터 추출"""
-        # separated pipeline pkl 구조: 윈도우 단위의 데이터
+        # stage에 따라 다른 처리 방식 사용
         
-        # 1. 단일 윈도우 데이터인 경우 (dict with annotation)
+        # Stage1/Step1: PoseDataSample 구조 처리 (step1_poses.pkl)
+        if (self.stage in ['stage1', 'step1']) and isinstance(pkl_data, dict) and 'poses' in pkl_data:
+            # MMPose PoseDataSample 리스트를 annotation 형태로 변환
+            poses_list = pkl_data['poses']
+            if poses_list and frame_idx < len(poses_list):
+                pose_sample = poses_list[frame_idx]
+                converted_data = self._convert_pose_data_sample_to_annotation(pose_sample, frame_idx)
+                return converted_data, 0  # relative frame은 0으로 설정 (이미 프레임별로 처리됨)
+        
+        # Stage2/Step2: Sequential window 처리 (겹침 구간은 이전 윈도우 우선)
+        if (self.stage in ['stage2', 'step2']) and isinstance(pkl_data, dict) and 'windows' in pkl_data:
+            windows_list = pkl_data['windows']
+            print(f"Processing stage2/step2 data for frame {frame_idx}, found {len(windows_list)} windows")
+            
+            # 윈도우를 start_frame 순으로 정렬
+            sorted_windows = sorted(windows_list, key=lambda x: x.get('start_frame', 0))
+            
+            # Sequential 처리: 첫 윈도우는 전체, 이후는 stride 구간만
+            clip_len = 100  # 설정에서 가져와야 함
+            stride = 50     # 설정에서 가져와야 함
+            
+            for window_idx, window_result in enumerate(sorted_windows):
+                if isinstance(window_result, dict):
+                    start_frame = window_result.get('start_frame', 0)
+                    end_frame = window_result.get('end_frame', 0)
+                    
+                    # 첫 번째 윈도우: 전체 구간 (0 ~ clip_len)
+                    if window_idx == 0:
+                        effective_start = start_frame
+                        effective_end = start_frame + clip_len
+                        print(f"Window {window_idx} (first): effective frames {effective_start}-{effective_end}")
+                    else:
+                        # 이후 윈도우: stride 구간만 (이전 윈도우 끝 ~ 현재 윈도우 끝)
+                        prev_window = sorted_windows[window_idx - 1]
+                        prev_end = prev_window.get('start_frame', 0) + clip_len
+                        effective_start = prev_end
+                        effective_end = end_frame
+                        print(f"Window {window_idx}: effective frames {effective_start}-{effective_end} (stride only)")
+                    
+                    if effective_start <= frame_idx < effective_end:
+                        relative_frame_idx = frame_idx - start_frame  # 원본 윈도우 기준으로 relative 계산
+                        print(f"Frame {frame_idx} matches window {window_idx}, relative_frame_idx: {relative_frame_idx}")
+                        
+                        # annotation 데이터가 있는 경우 바로 반환
+                        if 'annotation' in window_result:
+                            annotation = window_result['annotation']
+                            if 'persons' in annotation:
+                                print(f"Window {window_idx} annotation has {len(annotation['persons'])} persons")
+                            return annotation, relative_frame_idx
+                        else:
+                            # window_result 자체가 annotation 형태일 수 있음
+                            if 'persons' in window_result:
+                                print(f"Window {window_idx} has {len(window_result['persons'])} persons directly")
+                            return window_result, relative_frame_idx
+        
+        # Legacy 처리: stage 옵션이 없거나 다른 구조인 경우
+        
+        # 단일 윈도우 데이터인 경우 (dict with annotation)
         if isinstance(pkl_data, dict) and 'annotation' in pkl_data:
             return pkl_data, frame_idx
         
-        # 2. 'windows' 키가 있는 경우 - 분리된 파이프라인의 일반적인 구조
+        # 'windows' 키가 있는 경우 - 분리된 파이프라인의 일반적인 구조
         if isinstance(pkl_data, dict) and 'windows' in pkl_data:
             windows_data = pkl_data['windows']
             if isinstance(windows_data, list):
@@ -821,7 +1051,7 @@ class EnhancedVisualizer:
                             relative_frame_idx = frame_idx - start_frame
                             return window_result, relative_frame_idx
         
-        # 3. 여러 윈도우가 있는 경우 (리스트 형태)
+        # 여러 윈도우가 있는 경우 (리스트 형태)
         if isinstance(pkl_data, list):
             for window_result in pkl_data:
                 if isinstance(window_result, dict):
@@ -876,6 +1106,126 @@ class EnhancedVisualizer:
         
         predictions = [r.get('prediction', 0.0) for r in inference_results]
         return float(np.mean(predictions))
+    
+    def run_analysis(self, step1_pkl_path: str, step2_pkl_path: str, video_path: str):
+        """Step1 vs Step2 비교 분석 실행"""
+        if not self.analysis_logger:
+            print("Analysis logger not available")
+            return False
+        
+        print(f"Starting step1 vs step2 analysis...")
+        print(f"Step1 PKL: {step1_pkl_path}")
+        print(f"Step2 PKL: {step2_pkl_path}")
+        print(f"Video: {video_path}")
+        
+        try:
+            # 설정 로그
+            import configs.separated_pipeline_config as sep_config
+            config_dict = {
+                'track_high_thresh': getattr(sep_config, 'track_high_thresh', 0.2),
+                'track_low_thresh': getattr(sep_config, 'track_low_thresh', 0.1),
+                'track_max_disappeared': getattr(sep_config, 'track_max_disappeared', 30),
+                'track_min_hits': getattr(sep_config, 'track_min_hits', 2),
+                'quality_threshold': getattr(sep_config, 'quality_threshold', 0.2),
+                'min_track_length': getattr(sep_config, 'min_track_length', 5),
+                'movement_weight': getattr(sep_config, 'movement_weight', 0.40),
+                'position_weight': getattr(sep_config, 'position_weight', 0.15),
+                'interaction_weight': getattr(sep_config, 'interaction_weight', 0.30),
+                'temporal_consistency_weight': getattr(sep_config, 'temporal_consistency_weight', 0.08),
+                'persistence_weight': getattr(sep_config, 'persistence_weight', 0.02)
+            }
+            self.analysis_logger.log_config(config_dict)
+            
+            # Step1 데이터 로드 및 분석
+            with open(step1_pkl_path, 'rb') as f:
+                step1_data = pickle.load(f)
+            
+            # Step2 데이터 로드 및 분석  
+            with open(step2_pkl_path, 'rb') as f:
+                step2_data = pickle.load(f)
+            
+            # 비디오 정보
+            cap = cv2.VideoCapture(video_path)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            cap.release()
+            
+            print(f"Analyzing {total_frames} frames...")
+            
+            # 프레임별 분석
+            for frame_idx in range(total_frames):
+                if frame_idx % 100 == 0:
+                    print(f"Analyzing frame {frame_idx}/{total_frames}")
+                
+                # Step1 데이터 분석
+                step1_frame_data, _ = self._get_step1_frame_data(step1_data, frame_idx)
+                if step1_frame_data:
+                    self.analysis_logger.log_step1_frame(frame_idx, step1_frame_data)
+                
+                # Step2 데이터 분석
+                step2_frame_data, relative_idx, window_idx = self._get_step2_frame_data(step2_data, frame_idx)
+                if step2_frame_data:
+                    self.analysis_logger.log_step2_frame(frame_idx, window_idx, step2_frame_data, relative_idx)
+                
+                # 프레임별 비교
+                self.analysis_logger.compare_frames(frame_idx)
+            
+            # 분석 결과 저장
+            analysis_file, summary_file = self.analysis_logger.save_analysis()
+            
+            print(f"\n=== 분석 완료 ===")
+            print(f"상세 분석: {analysis_file}")
+            print(f"요약 보고서: {summary_file}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error in analysis: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _get_step1_frame_data(self, step1_data: Dict, frame_idx: int) -> Tuple[Dict, int]:
+        """Step1 프레임 데이터 추출"""
+        if isinstance(step1_data, dict) and 'poses' in step1_data:
+            poses_list = step1_data['poses']
+            if poses_list and frame_idx < len(poses_list):
+                pose_sample = poses_list[frame_idx]
+                converted_data = self._convert_pose_data_sample_to_annotation(pose_sample, frame_idx)
+                return converted_data, 0
+        return {}, 0
+    
+    def _get_step2_frame_data(self, step2_data: Dict, frame_idx: int) -> Tuple[Dict, int, int]:
+        """Step2 프레임 데이터 추출 (window_idx 포함)"""
+        if isinstance(step2_data, dict) and 'windows' in step2_data:
+            windows_list = step2_data['windows']
+            sorted_windows = sorted(windows_list, key=lambda x: x.get('start_frame', 0))
+            
+            clip_len = 100
+            
+            for window_idx, window_result in enumerate(sorted_windows):
+                if isinstance(window_result, dict):
+                    start_frame = window_result.get('start_frame', 0)
+                    end_frame = window_result.get('end_frame', 0)
+                    
+                    # Sequential 처리 방식 적용
+                    if window_idx == 0:
+                        effective_start = start_frame
+                        effective_end = start_frame + clip_len
+                    else:
+                        prev_window = sorted_windows[window_idx - 1]
+                        prev_end = prev_window.get('start_frame', 0) + clip_len
+                        effective_start = prev_end
+                        effective_end = end_frame
+                    
+                    if effective_start <= frame_idx < effective_end:
+                        relative_frame_idx = frame_idx - start_frame
+                        
+                        if 'annotation' in window_result:
+                            return window_result['annotation'], relative_frame_idx, window_idx
+                        else:
+                            return window_result, relative_frame_idx, window_idx
+        
+        return {}, 0, -1
     
     def run(self):
         """실행 모드"""

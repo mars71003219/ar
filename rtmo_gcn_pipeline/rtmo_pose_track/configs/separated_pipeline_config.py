@@ -3,8 +3,8 @@
 """
 
 # 입출력 경로
-input_dir = "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/test_data"
-output_dir = "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/separated"
+input_dir = "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/raw_videos"
+output_dir = "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/hanbit-sep"
 
 # 모델 설정
 detector_config = "/workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py"
@@ -12,7 +12,7 @@ detector_checkpoint = "/workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-64
 device = "cuda:0"
 
 # 포즈 추정 설정
-score_thr = 0.3
+score_thr = 0.4
 nms_thr = 0.35
 
 # 윈도우 설정
@@ -20,14 +20,14 @@ clip_len = 100
 training_stride = 10
 
 # 트래킹 설정
-track_high_thresh = 0.3
+track_high_thresh = 0.8
 track_low_thresh = 0.1
-track_max_disappeared = 30
-track_min_hits = 3
+track_max_disappeared = 5
+track_min_hits = 2
 
 # 품질 설정
-quality_threshold = 0.3
-min_track_length = 10
+quality_threshold = 0.15
+min_track_length = 5
 
 # 복합점수 가중치 설정
 movement_weight = 0.40           # 움직임 강도 (가장 중요)

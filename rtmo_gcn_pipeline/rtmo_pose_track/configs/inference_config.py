@@ -34,10 +34,10 @@ class InferenceConfig:
     # 경로 설정
     # input_dir = get_data_path('RWF-2001')
     # output_dir = get_output_path('test_visualizer')
-    # input_dir = get_data_path('UBI_FIGHTS/videos')
-    # output_dir = get_output_path('UBI_FIGHTS')
-    input_dir = "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/test_data"
-    output_dir = "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/inference"
+    input_dir = get_data_path('UBI_FIGHTS/videos')
+    output_dir = get_output_path('UBI_FIGHTS')
+    # input_dir = "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/raw_videos"
+    # output_dir = "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/hanbit"
     
     # 포즈 추정 관련 설정 (기존 코드 재사용)
     detector_config = get_workspace_path('mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py')
@@ -48,7 +48,7 @@ class InferenceConfig:
     action_checkpoint = get_workspace_path('mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-m_RWF2000plus_stable/best_acc_top1_epoch_14.pth')
     
     # GPU 설정
-    gpu = '0'
+    gpu = '0,1'
     
     # 포즈 추출 임계값
     score_thr = 0.3
@@ -59,7 +59,7 @@ class InferenceConfig:
     track_low_thresh = 0.1
     track_max_disappeared = 30
     track_min_hits = 3
-    quality_threshold = 0.3
+    quality_threshold = 0.15
     min_track_length = 10
     
     # 복합 점수 가중치
