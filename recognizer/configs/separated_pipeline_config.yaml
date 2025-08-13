@@ -4,10 +4,10 @@
 # 포즈 추정 설정
 pose_estimation:
   model_name: "rtmo"
-  config_file: "configs/rtmo/rtmo-m_16xb16-600e_coco-640x640.py"
-  model_path: "checkpoints/rtmo-m_16xb16-600e_coco-640x640.pth"
+  config_file: "/workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py"
+  model_path: "/workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth"
   device: "cuda:0"
-  batch_size: 1
+  batch_size: 8
   input_size: [640, 640]
   score_threshold: 0.3
   # 멀티 GPU 설정
@@ -19,19 +19,19 @@ pose_estimation:
 tracking:
   tracker_name: "bytetrack"
   frame_rate: 30
-  track_thresh: 0.5
-  track_buffer: 30
-  match_thresh: 0.8
+  track_thresh: 0.4
+  track_buffer: 50
+  match_thresh: 0.4
   track_high_thresh: 0.6
   track_low_thresh: 0.1
-  new_track_thresh: 0.7
+  new_track_thresh: 0.6
 
 # 복합점수 계산 설정
 scoring:
   scorer_name: "region_based"
   weights:
-    movement: 0.4
-    interaction: 0.3
+    interaction: 0.5
+    movement: 0.2
     position: 0.1
     temporal_consistency: 0.1
     persistence: 0.1
@@ -42,16 +42,16 @@ scoring:
 # 행동 분류 설정
 action_classification:
   model_name: "stgcn"
-  config_file: "configs/stgcnpp/stgcnpp_enhanced_fight_detection.py"
-  model_path: "checkpoints/stgcnpp_enhanced_fight_detection.pth"
+  config_file: "/workspace/mmaction2/configs/skeleton/stgcnpp/stgcnpp_enhanced_fight_detection_stable.py"
+  model_path: "/workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-m_RWF2000plus_stable/best_acc_top1_epoch_14.pth"
   window_size: 100
   class_names: ["NonFight", "Fight"]
-  confidence_threshold: 0.5
+  confidence_threshold: 0.4
   device: "cuda:0"
   input_format: "stgcn"
   expected_keypoint_count: 17
   coordinate_dimensions: 2
-  max_persons: 2
+  max_persons: 4
   # GPU 설정
   gpu_allocation_strategy: "round_robin"
   use_data_parallel: false

@@ -22,9 +22,9 @@ performance:
   # 멀티GPU 설정 (선택 옵션)
   multi_gpu:
     enable: false           # --multi_gpu 플래그로 활성화
-    gpus: [0, 1, 2, 3]     # 사용할 GPU 목록
+    gpus: [0, 1]     # 사용할 GPU 목록
     strategy: "data_parallel"  # data_parallel, model_parallel
-    batch_per_gpu: 1       # GPU당 배치 크기
+    batch_per_gpu: 8       # GPU당 배치 크기
   
   # 멀티프로세스 설정 (선택 옵션)
   multiprocess:
@@ -36,8 +36,8 @@ performance:
   
   # 추론 설정
   window_size: 100
-  inference_stride: 25
-  batch_size: 1
+  inference_stride: 50
+  batch_size: 8
   mixed_precision: false  # 혼합 정밀도 (성능 향상)
 
 # 모델 설정
@@ -45,8 +45,8 @@ models:
   # 포즈 추정 모델
   pose_estimation:
     model_name: "rtmo"
-    config_file: "configs/rtmo/rtmo-m_16xb16-600e_coco-640x640.py"
-    checkpoint_path: "checkpoints/rtmo-m_16xb16-600e_coco-640x640.pth"
+    config_file: "/workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py"
+    checkpoint_path: "/workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth"
     device: "cuda:0"
   
   # 트래킹 모델
@@ -59,20 +59,20 @@ models:
   # 스코어링 시스템
   scoring:
     scorer_name: "region_based"
+    interaction_weight: 0.4
     movement_weight: 0.3
-    position_weight: 0.2
-    posture_weight: 0.2
-    interaction_weight: 0.15
+    posture_weight: 0.1
     temporal_weight: 0.1
+    position_weight: 0.05
     appearance_weight: 0.05
   
   # 액션 분류 모델
   action_classification:
     model_name: "stgcn"
-    config_file: "configs/stgcnpp/stgcnpp_enhanced_fight_detection.py"
-    checkpoint_path: "checkpoints/stgcnpp_enhanced_fight_detection.pth"
+    config_file: "/workspace/mmaction2/configs/skeleton/stgcnpp/stgcnpp_enhanced_fight_detection_stable.py"
+    checkpoint_path: "/workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-m_RWF2000plus_stable/best_acc_top1_epoch_14.pth"
     device: "cuda:0"
-    num_classes: 2
+    num_classes: 4
     class_names: ["NonFight", "Fight"]
 
 # 모드별 상세 설정
@@ -89,7 +89,7 @@ modes:
       max_queue_size: 200
       skip_frames: 1
       resize_input: null  # [width, height] 또는 null
-      alert_threshold: 0.7
+      alert_threshold: 0.5
       min_confidence: 0.5
   
   # 분리 파이프라인 모드 설정
