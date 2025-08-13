@@ -10,9 +10,16 @@ import logging
 from queue import Queue, Empty
 from typing import Dict, Any, List, Optional, Callable, Union
 
+import sys
+from pathlib import Path
+
+# recognizer 모듈 경로 추가
+recognizer_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(recognizer_root))
+
 from .config import RealtimeConfig, RealtimeAlert
 from ..base import BasePipeline, ModuleInitializer, PerformanceTracker
-from ...utils.data_structure import PersonPose, FramePoses, WindowAnnotation, ClassificationResult
+from utils.data_structure import PersonPose, FramePoses, WindowAnnotation, ClassificationResult
 
 
 class InferencePipeline(BasePipeline):

@@ -9,7 +9,16 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple
 from collections import defaultdict
 
-from ...utils.file_utils import ensure_directory
+import sys
+from pathlib import Path as PathUtil
+
+# recognizer 모듈 경로 추가
+recognizer_root = PathUtil(__file__).parent.parent.parent
+sys.path.insert(0, str(recognizer_root))
+
+def ensure_directory(path):
+    """디렉토리 존재 확인 및 생성"""
+    PathUtil(path).mkdir(parents=True, exist_ok=True)
 from .data_structures import STGCNData, StageResult
 from .stage3_classification import load_stage3_result
 

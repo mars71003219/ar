@@ -5,7 +5,14 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 
-from ...utils.data_structure import (
+import sys
+from pathlib import Path
+
+# recognizer 모듈 경로 추가
+recognizer_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(recognizer_root))
+
+from utils.data_structure import (
     PoseEstimationConfig, TrackingConfig, ScoringConfig, ActionClassificationConfig
 )
 

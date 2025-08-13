@@ -6,7 +6,14 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
-from ..utils.factory import ModuleFactory
+import sys
+from pathlib import Path
+
+# recognizer 모듈 경로 추가
+recognizer_root = Path(__file__).parent.parent
+sys.path.insert(0, str(recognizer_root))
+
+from utils.factory import ModuleFactory
 
 
 class BasePipeline(ABC):

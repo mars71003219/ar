@@ -43,9 +43,10 @@ from pipelines import (
     SeparatedPipeline, SeparatedPipelineConfig,
     UnifiedPipeline, PipelineConfig, PipelineResult
 )
-from utils.performance_evaluator import PerformanceEvaluator
-from visualization.result_visualizer import ResultVisualizer
-from visualization.annotation_visualizer import AnnotationVisualizer
+# Optional imports - only import when needed
+# from utils.performance_evaluator import PerformanceEvaluator
+# from visualization.result_visualizer import ResultVisualizer
+# from visualization.annotation_visualizer import AnnotationVisualizer
 from utils.data_structure import *
 from utils.factory import ModuleFactory
 
@@ -139,27 +140,36 @@ class RecognizerMainExecutor:
         self.config = config
         return config
     
-    def setup_evaluation(self) -> Optional[PerformanceEvaluator]:
+    def setup_evaluation(self):
         """성능 평가기 설정"""
         if not self.config.get('enable_evaluation', False):
             return None
         
-        evaluator = PerformanceEvaluator(
-            output_dir=f"{self.config['output_dir']}/evaluation",
-            class_names=self.config.get('class_names', ["NonFight", "Fight"])
-        )
-        
-        logger.info("Performance evaluation enabled")
-        return evaluator
+        try:
+            from utils.performance_evaluator import PerformanceEvaluator
+            evaluator = PerformanceEvaluator(
+                output_dir=f"{self.config['output_dir']}/evaluation",
+                class_names=self.config.get('class_names', ["NonFight", "Fight"])
+            )
+            logger.info("Performance evaluation enabled")
+            return evaluator
+        except ImportError:
+            logger.warning("Performance evaluator not available (missing dependencies)")
+            return None
     
     def setup_visualization(self) -> Dict[str, Any]:
         """시각화 도구 설정"""
         visualizers = {}
         
         if self.config.get('enable_visualization', False):
-            visualizers['result'] = ResultVisualizer()
-            visualizers['annotation'] = AnnotationVisualizer()
-            logger.info("Visualization tools enabled")
+            try:
+                from visualization.result_visualizer import ResultVisualizer
+                from visualization.annotation_visualizer import AnnotationVisualizer
+                visualizers['result'] = ResultVisualizer()
+                visualizers['annotation'] = AnnotationVisualizer()
+                logger.info("Visualization tools enabled")
+            except ImportError:
+                logger.warning("Visualization tools not available (missing dependencies)")
         
         return visualizers
     
@@ -260,7 +270,7 @@ class RecognizerMainExecutor:
         
         return success
     
-    def _create_inference_config(self) -> RealtimeConfig:
+    def _create_inference_config(self):
         """추론 설정 생성"""
         from pipelines.inference.config import RealtimeConfig
         from utils.data_structure import (
@@ -291,7 +301,7 @@ class RecognizerMainExecutor:
             alert_threshold=self.config.get('alert_threshold', 0.5)
         )
     
-    def _create_separated_config(self) -> SeparatedPipelineConfig:
+    def _create_separated_config(self):
         """분리 파이프라인 설정 생성"""
         from pipelines.separated.config import SeparatedPipelineConfig
         
@@ -305,7 +315,7 @@ class RecognizerMainExecutor:
             num_workers=self.config.get('workers', 4)
         )
     
-    def _create_unified_config(self) -> PipelineConfig:
+    def _create_unified_config(self):
         """통합 파이프라인 설정 생성"""
         from pipelines.unified.config import PipelineConfig
         from utils.data_structure import (
@@ -334,7 +344,7 @@ class RecognizerMainExecutor:
             save_intermediate_results=self.config.get('save_intermediate_results', False)
         )
     
-    def _execute_inference(self, pipeline: InferencePipeline, evaluator: Optional[PerformanceEvaluator]) -> bool:
+    def _execute_inference(self, pipeline, evaluator) -> bool:
         """추론 실행"""
         input_source = self.config['input']
         
@@ -346,12 +356,17 @@ class RecognizerMainExecutor:
         
         return True
     
-    def _create_inference_visualizations(self, evaluator: PerformanceEvaluator):
+    def _create_inference_visualizations(self, evaluator):
         """추론 결과 시각화 생성"""
         logger.info("Creating inference visualizations...")
         
         if 'result' not in self.visualizers:
-            self.visualizers['result'] = ResultVisualizer()
+            try:
+                from visualization.result_visualizer import ResultVisualizer
+                self.visualizers['result'] = ResultVisualizer()
+            except ImportError:
+                logger.warning("ResultVisualizer not available")
+                return
         
         # 성능 지표 시각화
         metrics = evaluator.calculate_performance_metrics()

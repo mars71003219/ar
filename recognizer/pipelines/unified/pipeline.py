@@ -7,9 +7,15 @@ import logging
 from typing import Dict, Any, List, Optional, Union, Callable
 from pathlib import Path
 
+import sys
+
+# recognizer 모듈 경로 추가  
+recognizer_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(recognizer_root))
+
 from .config import PipelineConfig, PipelineResult
 from ..base import BasePipeline, ModuleInitializer, PerformanceTracker
-from ...utils.data_structure import FramePoses, WindowAnnotation, ClassificationResult
+from utils.data_structure import FramePoses, WindowAnnotation, ClassificationResult
 
 
 class UnifiedPipeline(BasePipeline):

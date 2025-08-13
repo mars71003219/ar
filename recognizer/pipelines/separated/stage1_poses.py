@@ -8,9 +8,19 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from ...utils.factory import ModuleFactory
-from ...utils.file_utils import ensure_directory
-from ...utils.data_structure import FramePoses
+import sys
+from pathlib import Path as PathUtil
+
+# recognizer 모듈 경로 추가
+recognizer_root = PathUtil(__file__).parent.parent.parent
+sys.path.insert(0, str(recognizer_root))
+
+from utils.factory import ModuleFactory
+from utils.data_structure import FramePoses
+
+def ensure_directory(path):
+    """디렉토리 존재 확인 및 생성"""
+    Path(path).mkdir(parents=True, exist_ok=True)
 from .data_structures import StageResult, VisualizationData
 
 

@@ -14,8 +14,17 @@ from .stage2_tracking import process_stage2_tracking_scoring, validate_stage2_re
 from .stage3_classification import process_stage3_classification, validate_stage3_result
 from .stage4_unified import process_stage4_unified_dataset, validate_stage4_result
 
-from ...utils.multiprocess_manager import MultiprocessManager
-from ...utils.file_utils import ensure_directory
+import sys
+
+# recognizer 모듈 경로 추가
+recognizer_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(recognizer_root))
+
+from utils.multiprocess_manager import MultiprocessManager
+
+def ensure_directory(path):
+    """디렉토리 존재 확인 및 생성"""
+    Path(path).mkdir(parents=True, exist_ok=True)
 
 
 class SeparatedPipeline:
