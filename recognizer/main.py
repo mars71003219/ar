@@ -38,9 +38,11 @@ from typing import Dict, Any, Optional, List
 # recognizer 모듈 경로 추가
 sys.path.insert(0, str(Path(__file__).parent))
 
-from pipelines.inference_pipeline import InferencePipeline, RealtimeConfig
-from pipelines.separated_pipeline import SeparatedPipeline
-from pipelines.annotation_pipeline import AnnotationPipeline
+from pipelines import (
+    InferencePipeline, RealtimeConfig, RealtimeAlert,
+    SeparatedPipeline, SeparatedPipelineConfig,
+    UnifiedPipeline, PipelineConfig, PipelineResult
+)
 from utils.performance_evaluator import PerformanceEvaluator
 from visualization.result_visualizer import ResultVisualizer
 from visualization.annotation_visualizer import AnnotationVisualizer
@@ -58,7 +60,6 @@ class RecognizerMainExecutor:
     SUPPORTED_MODES = {
         'inference': 'Real-time inference pipeline',
         'separated': 'Multi-stage separated pipeline', 
-        'annotation': 'Annotation and visualization pipeline',
         'unified': 'Unified end-to-end pipeline'
     }
     
@@ -202,8 +203,8 @@ class RecognizerMainExecutor:
         """분리 파이프라인 모드 실행"""
         logger.info("=== SEPARATED PIPELINE MODE ===")
         
-        # separated pipeline 설정 로드
-        config_path = self.config.get('separated_config', 'configs/separated_pipeline_config.yaml')
+        # 분리 파이프라인 설정 생성
+        separated_config = self._create_separated_config()
         
         if self.config.get('multiprocess', False):
             # 멀티프로세스 separated pipeline
@@ -212,9 +213,9 @@ class RecognizerMainExecutor:
             
         else:
             # 단일 프로세스 separated pipeline
-            pipeline = SeparatedPipeline(config_path)
+            pipeline = SeparatedPipeline(separated_config)
             
-            success = pipeline.run_pipeline(
+            success = pipeline.run_full_pipeline(
                 input_dir=self.config['input'],
                 output_dir=self.config['output_dir']
             )
@@ -227,41 +228,49 @@ class RecognizerMainExecutor:
         
         return True
     
-    def run_annotation_mode(self) -> bool:
-        """어노테이션 모드 실행"""
-        logger.info("=== ANNOTATION MODE ===")
-        
-        # annotation pipeline 실행
-        pipeline = AnnotationPipeline()
-        
-        if self.config.get('pkl_file'):
-            # PKL 파일 시각화
-            visualizer = AnnotationVisualizer()
-            
-            success = visualizer.visualize_stage2_pkl(
-                pkl_path=self.config['pkl_file'],
-                video_path=self.config.get('video_file'),
-                output_path=self.config.get('output_video'),
-                fps=self.config.get('visualization_fps', 30.0)
-            )
-            
-            return success
-        
-        return True
-    
     def run_unified_mode(self) -> bool:
         """통합 파이프라인 모드 실행"""
         logger.info("=== UNIFIED PIPELINE MODE ===")
         
-        # TODO: unified pipeline 구현
-        logger.warning("Unified pipeline mode not yet implemented")
-        return True
+        # 통합 파이프라인 설정 생성
+        unified_config = self._create_unified_config()
+        
+        pipeline = UnifiedPipeline(unified_config)
+        
+        if Path(self.config['input']).is_dir():
+            # 다중 비디오 배치 처리
+            video_paths = list(Path(self.config['input']).glob("*.mp4"))
+            results = pipeline.process_video_batch(video_paths)
+            
+            # 결과 저장
+            for i, result in enumerate(results):
+                output_path = Path(self.config['output_dir']) / f"result_{i}.pkl"
+                pipeline.save_results(result, output_path)
+            
+            success = len(results) > 0
+        else:
+            # 단일 비디오 처리
+            result = pipeline.process_video(self.config['input'])
+            
+            # 결과 저장
+            output_path = Path(self.config['output_dir']) / "result.pkl"
+            pipeline.save_results(result, output_path)
+            
+            success = result is not None
+        
+        return success
     
     def _create_inference_config(self) -> RealtimeConfig:
         """추론 설정 생성"""
+        from pipelines.inference.config import RealtimeConfig
+        from utils.data_structure import (
+            PoseEstimationConfig, TrackingConfig, 
+            ScoringConfig, ActionClassificationConfig
+        )
+        
         return RealtimeConfig(
             pose_config=PoseEstimationConfig(
-                device=self.config['device'],
+                device=self.config.get('device', 'cuda:0'),
                 model_name=self.config.get('pose_model', 'rtmo')
             ),
             tracking_config=TrackingConfig(
@@ -271,11 +280,58 @@ class RecognizerMainExecutor:
                 scorer_name=self.config.get('scorer', 'region_based')
             ),
             classification_config=ActionClassificationConfig(
-                device=self.config['device'],
+                device=self.config.get('device', 'cuda:0'),
                 model_name=self.config.get('action_model', 'stgcn')
             ),
-            window_size=self.config['window_size'],
-            inference_stride=self.config['inference_stride']
+            window_size=self.config.get('window_size', 100),
+            inference_stride=self.config.get('inference_stride', 25),
+            max_queue_size=self.config.get('max_queue_size', 200),
+            target_fps=self.config.get('target_fps', 30),
+            skip_frames=self.config.get('skip_frames', 1),
+            alert_threshold=self.config.get('alert_threshold', 0.5)
+        )
+    
+    def _create_separated_config(self) -> SeparatedPipelineConfig:
+        """분리 파이프라인 설정 생성"""
+        from pipelines.separated.config import SeparatedPipelineConfig
+        
+        return SeparatedPipelineConfig(
+            input_dir=self.config['input'],
+            output_dir=self.config['output_dir'],
+            device=self.config.get('device', 'cuda:0'),
+            batch_size=self.config.get('batch_size', 8),
+            window_size=self.config.get('window_size', 100),
+            enable_multiprocess=self.config.get('multiprocess', False),
+            num_workers=self.config.get('workers', 4)
+        )
+    
+    def _create_unified_config(self) -> PipelineConfig:
+        """통합 파이프라인 설정 생성"""
+        from pipelines.unified.config import PipelineConfig
+        from utils.data_structure import (
+            PoseEstimationConfig, TrackingConfig,
+            ScoringConfig, ActionClassificationConfig
+        )
+        
+        return PipelineConfig(
+            pose_config=PoseEstimationConfig(
+                device=self.config.get('device', 'cuda:0'),
+                model_name=self.config.get('pose_model', 'rtmo')
+            ),
+            tracking_config=TrackingConfig(
+                tracker_name=self.config.get('tracker', 'bytetrack')
+            ),
+            scoring_config=ScoringConfig(
+                scorer_name=self.config.get('scorer', 'region_based')
+            ),
+            classification_config=ActionClassificationConfig(
+                device=self.config.get('device', 'cuda:0'),
+                model_name=self.config.get('action_model', 'stgcn')
+            ),
+            window_size=self.config.get('window_size', 100),
+            window_stride=self.config.get('window_stride', 50),
+            batch_size=self.config.get('batch_size', 8),
+            save_intermediate_results=self.config.get('save_intermediate_results', False)
         )
     
     def _execute_inference(self, pipeline: InferencePipeline, evaluator: Optional[PerformanceEvaluator]) -> bool:
@@ -329,8 +385,6 @@ class RecognizerMainExecutor:
             return self.run_inference_mode()
         elif mode == 'separated':
             return self.run_separated_mode()
-        elif mode == 'annotation':
-            return self.run_annotation_mode()
         elif mode == 'unified':
             return self.run_unified_mode()
         
@@ -353,8 +407,8 @@ Examples:
   # Separated pipeline
   python main.py --mode separated --input data/videos --output output/separated
   
-  # Annotation visualization
-  python main.py --mode annotation --pkl_file stage2_result.pkl --video_file original.mp4
+  # Unified pipeline
+  python main.py --mode unified --input video.mp4 --output output/unified
   
   # Multi-GPU inference
   python main.py --mode inference --input video.mp4 --multi_gpu --gpus 0,1,2,3
@@ -366,7 +420,7 @@ Examples:
     
     # 기본 인자들
     parser.add_argument('--config', type=str, help='Configuration file path')
-    parser.add_argument('--mode', type=str, choices=['inference', 'separated', 'annotation', 'unified'],
+    parser.add_argument('--mode', type=str, choices=['inference', 'separated', 'unified'],
                        default='inference', help='Execution mode')
     
     # 입출력
@@ -395,10 +449,9 @@ Examples:
     parser.add_argument('--inference_stride', type=int, default=25, help='Inference stride')
     parser.add_argument('--duration', type=float, help='Processing duration (seconds)')
     
-    # 어노테이션 모드 전용
-    parser.add_argument('--pkl_file', type=str, help='PKL file for annotation mode')
-    parser.add_argument('--video_file', type=str, help='Video file for annotation mode')
-    parser.add_argument('--output_video', type=str, help='Output video path for annotation mode')
+    # 파이프라인 설정
+    parser.add_argument('--window_stride', type=int, default=50, help='Window stride for unified pipeline')
+    parser.add_argument('--save_intermediate', action='store_true', help='Save intermediate results')
     
     # 시각화 설정
     parser.add_argument('--visualization_fps', type=float, default=30.0, help='Visualization FPS')
@@ -444,9 +497,8 @@ def main():
         'window_size': args.window_size,
         'inference_stride': args.inference_stride,
         'duration': args.duration,
-        'pkl_file': args.pkl_file,
-        'video_file': args.video_file,
-        'output_video': args.output_video,
+        'window_stride': args.window_stride,
+        'save_intermediate_results': args.save_intermediate,
         'visualization_fps': args.visualization_fps
     }
     

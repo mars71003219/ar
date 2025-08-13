@@ -1,97 +1,37 @@
 # 분리형 파이프라인 설정 파일
-# 레거시 separated_pose_pipeline.py와 동일한 3단계 분리 처리
+# base_config.yaml을 상속하여 분리형 파이프라인 특화 설정
 
-# 포즈 추정 설정
-pose_estimation:
-  model_name: "rtmo"
-  config_file: "/workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py"
-  model_path: "/workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth"
-  device: "cuda:0"
-  batch_size: 8
-  input_size: [640, 640]
-  score_threshold: 0.3
-  # 멀티 GPU 설정
-  gpu_allocation_strategy: "round_robin"
-  use_data_parallel: false
-  use_distributed: false
+# 베이스 설정 상속
+base_config: "configs/base_config.yaml"
 
-# 트래킹 설정
-tracking:
-  tracker_name: "bytetrack"
-  frame_rate: 30
-  track_thresh: 0.4
-  track_buffer: 50
-  match_thresh: 0.4
-  track_high_thresh: 0.6
-  track_low_thresh: 0.1
-  new_track_thresh: 0.6
-
-# 복합점수 계산 설정
-scoring:
-  scorer_name: "region_based"
-  weights:
-    interaction: 0.5
-    movement: 0.2
-    position: 0.1
-    temporal_consistency: 0.1
-    persistence: 0.1
-  quality_threshold: 0.3
-  min_track_length: 10
-  image_size: [640, 640]
-
-# 행동 분류 설정
-action_classification:
-  model_name: "stgcn"
-  config_file: "/workspace/mmaction2/configs/skeleton/stgcnpp/stgcnpp_enhanced_fight_detection_stable.py"
-  model_path: "/workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-m_RWF2000plus_stable/best_acc_top1_epoch_14.pth"
-  window_size: 100
-  class_names: ["NonFight", "Fight"]
-  confidence_threshold: 0.4
-  device: "cuda:0"
-  input_format: "stgcn"
-  expected_keypoint_count: 17
-  coordinate_dimensions: 2
-  max_persons: 4
-  # GPU 설정
-  gpu_allocation_strategy: "round_robin"
-  use_data_parallel: false
-  use_distributed: false
-  batch_inference: false
-  max_batch_size: 1
-
-# 분리형 파이프라인 설정
+# 분리형 파이프라인 특화 설정
 separated_pipeline:
-  # 윈도우 설정
-  window_size: 100
-  window_stride: 50
-  
-  # 출력 디렉토리 설정
+  # 스테이지별 출력 디렉토리
   stage1_output_dir: "output/separated/stage1_poses"
   stage2_output_dir: "output/separated/stage2_tracking"
   stage3_output_dir: "output/separated/stage3_results"
+  stage4_output_dir: "output/separated/stage4_unified"
   
   # Resume 기능
   enable_resume: true
   
-  # 멀티프로세스 설정
-  num_workers: 8  # CPU 코어 수에 맞게 조정
-  enable_multiprocess: true
-  multiprocess_batch_size: 4
-  multiprocess_timeout: 600.0  # 10분
-
-# 출력 설정
-output:
-  base_dir: "output/separated"
-  log_level: "INFO"
-  save_logs: true
-  log_file: "logs/separated_pipeline.log"
-
-# 디버그 설정
-debug:
-  verbose: true
+  # 처리 옵션
+  validate_inputs: true
   save_intermediate: true
   profile_performance: true
-  validate_inputs: true
+
+# 멀티프로세스 설정 오버라이드
+performance:
+  multiprocess:
+    enable: true
+    workers: 8
+    batch_size: 4
+    timeout: 600.0
+
+# 출력 설정 오버라이드
+output:
+  base_dir: "output/separated"
+  log_file: "logs/separated_pipeline.log"
 
 # 성능 모니터링
 performance_monitoring:
