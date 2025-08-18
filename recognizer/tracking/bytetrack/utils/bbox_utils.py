@@ -51,7 +51,7 @@ def convert_x_to_bbox(x: np.ndarray, score: float = None) -> np.ndarray:
 
 def iou_distance(atracks: list, btracks: list) -> np.ndarray:
     """
-    두 트랙 리스트 간의 IoU 거리 행렬을 계산합니다.
+    두 트랙 리스트 간의 IoU 거리 행렬을 계산합니다. (벡터화 개선)
     
     Args:
         atracks: 첫 번째 트랙 리스트
@@ -63,14 +63,34 @@ def iou_distance(atracks: list, btracks: list) -> np.ndarray:
     if len(atracks) * len(btracks) == 0:
         return np.zeros((len(atracks), len(btracks)), dtype=np.float32)
     
-    atlbrs = np.asarray([track.tlbr for track in atracks], dtype=np.float32)
-    btlbrs = np.asarray([track.tlbr for track in btracks], dtype=np.float32)
+    # 안전한 tlbr 접근
+    atlbrs = []
+    for track in atracks:
+        try:
+            tlbr = track.tlbr
+            if tlbr is not None and len(tlbr) >= 4:
+                atlbrs.append(tlbr)
+            else:
+                atlbrs.append(np.zeros(4, dtype=np.float32))
+        except (AttributeError, IndexError):
+            atlbrs.append(np.zeros(4, dtype=np.float32))
     
-    ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float32)
+    btlbrs = []
+    for track in btracks:
+        try:
+            tlbr = track.tlbr
+            if tlbr is not None and len(tlbr) >= 4:
+                btlbrs.append(tlbr)
+            else:
+                btlbrs.append(np.zeros(4, dtype=np.float32))
+        except (AttributeError, IndexError):
+            btlbrs.append(np.zeros(4, dtype=np.float32))
     
-    for i, atlbr in enumerate(atlbrs):
-        for j, btlbr in enumerate(btlbrs):
-            ious[i, j] = calculate_iou(atlbr, btlbr)
+    atlbrs = np.asarray(atlbrs, dtype=np.float32)
+    btlbrs = np.asarray(btlbrs, dtype=np.float32)
+    
+    # 벡터화된 IoU 계산
+    ious = calculate_ious_vectorized(atlbrs, btlbrs)
     
     return 1 - ious  # 거리는 1 - IoU
 
@@ -108,6 +128,52 @@ def calculate_iou(bbox1: np.ndarray, bbox2: np.ndarray) -> float:
         return 0.0
     
     return intersection / union
+
+
+def calculate_ious_vectorized(boxes1: np.ndarray, boxes2: np.ndarray) -> np.ndarray:
+    """
+    두 바운딩 박스 배열 간의 IoU를 벡터화하여 계산합니다.
+    
+    Args:
+        boxes1: [N, 4] 형태의 바운딩 박스 배열
+        boxes2: [M, 4] 형태의 바운딩 박스 배열
+        
+    Returns:
+        [N, M] 형태의 IoU 행렬
+    """
+    N = boxes1.shape[0]
+    M = boxes2.shape[0]
+    
+    # boxes1을 [N, 1, 4]로, boxes2를 [1, M, 4]로 확장
+    boxes1_expanded = boxes1[:, np.newaxis, :]  # [N, 1, 4]
+    boxes2_expanded = boxes2[np.newaxis, :, :]  # [1, M, 4]
+    
+    # 교집합 계산
+    x1 = np.maximum(boxes1_expanded[:, :, 0], boxes2_expanded[:, :, 0])
+    y1 = np.maximum(boxes1_expanded[:, :, 1], boxes2_expanded[:, :, 1])
+    x2 = np.minimum(boxes1_expanded[:, :, 2], boxes2_expanded[:, :, 2])
+    y2 = np.minimum(boxes1_expanded[:, :, 3], boxes2_expanded[:, :, 3])
+    
+    # 교집합 면적
+    intersection_width = np.maximum(0.0, x2 - x1)
+    intersection_height = np.maximum(0.0, y2 - y1)
+    intersection = intersection_width * intersection_height
+    
+    # 각 박스의 면적
+    area1 = (boxes1[:, 2] - boxes1[:, 0]) * (boxes1[:, 3] - boxes1[:, 1])  # [N]
+    area2 = (boxes2[:, 2] - boxes2[:, 0]) * (boxes2[:, 3] - boxes2[:, 1])  # [M]
+    
+    # 브로드캐스팅을 위해 확장
+    area1_expanded = area1[:, np.newaxis]  # [N, 1]
+    area2_expanded = area2[np.newaxis, :]  # [1, M]
+    
+    # 합집합 면적
+    union = area1_expanded + area2_expanded - intersection
+    
+    # IoU 계산 (0으로 나누기 방지)
+    ious = np.where(union > 1e-6, intersection / union, 0.0)
+    
+    return ious
 
 
 def normalize_keypoints(keypoints: np.ndarray, bbox: np.ndarray) -> np.ndarray:

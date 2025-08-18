@@ -20,8 +20,12 @@ except ImportError as e:
     MMPOSE_AVAILABLE = False
     logging.warning(f"MMPose not available: {e}")
 
-from ..base import BasePoseEstimator
-from ...utils.data_structure import PersonPose, FramePoses, PoseEstimationConfig
+try:
+    from pose_estimation.base import BasePoseEstimator
+    from utils.data_structure import PersonPose, FramePoses, PoseEstimationConfig
+except ImportError:
+    from ..base import BasePoseEstimator
+    from ...utils.data_structure import PersonPose, FramePoses, PoseEstimationConfig
 
 
 class RTMOPoseEstimator(BasePoseEstimator):
@@ -116,8 +120,9 @@ class RTMOPoseEstimator(BasePoseEstimator):
     
     def extract_poses(self, frame: np.ndarray, frame_idx: int = 0) -> List[PersonPose]:
         """단일 프레임에서 포즈 추출"""
-        if not self.is_initialized:
-            raise RuntimeError("Model not initialized. Call initialize_model() first.")
+        # 자동 초기화
+        if not self.ensure_initialized():
+            raise RuntimeError("Failed to initialize RTMO model")
         
         if not self.validate_frame(frame):
             return []
@@ -131,9 +136,25 @@ class RTMOPoseEstimator(BasePoseEstimator):
             if self.enhanced_extractor:
                 # Enhanced extractor 사용
                 pose_result = self.enhanced_extractor.extract_single_frame_poses(frame)
+                logging.info(f"RTMO pose_result type: {type(pose_result)}")
                 if pose_result:
+                    if hasattr(pose_result, 'pred_instances'):
+                        instances = pose_result.pred_instances
+                        logging.info(f"pred_instances found with {len(instances.keypoints) if hasattr(instances, 'keypoints') else 0} detections")
+                        if hasattr(instances, 'keypoints'):
+                            logging.info(f"keypoints shape: {instances.keypoints.shape}")
+                        if hasattr(instances, 'bboxes'):
+                            logging.info(f"bboxes shape: {instances.bboxes.shape}")
+                    
                     converted_poses = self.enhanced_extractor._convert_pose_data_sample(pose_result)
+                    logging.info(f"Converted poses: {len(converted_poses)} persons")
+                    for i, pose in enumerate(converted_poses):
+                        if 'keypoints' in pose:
+                            kpt = pose['keypoints']
+                            logging.info(f"Person {i} keypoints shape: {kpt.shape}, non-zero: {np.count_nonzero(kpt)}")
                     persons = self._convert_enhanced_poses_to_persons(converted_poses, frame_idx)
+                else:
+                    logging.warning("RTMO returned empty pose_result")
             else:
                 # 기본 방식 사용
                 pose_results = inference_bottomup(self.model, frame)
@@ -152,6 +173,20 @@ class RTMOPoseEstimator(BasePoseEstimator):
         except Exception as e:
             logging.error(f"Error in pose extraction for frame {frame_idx}: {str(e)}")
             return []
+    
+    def process_frame(self, frame: np.ndarray, frame_idx: int = 0) -> FramePoses:
+        """단일 프레임 처리 - 파이프라인 인터페이스용"""
+        persons = self.extract_poses(frame, frame_idx)
+        
+        # FramePoses 객체 생성
+        frame_poses = FramePoses(
+            frame_idx=frame_idx,
+            persons=persons,
+            timestamp=frame_idx / 30.0,  # 기본 30 FPS 가정
+            image_shape=(frame.shape[0], frame.shape[1]) if frame is not None else (0, 0)
+        )
+        
+        return frame_poses
     
     def extract_video_poses(self, video_path: str) -> List[FramePoses]:
         """전체 비디오에서 포즈 추출"""
@@ -234,14 +269,27 @@ class RTMOPoseEstimator(BasePoseEstimator):
                     continue
                 
                 # 바운딩 박스 계산 (키포인트에서 추정)
-                valid_keypoints = keypoints[keypoints[:, 2] > 0.3]  # 신뢰도 > 0.3
-                if len(valid_keypoints) == 0:
+                try:
+                    valid_keypoints = keypoints[keypoints[:, 2] > 0.3]  # 신뢰도 > 0.3
+                    if len(valid_keypoints) == 0:
+                        continue
+                    
+                    # 방어적 프로그래밍: 배열 형태 확인
+                    if valid_keypoints.shape[0] == 0 or valid_keypoints.shape[1] < 2:
+                        continue
+                        
+                    x_coords = valid_keypoints[:, 0]
+                    y_coords = valid_keypoints[:, 1]
+                    
+                    # 좌표가 유효한지 확인
+                    if len(x_coords) == 0 or len(y_coords) == 0:
+                        continue
+                        
+                    x1, y1 = np.min(x_coords), np.min(y_coords)
+                    x2, y2 = np.max(x_coords), np.max(y_coords)
+                except (IndexError, ValueError) as e:
+                    logging.warning(f"Error processing keypoints for person {person_idx}: {str(e)}")
                     continue
-                
-                x_coords = valid_keypoints[:, 0]
-                y_coords = valid_keypoints[:, 1]
-                x1, y1 = np.min(x_coords), np.min(y_coords)
-                x2, y2 = np.max(x_coords), np.max(y_coords)
                 
                 # 바운딩 박스 확장 (여유분 추가)
                 padding = 0.1
@@ -254,8 +302,15 @@ class RTMOPoseEstimator(BasePoseEstimator):
                 bbox = [x1, y1, x2, y2]
                 
                 # 전체 신뢰도 점수 계산
-                valid_scores = keypoints[keypoints[:, 2] > 0][:, 2]
-                overall_score = np.mean(valid_scores) if len(valid_scores) > 0 else 0.0
+                try:
+                    valid_score_indices = keypoints[:, 2] > 0
+                    if np.any(valid_score_indices):
+                        valid_scores = keypoints[valid_score_indices, 2]
+                        overall_score = np.mean(valid_scores) if len(valid_scores) > 0 else 0.0
+                    else:
+                        overall_score = 0.0
+                except (IndexError, ValueError):
+                    overall_score = 0.0
                 
                 # PersonPose 생성
                 person = PersonPose(
@@ -291,13 +346,28 @@ class RTMOPoseEstimator(BasePoseEstimator):
                     continue
                 
                 # keypoints를 numpy 배열로 변환 (17, 3) 형태
-                keypoints_array = np.array(keypoints)
-                if keypoints_array.ndim == 1 and len(keypoints_array) >= 51:
-                    # 평면화된 경우 (51,) -> (17, 3)으로 변형
-                    keypoints_array = keypoints_array.reshape(-1, 3)
+                try:
+                    keypoints_array = np.array(keypoints)
+                    if keypoints_array.ndim == 1 and len(keypoints_array) >= 51:
+                        # 평면화된 경우 (51,) -> (17, 3)으로 변형
+                        keypoints_array = keypoints_array.reshape(-1, 3)
+                    elif keypoints_array.ndim == 2 and keypoints_array.shape[1] != 3:
+                        # 잘못된 형태인 경우 건너뛰기
+                        logging.warning(f"Invalid keypoints shape for person {person_idx}: {keypoints_array.shape}")
+                        continue
+                except (ValueError, IndexError) as e:
+                    logging.warning(f"Error processing keypoints array for person {person_idx}: {str(e)}")
+                    continue
                 
                 # bbox는 [x1, y1, x2, y2] 형태 (score 제외)
-                bbox_coords = bbox[:4] if len(bbox) >= 4 else bbox
+                try:
+                    bbox_coords = bbox[:4] if len(bbox) >= 4 else bbox
+                    if len(bbox_coords) < 4:
+                        logging.warning(f"Invalid bbox for person {person_idx}: {bbox}")
+                        continue
+                except (IndexError, TypeError):
+                    logging.warning(f"Error processing bbox for person {person_idx}: {bbox}")
+                    continue
                 
                 # PersonPose 생성
                 person = PersonPose(

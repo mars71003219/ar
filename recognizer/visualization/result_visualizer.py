@@ -6,14 +6,26 @@
 
 import cv2
 import numpy as np
+from typing import List, Dict, Any, Optional, Tuple
+
+# matplotlib 설정을 GUI 없이 사용
+import matplotlib
+matplotlib.use('Agg')  # GUI 없는 백엔드 사용
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from typing import List, Dict, Any, Optional, Tuple
-import seaborn as sns
 
-from ..utils.data_structure import ClassificationResult
-from ..pipelines.unified_pipeline import PipelineResult
+try:
+    import seaborn as sns
+    SEABORN_AVAILABLE = True
+except ImportError:
+    SEABORN_AVAILABLE = False
+
+try:
+    from ..utils.data_structure import ClassificationResult, PipelineResult
+except ImportError:
+    # tools에서 실행시 절대 import
+    from utils.data_structure import ClassificationResult, PipelineResult
 
 
 class ResultVisualizer:
@@ -29,8 +41,13 @@ class ResultVisualizer:
         self.dpi = dpi
         
         # 스타일 설정
-        plt.style.use('seaborn-v0_8')
-        sns.set_palette("husl")
+        if SEABORN_AVAILABLE:
+            try:
+                plt.style.use('seaborn-v0_8')
+                sns.set_palette("husl")
+            except:
+                # seaborn 스타일이 없으면 기본 스타일 사용
+                pass
     
     def visualize_classification_results(self, results: List[ClassificationResult], 
                                        save_path: Optional[str] = None) -> np.ndarray:

@@ -8,8 +8,12 @@
 - YOLOv8: (향후 추가 예정)
 """
 
-from .base import BasePoseEstimator
-from .rtmo import RTMOPoseEstimator
+try:
+    from pose_estimation.base import BasePoseEstimator
+    from pose_estimation.rtmo import RTMOPoseEstimator
+except ImportError:
+    from .base import BasePoseEstimator
+    from .rtmo import RTMOPoseEstimator
 
 __all__ = [
     'BasePoseEstimator',

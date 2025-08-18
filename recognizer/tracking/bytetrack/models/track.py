@@ -60,6 +60,10 @@ class STrack:
         self.age = 1
         self.time_since_update = 0
         
+        # 스무딩용 이전 값들
+        self.prev_bbox = None
+        self.prev_score = None
+        
     def predict(self):
         """칼만 필터를 사용한 상태 예측"""
         if self.kalman_filter is not None:
@@ -121,7 +125,7 @@ class STrack:
             self.track_id = self.next_id()
 
     def update(self, new_track: 'STrack', frame_id: int):
-        """트랙 업데이트"""
+        """트랙 업데이트 (스무딩 포함)"""
         self.frame_id = frame_id
         self.tracklet_len += 1
         self.hits += 1
@@ -132,9 +136,23 @@ class STrack:
             self.mean, self.covariance, convert_bbox_to_z(new_track.bbox)
         )
         
-        # 정보 업데이트
-        self.bbox = new_track.bbox
-        self.score = new_track.score
+        # 바운딩박스 스무딩 (급격한 변화 방지)
+        if hasattr(self, 'prev_bbox') and self.prev_bbox is not None:
+            smooth_factor = 0.7  # 이전 위치 70%, 새 위치 30%
+            self.bbox = smooth_factor * self.prev_bbox + (1 - smooth_factor) * new_track.bbox
+        else:
+            self.bbox = new_track.bbox
+        self.prev_bbox = self.bbox.copy()
+        
+        # 스코어 스무딩 (신뢰도 안정화)
+        if hasattr(self, 'prev_score') and self.prev_score is not None:
+            score_smooth_factor = 0.8  # 이전 스코어 80%, 새 스코어 20%
+            self.score = score_smooth_factor * self.prev_score + (1 - score_smooth_factor) * new_track.score
+        else:
+            self.score = new_track.score
+        self.prev_score = self.score
+        
+        # 키포인트 업데이트
         self.keypoints = new_track.keypoints
         self.state = TrackState.Tracked
         self.is_activated = True

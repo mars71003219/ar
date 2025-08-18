@@ -1,289 +1,332 @@
-# 모듈화된 폭력 탐지 시스템
+# Recognizer - 모듈화된 비디오 분석 시스템
 
-4단계 파이프라인을 통한 효율적이고 확장 가능한 폭력 탐지 시스템입니다.
+**완전 모듈화된 8-모드 통합 실행 시스템**
 
-## 🚀 빠른 시작
+RTMO 포즈 추정, ByteTrack 추적, STGCN 행동 분류를 통합한 실시간 및 배치 비디오 분석 프레임워크
 
-```bash
-# 기본 추론
-python recognizer/main.py --mode inference --input video.mp4
+## 🎯 주요 특징
 
-# PKL 생성 + 시각화 (성능 평가 포함)
-python recognizer/main.py --mode inference --input video.mp4 --enable_evaluation --enable_visualization
-
-# 프리셋 사용
-python recognizer/main.py --config configs/presets/inference_with_evaluation.yaml --input video.mp4
-```
-
-**자세한 사용법은 [USAGE.md](USAGE.md)를 참고하세요.**
-
-## 🏗️ 시스템 아키텍처
-
-### 4단계 파이프라인
-1. **포즈 추정 (Pose Estimation)** - RTMO 모델을 통한 실시간 포즈 검출
-2. **객체 추적 (Object Tracking)** - ByteTracker를 통한 다중 객체 추적
-3. **복합 점수 계산 (Composite Scoring)** - 5영역 기반 복합점수 계산
-4. **행동 분류 (Action Classification)** - ST-GCN++를 통한 폭력/비폭력 분류
-
-### 주요 특징
-- ✅ **모듈화된 설계**: 각 단계별 독립적인 모듈로 구성
-- ✅ **팩토리 패턴**: 쉬운 모델 교체 및 확장
-- ✅ **표준화된 API**: 일관된 인터페이스 제공
-- ✅ **실시간 처리**: RTSP 스트림 및 웹캠 지원
-- ✅ **배치 처리**: 대용량 비디오 처리 최적화
-- ✅ **시각화 도구**: 결과 분석 및 검증 도구 제공
-
-## 📦 설치 및 환경 설정
-
-### 필수 요구사항
-- Python 3.8+
-- PyTorch 1.11+
-- CUDA 11.0+ (GPU 사용 시)
-- MMPose, MMAction2
-
-### 의존성 설치
-```bash
-# 기본 의존성
-pip install torch torchvision opencv-python numpy matplotlib seaborn pyyaml
-
-# MMPose 설치 (포즈 추정)
-cd mmpose
-pip install -e .
-
-# MMAction2 설치 (행동 분류)
-cd mmaction2  
-pip install -e .
-```
+- **8개 독립 모드**: 추론 3개 + 어노테이션 5개 모드
+- **완전 모듈화**: 각 모드별 독립적 구현
+- **설정 파일 중심**: argparse 최소화 (3개 인자만)
+- **20초 제한 해결**: 실시간/분석 로직 완전 분리
+- **확장 가능**: 새로운 모드 추가 용이
 
 ## 🚀 빠른 시작
 
-### 1. 기본 사용법
-
-```python
-from recognizer import factory
-from recognizer.utils.data_structure import *
-from recognizer.pipelines.unified_pipeline import *
-
-# 설정 생성
-pose_config = PoseEstimationConfig(
-    model_name='rtmo',
-    config_file='path/to/rtmo_config.py',
-    model_path='path/to/rtmo_model.pth'
-)
-
-# 파이프라인 설정
-pipeline_config = PipelineConfig(
-    pose_config=pose_config,
-    tracking_config=TrackingConfig(tracker_name='bytetrack'),
-    scoring_config=ScoringConfig(scorer_name='region_based'),
-    classification_config=ActionClassificationConfig(model_name='stgcn')
-)
-
-# 통합 파이프라인 실행
-with UnifiedPipeline(pipeline_config) as pipeline:
-    result = pipeline.process_video('input_video.mp4')
-    print(f"처리 완료: {result.avg_fps:.1f} FPS")
+### 설치
+```bash
+cd /workspace/recognizer
+pip install -e .
 ```
 
-### 2. 설정 파일 사용
+### 기본 사용법
+```bash
+# 모드 목록 확인
+python main.py --list-modes
 
-```python
-import yaml
-from recognizer.examples.config_usage import *
+# 기본 실행 (분석 모드)
+python main.py
 
-# YAML 설정 로드
-config = yaml.safe_load(open('configs/default_config.yaml'))
-pose_config, tracking_config, scoring_config, classification_config = create_configs_from_yaml(config)
-
-# 파이프라인 실행
-pipeline_config = PipelineConfig(pose_config, tracking_config, scoring_config, classification_config)
+# 특정 모드 실행
+python main.py --mode inference.analysis
+python main.py --mode annotation.stage1
 ```
 
-### 3. 실시간 처리
-
-```python
-from recognizer.pipelines.inference_pipeline import *
-
-# 실시간 설정
-realtime_config = RealtimeConfig(
-    pose_config=pose_config,
-    # ... 기타 설정
-    target_fps=30.0,
-    alert_threshold=0.7
-)
-
-# 실시간 파이프라인
-with InferencePipeline(realtime_config) as pipeline:
-    # 알림 콜백 등록
-    pipeline.add_alert_callback(lambda alert: print(f"[알림] {alert.alert_type}"))
-    
-    # 웹캠에서 실시간 처리
-    pipeline.start_realtime_processing(source=0)
-```
-
-## 📁 프로젝트 구조
+## 📁 시스템 구조
 
 ```
 recognizer/
-├── __init__.py                    # 메인 모듈 및 팩토리 초기화
-├── utils/
-│   ├── data_structure.py         # 표준 데이터 구조
-│   └── factory.py                # 모듈 팩토리 패턴
-├── pose_estimation/              # 포즈 추정 모듈
-│   ├── base.py                   # 기본 추상 클래스
-│   └── rtmo/                     # RTMO 구현
-├── tracking/                     # 객체 추적 모듈  
-│   ├── base.py                   # 기본 추상 클래스
-│   └── bytetrack/                # ByteTracker 구현
-├── scoring/                      # 복합점수 계산 모듈
-│   ├── base.py                   # 기본 추상 클래스
-│   └── region_based/             # 영역 기반 점수 계산
-├── action_classification/        # 행동 분류 모듈
-│   ├── base.py                   # 기본 추상 클래스
-│   └── stgcn/                    # ST-GCN++ 구현
-├── pipelines/                    # 통합 파이프라인
-│   ├── unified_pipeline.py       # 전체 4단계 파이프라인
-│   ├── annotation_pipeline.py    # 어노테이션 구축용
-│   └── inference_pipeline.py     # 실시간 추론용
-├── visualization/                # 시각화 도구
-│   ├── pose_visualizer.py        # 포즈 시각화
-│   ├── result_visualizer.py      # 결과 분석 시각화
-│   └── annotation_visualizer.py  # 어노테이션 도구
-├── examples/                     # 사용 예제
-│   ├── basic_usage.py            # 기본 사용법
-│   └── config_usage.py           # 설정 파일 사용법
-└── configs/                      # 설정 파일
-    └── default_config.yaml       # 기본 설정
+├── main.py                     # 통합 실행기 (3개 인자만)
+├── config.yaml                 # 통합 설정 파일
+├── core/                       # 모드 관리 엔진
+│   ├── mode_manager.py         # 통합 모드 매니저
+│   ├── inference_modes.py      # 추론 모드들
+│   └── annotation_modes.py     # 어노테이션 모드들
+├── pipelines/                  # 처리 파이프라인
+├── models/                     # AI 모델들 
+├── utils/                      # 공통 유틸리티
+├── visualization/              # 시각화 모듈
+└── tools/                      # 보조 도구들
 ```
 
-## 📊 모듈 상세
+## 🎮 8개 실행 모드
 
-### 포즈 추정 (Pose Estimation)
-- **RTMO**: 실시간 다중 객체 포즈 검출
-- **지원 형식**: 이미지, 비디오, 실시간 스트림
-- **출력**: 17개 키포인트 + 바운딩 박스
+### 추론 모드 (Inference)
 
-### 객체 추적 (Tracking)  
-- **ByteTracker**: 고성능 다중 객체 추적
-- **특징**: Kalman 필터 기반, ID 유지
-- **출력**: 트랙 ID가 할당된 포즈 시퀀스
+#### 1. `inference.analysis` - 분석 모드
+**목적**: 비디오 → JSON/PKL 파일 생성 (시각화 없음)
+```bash
+python main.py --mode inference.analysis
+```
+- 전체 비디오 완전 분석
+- JSON 결과 + PKL 데이터 저장
+- 20초 제한 문제 완전 해결
 
-### 복합점수 계산 (Scoring)
-- **5영역 분할**: 화면을 5개 영역으로 나누어 분석
-- **5가지 점수**: 움직임, 위치, 상호작용, 시간일관성, 지속성
-- **가중 합산**: 설정 가능한 가중치로 최종 점수 계산
+#### 2. `inference.realtime` - 실시간 모드  
+**목적**: 실시간 디스플레이 + 선택적 저장
+```bash
+python main.py --mode inference.realtime
+```
+- 실시간 비디오 스트림 처리
+- 라이브 오버레이 표시
+- 선택적 결과 비디오 저장
 
-### 행동 분류 (Classification)
-- **ST-GCN++**: 스켈레톤 기반 행동 인식
-- **슬라이딩 윈도우**: 100 프레임 단위 분석
-- **클래스**: Fight/NonFight (확장 가능)
+#### 3. `inference.visualize` - 시각화 모드
+**목적**: PKL 파일 + 원본 비디오 → 오버레이 비디오
+```bash
+python main.py --mode inference.visualize
+```
+- 기존 분석 결과 시각화
+- 고품질 오버레이 생성
+- 배치 처리 지원
 
-## 🔧 확장 방법
+### 어노테이션 모드 (Annotation)
 
-### 새로운 포즈 추정 모델 추가
+#### 4. `annotation.stage1` - 포즈 추정
+**목적**: 비디오 → 포즈 추정 PKL 파일
+```bash
+python main.py --mode annotation.stage1
+```
+- RTMO 포즈 추정만 수행
+- 키포인트 데이터 저장
+- 다음 단계 준비
 
-```python
-from recognizer.pose_estimation.base import BasePoseEstimator
+#### 5. `annotation.stage2` - 트래킹 및 정렬
+**목적**: 포즈 PKL → 트래킹/정렬 PKL 파일
+```bash
+python main.py --mode annotation.stage2
+```
+- ByteTrack 객체 추적
+- 복합 점수 기반 정렬
+- 고품질 추적 데이터
 
-class NewPoseEstimator(BasePoseEstimator):
-    def initialize_model(self):
-        # 모델 초기화 로직
-        pass
-    
-    def extract_poses(self, image, frame_idx):
-        # 포즈 추정 로직
-        pass
+#### 6. `annotation.stage3` - 데이터셋 통합
+**목적**: 비디오별 PKL → train/val/test 통합 PKL
+```bash
+python main.py --mode annotation.stage3
+```
+- 데이터셋 분할 (7:1.5:1.5)
+- 모델 학습용 형식 변환
+- 메타데이터 생성
 
-# 팩토리에 등록
-factory.register_pose_estimator('new_model', NewPoseEstimator)
+#### 7. `annotation.visualize` - 어노테이션 시각화
+**목적**: 각 stage별 결과 시각화
+```bash
+python main.py --mode annotation.visualize
+```
+- stage1: 포즈 키포인트 표시
+- stage2: 추적 ID + 정렬 순위
+- stage3: 데이터셋 통계
+
+## ⚙️ 설정 관리
+
+### 통합 설정 파일 (`config.yaml`)
+
+```yaml
+# 기본 실행 모드
+mode: "inference.analysis"
+
+# 추론 모드 설정
+inference:
+  analysis:
+    input: "video.mp4"
+    output_dir: "output/analysis"
+  
+  realtime:
+    input: "video.mp4"
+    save_output: false
+    display_width: 1280
+    display_height: 720
+  
+  visualize:
+    results_dir: "output/analysis"
+    video_file: "video.mp4"
+    save_mode: false
+
+# 어노테이션 모드 설정
+annotation:
+  stage1:
+    input_dir: "/workspace/videos"
+    output_dir: "output/stage1"
+  
+  stage2:
+    poses_dir: "output/stage1"
+    output_dir: "output/stage2"
+  
+  stage3:
+    tracking_dir: "output/stage2"
+    output_dir: "output/stage3"
+    split_ratios: {train: 0.7, val: 0.15, test: 0.15}
+  
+  visualize:
+    stage: "stage2"
+    results_dir: "output/stage2"
+    video_dir: "/workspace/videos"
+
+# 모델 설정 (모든 모드 공통)
+models:
+  pose_estimation: {...}
+  tracking: {...}
+  action_classification: {...}
 ```
 
-### 새로운 트래커 추가
+### 실행 인자 (최소화)
 
-```python
-# MMTracking 기반 트래커 사용 (권장)
-from recognizer.tracking.mmtracking_adapter import MMTrackingAdapter
+```bash
+python main.py [OPTIONS]
 
-# 기본 제공 트래커들: 'bytetrack', 'deepsort', 'sort'
-tracker_config = TrackingConfig(
-    tracker_name='bytetrack',
-    device='cuda:0'
-)
-
-tracker = MMTrackingAdapter(tracker_config)
+OPTIONS:
+  --config FILE        설정 파일 경로 (기본: config.yaml)
+  --mode MODE         실행 모드 오버라이드
+  --log-level LEVEL   로그 레벨 (DEBUG/INFO/WARNING/ERROR)
+  --list-modes        사용 가능한 모드 목록
 ```
 
-## 📈 성능 최적화
+## 📋 워크플로우 예시
 
-### GPU 가속
-```python
-# GPU 설정
-config.device = 'cuda:0'
-config.enable_gpu = True
-config.batch_size = 4  # GPU 메모리에 따라 조정
+### 완전한 분석 워크플로우
+```bash
+# 1단계: 분석 수행
+python main.py --mode inference.analysis
+# → output/analysis/json/, pkl/ 생성
+
+# 2단계: 결과 시각화
+python main.py --mode inference.visualize
+# → 실시간 오버레이 또는 비디오 저장
 ```
 
-### 실시간 최적화
-```python
-# 실시간 성능 향상
-realtime_config.skip_frames = 2  # 프레임 건너뛰기
-realtime_config.resize_input = (480, 480)  # 입력 크기 축소
-realtime_config.inference_stride = 50  # 추론 간격 증가
+### 어노테이션 파이프라인
+```bash
+# 1단계: 포즈 추정
+python main.py --mode annotation.stage1
+# → output/stage1/*.pkl
+
+# 2단계: 트래킹 및 정렬
+python main.py --mode annotation.stage2
+# → output/stage2/*.pkl
+
+# 3단계: 데이터셋 통합
+python main.py --mode annotation.stage3
+# → output/stage3/train.pkl, val.pkl, test.pkl
+
+# 4단계: 결과 확인
+python main.py --mode annotation.visualize
+# → stage별 시각화
 ```
 
-### 메모리 최적화
-```python
-# 메모리 사용량 감소
-config.save_intermediate_results = False
-config.max_queue_size = 50
+## 🔧 고급 사용법
+
+### 사용자 정의 설정
+```bash
+# 커스텀 설정 파일
+python main.py --config my_config.yaml --mode inference.analysis
+
+# 특정 로그 레벨
+python main.py --mode annotation.stage1 --log-level DEBUG
 ```
 
-## 📊 결과 분석
-
-### 시각화 도구
-```python
-from recognizer.visualization import *
-
-# 포즈 시각화
-pose_viz = PoseVisualizer()
-pose_viz.visualize_video_poses('input.mp4', poses, 'output_poses.mp4')
-
-# 결과 분석
-result_viz = ResultVisualizer()
-result_viz.visualize_classification_results(results, 'analysis.png')
-result_viz.create_timeline_visualization(results, 'timeline.png')
+### 배치 처리
+```yaml
+# config.yaml에서 폴더 처리 설정
+inference:
+  analysis:
+    input_dir: "/workspace/videos"  # 폴더 처리
+    output_dir: "output/batch"
 ```
 
-### 성능 메트릭
-- **처리 속도**: FPS, 단계별 처리 시간
-- **정확도**: 분류 정확도, 신뢰도 분포
-- **자원 사용량**: GPU/CPU 사용률, 메모리 사용량
-
-## 🐛 문제 해결
-
-### 일반적인 문제
-1. **CUDA 메모리 부족**: 배치 크기 감소, 입력 크기 축소
-2. **모델 로드 실패**: 경로 확인, 의존성 설치 확인
-3. **낮은 FPS**: GPU 사용, 프레임 건너뛰기 활성화
-
-### 디버그 모드
-```python
-config.debug.verbose = True
-config.debug.save_intermediate = True  # 중간 결과 저장
-config.debug.profile_performance = True  # 성능 프로파일링
+### 성능 최적화
+```yaml
+# 성능 설정
+performance:
+  device: "cuda:0"
+  window_size: 100
+  window_stride: 50
+  batch_size: 8
 ```
 
-## 📝 라이선스
+## 🏗️ AI 모델 아키텍처
 
-이 프로젝트는 기존 rtmo_gcn_pipeline의 코드를 새로운 모듈화 구조에 맞게 재구성한 것입니다.
+### 포즈 추정 (RTMO)
+- **입력**: 비디오 프레임
+- **출력**: 17개 키포인트 좌표
+- **특징**: 실시간 다중 객체 지원
 
-## 🤝 기여 방법
+### 객체 추적 (ByteTrack)
+- **입력**: 프레임별 포즈 박스
+- **출력**: 추적 ID + 궤적
+- **특징**: 하이브리드 매칭 (IoU + 키포인트)
 
-1. 새로운 모델 구현 시 해당 모듈의 base 클래스 상속
-2. 표준 데이터 구조 사용
-3. 팩토리 패턴을 통한 등록
-4. 단위 테스트 작성
+### 행동 분류 (STGCN)
+- **입력**: 100프레임 키포인트 시퀀스
+- **출력**: Fight/NonFight 확률
+- **특징**: 시공간 그래프 컨볼루션
 
-## 📞 지원
+## 📊 출력 형식
 
-문제가 있거나 기능 요청이 있으시면 이슈를 생성해주세요.
+### JSON 결과 (`results.json`)
+```json
+{
+  "input_video": "video.mp4",
+  "total_frames": 3000,
+  "total_windows": 59,
+  "classification_results": [
+    {
+      "window_id": 0,
+      "window_start": 0,
+      "window_end": 100,
+      "predicted_class": "NonFight",
+      "confidence": 0.823,
+      "probabilities": [0.823, 0.177]
+    }
+  ]
+}
+```
+
+### PKL 데이터 구조
+- **프레임 포즈**: `{frame_id: [(x,y,score), ...], ...}`
+- **윈도우 어노테이션**: `{keypoints, scores, tracking_ids, ...}`
+- **분류 결과**: `{window_data, predictions, metadata}`
+
+## 🛠️ 문제 해결
+
+### 자주 발생하는 오류
+
+1. **"Failed to create pose_estimator module"**
+   ```bash
+   # 모델 경로 확인
+   ls /workspace/mmpose/checkpoints/
+   ```
+
+2. **"Input directory does not exist"**
+   ```bash
+   # 입력 경로 확인
+   python main.py --mode inference.analysis --log-level DEBUG
+   ```
+
+3. **"CUDA out of memory"**
+   ```yaml
+   # config.yaml에서 배치 크기 조정
+   performance:
+     batch_size: 4  # 기본값 8에서 감소
+   ```
+
+### 디버깅 모드
+```bash
+# 상세 로그로 문제 진단
+python main.py --mode [MODE] --log-level DEBUG
+```
+
+## 🔗 관련 프로젝트
+
+- **MMPose**: 포즈 추정 프레임워크
+- **MMAction2**: 행동 인식 프레임워크  
+- **ByteTrack**: 다중 객체 추적
+
+## 📜 라이선스
+
+OpenMMLab 라이선스 정책을 따릅니다.
+
+---
+
+**완전 모듈화된 8-모드 통합 시스템으로 간편하고 강력한 비디오 분석을 경험하세요!** 🚀

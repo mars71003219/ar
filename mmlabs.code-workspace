@@ -4,7 +4,7 @@
 			"path": "."
 		},
 		{
-			"path": "../../../../mnt/aivanas/raw/surveillance/action"
+			"path": "../aivanas/raw/surveillance/action/violence/action_recognition/data"
 		}
 	],
 	"settings": {}

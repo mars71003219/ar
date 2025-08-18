@@ -2,19 +2,19 @@
 분리형 파이프라인 모듈
 """
 
-from .config import SeparatedPipelineConfig
+# from .config import SeparatedPipelineConfig  # 통합 설정 시스템으로 대체
 from .data_structures import StageResult, VisualizationData, STGCNData
 from .pipeline import SeparatedPipeline
 
 # Stage 함수들
 from .stage1_poses import process_stage1_pose_extraction, load_stage1_result, validate_stage1_result
 from .stage2_tracking import process_stage2_tracking_scoring, load_stage2_result, validate_stage2_result
-from .stage3_classification import process_stage3_classification, load_stage3_result, validate_stage3_result
-from .stage4_unified import process_stage4_unified_dataset, load_stgcn_dataset, validate_stage4_result
+# from .stage3_classification import process_stage3_classification, load_stage3_result, validate_stage3_result  # 삭제된 모듈
+# from .stage4_unified import process_stage4_unified_dataset, load_stgcn_dataset, validate_stage4_result  # 삭제된 모듈
 
 __all__ = [
     # 메인 클래스
-    'SeparatedPipelineConfig',
+    # 'SeparatedPipelineConfig',  # 통합 설정 시스템으로 대체
     'SeparatedPipeline',
     
     # 데이터 구조
@@ -32,13 +32,13 @@ __all__ = [
     'load_stage2_result',
     'validate_stage2_result',
     
-    # Stage 3
-    'process_stage3_classification',
-    'load_stage3_result',
-    'validate_stage3_result',
+    # Stage 3 - 삭제된 모듈
+    # 'process_stage3_classification',
+    # 'load_stage3_result', 
+    # 'validate_stage3_result',
     
-    # Stage 4
-    'process_stage4_unified_dataset',
-    'load_stgcn_dataset',
-    'validate_stage4_result'
+    # Stage 4 - 삭제된 모듈
+    # 'process_stage4_unified_dataset',
+    # 'load_stgcn_dataset',
+    # 'validate_stage4_result'
 ]

@@ -11,8 +11,7 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple, Union
 from pathlib import Path
 
-from ..utils.data_structure import PersonPose, FramePoses
-from ..pipelines.annotation_pipeline import AnnotationData
+from ..utils.data_structure import PersonPose, FramePoses, AnnotationData
 from .pose_visualizer import PoseVisualizer
 
 

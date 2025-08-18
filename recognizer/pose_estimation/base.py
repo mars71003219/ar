@@ -7,7 +7,10 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
-from ..utils.data_structure import PersonPose, FramePoses, PoseEstimationConfig
+try:
+    from utils.data_structure import PersonPose, FramePoses, PoseEstimationConfig
+except ImportError:
+    from ..utils.data_structure import PersonPose, FramePoses, PoseEstimationConfig
 
 
 class BasePoseEstimator(ABC):
@@ -36,6 +39,16 @@ class BasePoseEstimator(ABC):
             초기화 성공 여부
         """
         pass
+    
+    def ensure_initialized(self) -> bool:
+        """모델이 초기화되었는지 확인하고 필요시 초기화
+        
+        Returns:
+            초기화 성공 여부
+        """
+        if not self.is_initialized:
+            return self.initialize_model()
+        return True
         
     @abstractmethod
     def extract_poses(self, frame: np.ndarray, frame_idx: int = 0) -> List[PersonPose]:

@@ -8,8 +8,12 @@
 - TemporalScorer: (향후 추가 예정)
 """
 
-from .base import BaseScorer
-from .region_based import RegionBasedScorer
+try:
+    from scoring.base import BaseScorer
+    from scoring.region_based import RegionBasedScorer
+except ImportError:
+    from .base import BaseScorer
+    from .region_based import RegionBasedScorer
 
 __all__ = [
     'BaseScorer',

@@ -7,7 +7,11 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
-from ..utils.data_structure import WindowAnnotation, ClassificationResult, ActionClassificationConfig
+import logging
+try:
+    from utils.data_structure import WindowAnnotation, ClassificationResult, ActionClassificationConfig
+except ImportError:
+    from ..utils.data_structure import WindowAnnotation, ClassificationResult, ActionClassificationConfig
 
 
 class BaseActionClassifier(ABC):
@@ -31,7 +35,7 @@ class BaseActionClassifier(ABC):
         
         # 입력 데이터 검증 관련
         self.expected_keypoint_count = config.expected_keypoint_count or 17
-        self.coordinate_dimensions = config.coordinate_dimensions or 2
+        self.coordinate_dimensions = config.coordinate_dimensions or 3  # x, y, confidence
         
         # 성능 통계
         self.stats = {
@@ -49,6 +53,16 @@ class BaseActionClassifier(ABC):
             초기화 성공 여부
         """
         pass
+    
+    def ensure_initialized(self) -> bool:
+        """모델이 초기화되었는지 확인하고 필요시 초기화
+        
+        Returns:
+            초기화 성공 여부
+        """
+        if not self.is_initialized:
+            return self.initialize_model()
+        return True
     
     @abstractmethod
     def classify_single_window(self, window_data: WindowAnnotation) -> ClassificationResult:
@@ -122,68 +136,141 @@ class BaseActionClassifier(ABC):
             return None
     
     def validate_window_data(self, window_data: WindowAnnotation) -> bool:
-        """윈도우 데이터 유효성 검증
+        """MMAction2 표준 어노테이션 유효성 검증
         
         Args:
-            window_data: 윈도우 데이터
+            window_data: MMAction2 표준 형식의 윈도우 데이터
             
         Returns:
             유효성 여부
         """
-        if not window_data.poses:
+        # MMAction2 표준 keypoint 데이터 확인
+        if not hasattr(window_data, 'keypoint') or window_data.keypoint is None:
+            logging.warning(f"validate_window_data failed: no keypoint data found")
             return False
+        
+        keypoint = window_data.keypoint
+        keypoint_score = getattr(window_data, 'keypoint_score', None)
+        
+        # 형태 확인: [M, T, V, C]
+        if len(keypoint.shape) != 4:
+            logging.warning(f"validate_window_data failed: keypoint should be 4D [M, T, V, C], got {keypoint.shape}")
+            return False
+        
+        M, T, V, C = keypoint.shape
         
         # 윈도우 크기 확인
-        if len(window_data.poses) != self.window_size:
+        logging.info(f"validate_window_data: keypoint shape={keypoint.shape} [M, T, V, C], expected_window_size={self.window_size}")
+        if T != self.window_size:
+            logging.warning(f"validate_window_data failed: window size mismatch - got {T}, expected {self.window_size}")
             return False
         
-        # 각 프레임의 포즈 데이터 확인
-        for frame_poses in window_data.poses:
-            if not frame_poses.persons:
-                continue  # 빈 프레임은 허용
-                
-            for person in frame_poses.persons:
-                # 키포인트 수 확인
-                if len(person.keypoints) != self.expected_keypoint_count:
-                    return False
-                
-                # 좌표 차원 확인
-                for kpt in person.keypoints:
-                    if len(kpt) != self.coordinate_dimensions:
-                        return False
+        # 키포인트 수 확인
+        if V != self.expected_keypoint_count:
+            logging.warning(f"validate_window_data failed: keypoint count mismatch - got {V}, expected {self.expected_keypoint_count}")
+            return False
         
+        # 좌표 차원 확인 (2D: x, y)
+        if C != 2:
+            logging.warning(f"validate_window_data failed: coordinate dimension should be 2 (x, y), got {C}")
+            return False
+        
+        # keypoint_score 형태 확인: [M, T, V]
+        if keypoint_score is not None:
+            if len(keypoint_score.shape) != 3:
+                logging.warning(f"validate_window_data failed: keypoint_score should be 3D [M, T, V], got {keypoint_score.shape}")
+                return False
+            
+            if keypoint_score.shape != (M, T, V):
+                logging.warning(f"validate_window_data failed: keypoint_score shape mismatch - got {keypoint_score.shape}, expected {(M, T, V)}")
+                return False
+        
+        # 데이터 품질 확인
+        non_zero_ratio = np.count_nonzero(keypoint) / keypoint.size
+        logging.info(f"validate_window_data: keypoint non-zero ratio={non_zero_ratio:.4f}")
+        
+        if non_zero_ratio < 0.01:  # 1% 미만이면 경고
+            logging.warning(f"validate_window_data: very low non-zero ratio ({non_zero_ratio:.4f}), data might be empty")
+        
+        logging.info(f"validate_window_data: validation passed! Shape [M={M}, T={T}, V={V}, C={C}]")
         return True
     
-    def _convert_to_stgcn_format(self, window_data: WindowAnnotation) -> np.ndarray:
-        """ST-GCN++ 입력 형태로 변환
+    def _convert_to_stgcn_format(self, window_data: WindowAnnotation) -> Dict[str, Any]:
+        """기존 rtmo_gcn_pipeline과 동일한 방식으로 MMAction2 data_sample 형태로 변환
         
         Args:
             window_data: 윈도우 데이터
             
         Returns:
-            ST-GCN++ 입력 형태의 numpy 배열 (C, T, V, M)
-            C: 좌표 차원 (2 또는 3)
-            T: 시간 프레임 수
-            V: 키포인트 수 (17)
-            M: 최대 person 수
+            MMAction2 data_sample 딕셔너리
         """
+        # WindowAnnotation에서 이미 준비된 keypoint 데이터 사용
+        if hasattr(window_data, 'keypoint') and window_data.keypoint is not None:
+            # keypoint 데이터 shape: (T, M, V, C)
+            keypoint_data = window_data.keypoint
+            keypoint_score_data = getattr(window_data, 'keypoint_score', None)
+            
+            logging.info(f"Using prepared keypoint data with shape: {keypoint_data.shape}")
+            
+            # WindowAnnotation이 이미 MMAction2 표준 형식: [M, T, V, C]이므로 변환 불필요
+            keypoint = keypoint_data
+            
+            # WindowProcessor에서 이미 2D 좌표 (x, y)로 저장하므로 변환 불필요
+            # keypoint shape은 [M, T, V, 2]이어야 함
+            
+            # keypoint_score도 이미 MMAction2 표준 형식: [M, T, V]이므로 변환 불필요
+            if keypoint_score_data is not None:
+                keypoint_score = keypoint_score_data
+            else:
+                # keypoint_score가 없으면 기본값으로 생성
+                M, T, V = keypoint.shape[:3]
+                keypoint_score = np.ones((M, T, V), dtype=np.float32)
+            
+            logging.info(f"Converted keypoint shape: {keypoint.shape}")
+            logging.info(f"Converted keypoint_score shape: {keypoint_score.shape}")
+            
+            # MMAction2 data_sample 형태로 반환
+            data_sample = {
+                'keypoint': keypoint,  # (M, T, V, C) 형태
+                'keypoint_score': keypoint_score,  # (M, T, V) 형태  
+                'total_frames': self.window_size,
+                'img_shape': (640, 640),  # 기본값
+                'start_index': 0,
+                'modality': 'Pose',
+                'label': -1  # inference 시에는 더미 값
+            }
+            
+            return data_sample
+        
+        # 대체 방법: frame_data에서 직접 변환 (백업용)
         T = self.window_size
         V = self.expected_keypoint_count
         C = self.coordinate_dimensions
         
+        frames = getattr(window_data, 'frame_data', None)
+        if not frames:
+            logging.warning("No keypoint or frame_data found in window")
+            return None
+            
         # 최대 person 수 결정
-        max_persons = max(len(frame.persons) for frame in window_data.poses)
+        max_persons = max(len(frame.persons) if hasattr(frame, 'persons') and frame.persons else 0 for frame in frames)
         M = max(max_persons, 1)  # 최소 1명
         
         # 데이터 배열 초기화
         data = np.zeros((C, T, V, M), dtype=np.float32)
         
         # 윈도우 데이터를 배열에 채우기
-        for t, frame_poses in enumerate(window_data.poses):
-            for m, person in enumerate(frame_poses.persons[:M]):  # M개까지만
-                for v, keypoint in enumerate(person.keypoints):
-                    for c in range(min(C, len(keypoint))):
-                        data[c, t, v, m] = keypoint[c]
+        for t, frame_poses in enumerate(frames[:T]):  # T개까지만
+            if hasattr(frame_poses, 'persons') and frame_poses.persons:
+                for m, person in enumerate(frame_poses.persons[:M]):  # M개까지만
+                    if hasattr(person, 'keypoints') and person.keypoints is not None:
+                        keypoints = person.keypoints
+                        if len(keypoints) >= V:  # 충분한 키포인트가 있는 경우
+                            for v in range(V):
+                                if v < len(keypoints):
+                                    keypoint = keypoints[v]
+                                    for c in range(min(C, len(keypoint) if hasattr(keypoint, '__len__') else 0)):
+                                        data[c, t, v, m] = keypoint[c]
         
         return data
     
@@ -199,7 +286,12 @@ class BaseActionClassifier(ABC):
         # 간단한 flatten된 형태로 변환
         flattened_data = []
         
-        for frame_poses in window_data.poses:
+        # 프레임 데이터 가져오기
+        frames = getattr(window_data, 'frame_data', None) or getattr(window_data, 'poses', None)
+        if not frames:
+            return None
+            
+        for frame_poses in frames:
             frame_data = []
             for person in frame_poses.persons:
                 for keypoint in person.keypoints:

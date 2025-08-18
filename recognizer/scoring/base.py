@@ -7,7 +7,10 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
-from ..utils.data_structure import FramePoses, ScoringConfig
+try:
+    from utils.data_structure import FramePoses, ScoringConfig
+except ImportError:
+    from ..utils.data_structure import FramePoses, ScoringConfig
 
 
 class PersonScores:

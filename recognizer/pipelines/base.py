@@ -83,12 +83,25 @@ class ModuleInitializer:
         return factory.create_classifier(model_name, config_dict)
     
     @staticmethod
-    def init_window_processor(factory: ModuleFactory, window_size: int, window_stride: int):
-        """윈도우 프로세서 초기화"""
-        config = {
-            'window_size': window_size,
-            'window_stride': window_stride
-        }
+    def init_window_processor(factory: ModuleFactory, config_dict: Dict[str, Any]):
+        """윈도우 프로세서 초기화 (모드별 설정 지원)"""
+        # 기존 호환성을 위한 처리
+        if isinstance(config_dict, int):
+            # 기존 방식: window_size만 전달된 경우
+            config = {
+                'window_size': config_dict,
+                'window_stride': 50  # 기본값
+            }
+        elif isinstance(config_dict, dict) and 'window_size' in config_dict:
+            # 새로운 방식: 설정 딕셔너리 전달
+            config = config_dict
+        else:
+            # 오류 처리
+            config = {
+                'window_size': 100,
+                'window_stride': 50
+            }
+        
         return factory.create_window_processor('sliding_window', config)
 
 

@@ -92,7 +92,7 @@ def process_stage1_pose_extraction(
         processing_time=processing_time,
         metadata={
             'total_frames': len(frame_poses_list),
-            'avg_poses_per_frame': sum(len(fp.poses) for fp in frame_poses_list) / len(frame_poses_list),
+            'avg_poses_per_frame': sum(len(fp.persons) for fp in frame_poses_list) / len(frame_poses_list),
             'config': pose_config_dict
         }
     )

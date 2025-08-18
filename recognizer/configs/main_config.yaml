@@ -2,13 +2,59 @@
 # base_config.yaml을 상속하여 특정 설정만 오버라이드
 
 # 베이스 설정 상속
-base_config: "configs/base_config.yaml"
+base_config: "base_config.yaml"
 
 # 실행 모드 설정
 execution:
+  # 처리 모드 선택: "analysis" (분석모드) 또는 "realtime" (실시간모드)
+  # processing_mode: "realtime"  
+  processing_mode: "analysis"  
   mode: "inference"
-  input: "data/test_video.mp4"
-  output_dir: "output/main_results"
+ z 
+  # 입력 설정
+  # input_dir: "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/raw_videos"
+  # input: "/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_13_1_2_0_0.mp4"
+  # input: "/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_4_0_0_0_0.mp4"
+  input: "/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4"
+  # input: "rtsp://210.99.70.120:1935/live/cctv007.stream"
+  output_dir: "output"
+  
+  # 비디오 처리 옵션
+  video_extensions: [".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv"]
+  processing_duration: 15.0  # 각 비디오별 최소 처리 시간(초) - 동적 계산과 비교하여 더 긴 시간 사용
+  
+  # 실시간 입력 예시 (주석 해제하여 사용):
+  # RTSP 스트림: rtsp://admin:password@192.168.1.100:554/stream1
+  # 웹캠: 0 (기본), 1 (두 번째), 2 (세 번째)
+  # HTTP 스트림: http://192.168.1.100:8080/video
+
+# 분석 모드 설정 (pkl 기반 완전 분석)
+analysis_mode:
+  enable_pkl_processing: true    # pkl 파일 기반 분석 처리
+  enable_composite_scores: true  # 복합점수 표시
+  enable_detailed_logging: true  # 상세 로그 출력
+  save_analysis_results: true    # 분석 결과 저장
+  enable_visualization: true     # 오버레이 영상 자동 생성
+  
+# 실시간 모드 설정 (프레임 단위 처리)
+realtime_mode:
+  enable_display: true   # OpenCV 창으로 실시간 결과 표시
+  display_width: 640    # 디스플레이 창 너비
+  display_height: 360    # 디스플레이 창 높이
+  save_realtime_video: false  # 실시간 처리 결과를 비디오로 저장 (RTSP 테스트용 비활성화)
+  realtime_output_path: "output/realtime_output.mp4"  # 실시간 비디오 저장 경로
+  
+  # 동적 버퍼 설정
+  window_size: 100              # 윈도우 크기 (프레임 수)
+  stride: 50                    # 스트라이드 (프레임 수)
+  # buffer_size와 classification_delay는 window_size와 stride로 자동 계산됩니다
+  
+  # 표시 설정
+  show_keypoints: true          # 관절점 표시
+  show_tracking_ids: true       # 트래킹 ID 표시
+  show_classification: false    # 초기 분류 결과 표시 (100프레임 후 활성화)
+  show_composite_score: false   # 복합점수 표시 (실시간에서는 비활성화)
+  display_fps_limit: 30         # 화면 표시 FPS 제한
 
 # 기능 활성화 설정
 features:

@@ -23,8 +23,12 @@ except ImportError as e:
     SCORING_AVAILABLE = False
     logging.warning(f"Enhanced scoring system not available: {e}")
 
-from ..base import BaseScorer, PersonScores
-from ...utils.data_structure import FramePoses, ScoringConfig
+try:
+    from scoring.base import BaseScorer, PersonScores
+    from utils.data_structure import FramePoses, ScoringConfig, PersonPose
+except ImportError:
+    from ..base import BaseScorer, PersonScores
+    from ...utils.data_structure import FramePoses, ScoringConfig, PersonPose
 
 
 class RegionBasedScorer(BaseScorer):
@@ -66,7 +70,7 @@ class RegionBasedScorer(BaseScorer):
                 self.img_width, self.img_height
             )
             
-            self.fight_scorer = EnhancedFightInvolvementScorer()
+            self.fight_scorer = EnhancedFightInvolvementScorer(img_shape=(self.img_height, self.img_width))
             
             self.is_initialized = True
             logging.info("Region-based scorer initialized successfully")
@@ -293,6 +297,74 @@ class RegionBasedScorer(BaseScorer):
                     self.position_scorer = RegionBasedPositionScorer(width, height)
                 except Exception as e:
                     logging.warning(f"Failed to reinitialize position scorer: {str(e)}")
+    
+    def score_frame_poses(self, frame_poses: FramePoses) -> FramePoses:
+        """단일 프레임의 포즈에 대해 점수를 계산하여 반환
+        
+        파이프라인 인터페이스용 메소드
+        
+        Args:
+            frame_poses: 점수 계산할 프레임 포즈 데이터
+            
+        Returns:
+            점수가 계산된 프레임 포즈 데이터
+        """
+        if not self.is_initialized:
+            if not self.initialize_scorer():
+                logging.warning("Scorer not initialized, returning original frame poses")
+                return frame_poses
+        
+        if not frame_poses.persons:
+            return frame_poses
+        
+        # 현재 프레임에 대한 기본적인 점수 계산
+        # (완전한 복합점수 계산은 multiple frames가 필요하므로 여기서는 기본 점수만 적용)
+        scored_persons = []
+        
+        for person in frame_poses.persons:
+            # 기본적인 위치 점수만 계산 (단일 프레임)
+            if person.bbox and len(person.bbox) == 4:
+                position_score = self._basic_position_score([person.bbox])
+                
+                # 메타데이터에 점수 정보 추가
+                metadata = person.metadata if hasattr(person, 'metadata') and person.metadata else {}
+                metadata.update({
+                    'position_score': position_score,
+                    'scored_by': 'region_based_scorer',
+                    'frame_scoring': True
+                })
+                
+                # PersonPose 객체 복사 및 메타데이터 업데이트
+                scored_person = PersonPose(
+                    person_id=person.person_id,
+                    bbox=person.bbox,
+                    keypoints=person.keypoints,
+                    score=person.score
+                )
+                scored_person.track_id = getattr(person, 'track_id', None)
+                scored_person.metadata = metadata
+                scored_persons.append(scored_person)
+            else:
+                # bbox가 유효하지 않은 경우 원본 그대로
+                scored_persons.append(person)
+        
+        # 새로운 FramePoses 생성
+        scored_frame_poses = FramePoses(
+            frame_idx=frame_poses.frame_idx,
+            persons=scored_persons,
+            timestamp=frame_poses.timestamp,
+            image_shape=frame_poses.image_shape,
+            metadata={
+                **frame_poses.metadata,
+                'scoring_info': {
+                    'scorer_type': 'region_based',
+                    'scored_persons': len(scored_persons),
+                    'frame_level_scoring': True
+                }
+            }
+        )
+        
+        return scored_frame_poses
     
     def cleanup(self):
         """리소스 정리"""

@@ -7,12 +7,12 @@ import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from .config import SeparatedPipelineConfig
+# # from .config import SeparatedPipelineConfig  # 통합 설정 시스템으로 대체
 from .data_structures import StageResult
 from .stage1_poses import process_stage1_pose_extraction, validate_stage1_result
 from .stage2_tracking import process_stage2_tracking_scoring, validate_stage2_result
-from .stage3_classification import process_stage3_classification, validate_stage3_result
-from .stage4_unified import process_stage4_unified_dataset, validate_stage4_result
+# from .stage3_classification import process_stage3_classification, validate_stage3_result  # 삭제된 모듈
+# from .stage4_unified import process_stage4_unified_dataset, validate_stage4_result  # 삭제된 모듈
 
 import sys
 
@@ -34,7 +34,7 @@ class SeparatedPipeline:
     각 단계별 독립 실행 가능하며, resume 기능과 시각화 데이터 생성을 지원합니다.
     """
     
-    def __init__(self, config: SeparatedPipelineConfig):
+    def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.results: Dict[str, List[StageResult]] = {
             'stage1': [],
@@ -45,10 +45,10 @@ class SeparatedPipeline:
         
         # 출력 디렉토리 생성
         for output_dir in [
-            self.config.stage1_output_dir,
-            self.config.stage2_output_dir,
-            self.config.stage3_output_dir,
-            self.config.stage4_output_dir
+            self.config.get('stage1_output_dir', 'output/stage1'),
+            self.config.get('stage2_output_dir', 'output/stage2'),
+            self.config.get('stage3_output_dir', 'output/stage3'),
+            self.config.get('stage4_output_dir', 'output/stage4')
         ]:
             ensure_directory(output_dir)
     
@@ -57,19 +57,20 @@ class SeparatedPipeline:
         logging.info(f"Starting separated pipeline for {len(video_paths)} videos")
         
         # Stage 1: 포즈 추정
-        if 'stage1' in self.config.stages_to_run:
+        stages_to_run = self.config.get('stages_to_run', ['stage1', 'stage2', 'stage3', 'stage4'])
+        if 'stage1' in stages_to_run:
             self._run_stage1(video_paths)
         
         # Stage 2: 트래킹 및 스코어링
-        if 'stage2' in self.config.stages_to_run:
+        if 'stage2' in stages_to_run:
             self._run_stage2()
         
         # Stage 3: 분류 및 복합점수
-        if 'stage3' in self.config.stages_to_run:
+        if 'stage3' in stages_to_run:
             self._run_stage3()
         
         # Stage 4: 통합 데이터셋
-        if 'stage4' in self.config.stages_to_run:
+        if 'stage4' in stages_to_run:
             self._run_stage4()
         
         return self.results
@@ -211,22 +212,23 @@ class SeparatedPipeline:
             video_name = pkl_file.stem.replace('_stage2_tracking', '')
             output_file = Path(self.config.stage3_output_dir) / f"{video_name}_stage3_classification.pkl"
             
-            # Resume 체크
-            if self.config.enable_resume and output_file.exists():
-                if validate_stage3_result(str(output_file)):
-                    logging.info(f"Stage 3 skipped (resume): {video_name}")
-                    continue
-            
-            # 처리 실행
-            result = process_stage3_classification(
-                pkl_file_path=str(pkl_file),
-                classification_config_dict=self.config.classification_config.__dict__,
-                window_size=self.config.window_size,
-                window_stride=self.config.window_stride,
-                output_dir=self.config.stage3_output_dir,
-                save_visualization=self.config.save_visualizations
-            )
-            self.results['stage3'].append(result)
+            # Resume 체크 (stage3 삭제됨 - 주석 처리)
+            logging.warning(f"Stage 3 classification module deleted, skipping: {video_name}")
+            # if self.config.enable_resume and output_file.exists():
+            #     if validate_stage3_result(str(output_file)):
+            #         logging.info(f"Stage 3 skipped (resume): {video_name}")
+            #         continue
+            # 
+            # # 처리 실행
+            # result = process_stage3_classification(
+            #     pkl_file_path=str(pkl_file),
+            #     classification_config_dict=self.config.classification_config.__dict__,
+            #     window_size=self.config.window_size,
+            #     window_stride=self.config.window_stride,
+            #     output_dir=self.config.stage3_output_dir,
+            #     save_visualization=self.config.save_visualizations
+            # )
+            # self.results['stage3'].append(result)
     
     def _run_stage3_multiprocess(self, stage2_files: List[Path]):
         """Stage 3 멀티프로세스 실행"""
@@ -235,27 +237,29 @@ class SeparatedPipeline:
             video_name = pkl_file.stem.replace('_stage2_tracking', '')
             output_file = Path(self.config.stage3_output_dir) / f"{video_name}_stage3_classification.pkl"
             
-            # Resume 체크
-            if self.config.enable_resume and output_file.exists():
-                if validate_stage3_result(str(output_file)):
-                    continue
-            
-            tasks.append({
-                'func': process_stage3_classification,
-                'args': (
-                    str(pkl_file),
-                    self.config.classification_config.__dict__,
-                    self.config.window_size,
-                    self.config.window_stride,
-                    self.config.stage3_output_dir,
-                    self.config.save_visualizations
-                )
-            })
+            # Resume 체크 (stage3 삭제됨 - 주석 처리)  
+            logging.warning(f"Stage 3 classification module deleted, skipping: {pkl_file.stem}")
+            continue
+            # if self.config.enable_resume and output_file.exists():
+            #     if validate_stage3_result(str(output_file)):
+            #         continue
+            # 
+            # tasks.append({
+            #     'func': process_stage3_classification,
+            #     'args': (
+            #         str(pkl_file),
+            #         self.config.classification_config.__dict__,
+            #         self.config.window_size,
+            #         self.config.window_stride,
+            #         self.config.stage3_output_dir,
+            #         self.config.save_visualizations
+            #     )
+            # })
         
-        if tasks:
-            with MultiprocessManager(num_workers=self.config.num_workers) as manager:
-                results = manager.run_tasks(tasks)
-                self.results['stage3'].extend(results)
+        # if tasks:
+        #     with MultiprocessManager(num_workers=self.config.num_workers) as manager:
+        #         results = manager.run_tasks(tasks)
+        #         self.results['stage3'].extend(results)
     
     def _run_stage4(self):
         """Stage 4: 통합 데이터셋 생성"""

@@ -8,7 +8,10 @@ pose_estimation -> tracking -> scoring 파이프라인에서 정확한 입/출�
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
-from ..utils.data_structure import PersonPose, FramePoses, TrackingConfig
+try:
+    from utils.data_structure import PersonPose, FramePoses, TrackingConfig
+except ImportError:
+    from ..utils.data_structure import PersonPose, FramePoses, TrackingConfig
 
 
 class TrackedObject:

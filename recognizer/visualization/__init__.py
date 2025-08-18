@@ -8,11 +8,35 @@
 """
 
 from .pose_visualizer import PoseVisualizer
-from .result_visualizer import ResultVisualizer
-from .annotation_visualizer import AnnotationVisualizer
+from .inference_visualizer import InferenceVisualizer, create_inference_visualization
+from .separated_visualizer import SeparatedVisualizer, create_separated_visualization
+
+# 선택적 import - 의존성 문제로 인해
+try:
+    from .result_visualizer import ResultVisualizer
+    RESULT_VISUALIZER_AVAILABLE = True
+except ImportError:
+    ResultVisualizer = None
+    RESULT_VISUALIZER_AVAILABLE = False
+
+try:
+    from .annotation_visualizer import AnnotationVisualizer
+    ANNOTATION_VISUALIZER_AVAILABLE = True
+except ImportError:
+    AnnotationVisualizer = None
+    ANNOTATION_VISUALIZER_AVAILABLE = False
 
 __all__ = [
     'PoseVisualizer',
-    'ResultVisualizer', 
-    'AnnotationVisualizer'
+    'InferenceVisualizer',
+    'create_inference_visualization',
+    'SeparatedVisualizer',
+    'create_separated_visualization'
 ]
+
+# 사용 가능한 경우만 추가
+if RESULT_VISUALIZER_AVAILABLE:
+    __all__.append('ResultVisualizer')
+
+if ANNOTATION_VISUALIZER_AVAILABLE:
+    __all__.append('AnnotationVisualizer')

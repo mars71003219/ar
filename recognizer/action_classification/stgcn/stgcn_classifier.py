@@ -34,8 +34,12 @@ except ImportError as e:
     DATA_UTILS_AVAILABLE = False
     logging.warning(f"Data utils not available: {e}")
 
-from ..base import BaseActionClassifier
-from ...utils.data_structure import WindowAnnotation, ClassificationResult, ActionClassificationConfig
+try:
+    from action_classification.base import BaseActionClassifier
+    from utils.data_structure import WindowAnnotation, ClassificationResult, ActionClassificationConfig
+except ImportError:
+    from ..base import BaseActionClassifier
+    from ...utils.data_structure import WindowAnnotation, ClassificationResult, ActionClassificationConfig
 
 
 class STGCNActionClassifier(BaseActionClassifier):
@@ -64,6 +68,9 @@ class STGCNActionClassifier(BaseActionClassifier):
         
         # MMAction2 모델
         self.recognizer = None
+        
+        # 윈도우 카운터 (STGCN 내부에서 관리)
+        self.window_counter = 0
     
     def initialize_model(self) -> bool:
         """ST-GCN++ 모델 초기화"""
@@ -100,32 +107,45 @@ class STGCNActionClassifier(BaseActionClassifier):
             self.is_initialized = False
             return False
     
+    def classify_window(self, window_data: WindowAnnotation) -> ClassificationResult:
+        """단일 윈도우 분류 - 파이프라인 호환용 메서드명"""
+        logging.info(f"STGCN classify_window called for window {window_data.window_idx}")
+        return self.classify_single_window(window_data)
+    
     def classify_single_window(self, window_data: WindowAnnotation) -> ClassificationResult:
         """단일 윈도우 분류"""
-        if not self.is_initialized:
-            raise RuntimeError("Model not initialized. Call initialize_model() first.")
+        # STGCN이 처리할 때마다 윈도우 카운터 증가
+        self.window_counter += 1
+        
+        logging.info(f"STGCN processing window {self.window_counter} (window_idx: {window_data.window_idx})")
+        # 자동 초기화
+        if not self.ensure_initialized():
+            raise RuntimeError("Failed to initialize STGCN model")
         
         try:
             # 윈도우 데이터 전처리
             preprocessed_data = self.preprocess_window_data(window_data)
             if preprocessed_data is None:
-                return self._create_error_result(window_data.window_id, "Preprocessing failed")
+                logging.warning(f"Preprocessing failed for STGCN window {self.window_counter}")
+                return self._create_error_result(self.window_counter, "Preprocessing failed")
             
             # ST-GCN++ 입력 형태로 변환
             stgcn_input = self._prepare_stgcn_input(preprocessed_data)
             if stgcn_input is None:
-                return self._create_error_result(window_data.window_id, "ST-GCN++ input preparation failed")
+                return self._create_error_result(self.window_counter, "ST-GCN++ input preparation failed")
             
             # MMAction2 추론 실행
             with torch.no_grad():
                 result = inference_recognizer(self.recognizer, stgcn_input)
                 
-            # 결과 후처리
-            return self._process_inference_result(window_data.window_id, result)
+            # 결과 후처리 (윈도우 번호 포함)
+            return self._process_inference_result(self.window_counter, result)
             
         except Exception as e:
-            logging.error(f"Error in ST-GCN++ classification: {str(e)}")
-            return self._create_error_result(window_data.window_id, str(e))
+            import traceback
+            logging.error(f"Error in ST-GCN++ classification for window {self.window_counter}: {str(e)}")
+            logging.error(f"Full traceback: {traceback.format_exc()}")
+            return self._create_error_result(self.window_counter, str(e))
     
     def classify_multiple_windows(self, windows: List[WindowAnnotation]) -> List[ClassificationResult]:
         """다중 윈도우 분류 (배치 처리 지원)"""
@@ -174,35 +194,48 @@ class STGCNActionClassifier(BaseActionClassifier):
         
         return batch_results
     
-    def _prepare_stgcn_input(self, preprocessed_data: np.ndarray) -> Optional[Dict[str, Any]]:
-        """ST-GCN++ 입력 형태로 변환"""
+    def _prepare_stgcn_input(self, preprocessed_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """ST-GCN++ 입력 형태로 변환 (이미 MMAction2 data_sample 형태)"""
         try:
-            if DATA_UTILS_AVAILABLE:
-                # 기존 유틸리티 함수 사용
-                stgcn_data = convert_to_stgcn_format(preprocessed_data, self.max_persons)
+            # 전처리에서 이미 MMAction2 data_sample 형태로 변환되었으므로 그대로 사용
+            if isinstance(preprocessed_data, dict) and 'keypoint' in preprocessed_data:
+                logging.info(f"Using preprocessed data_sample with keypoint shape: {preprocessed_data['keypoint'].shape}")
+                return preprocessed_data
             else:
-                # 기본 구현 사용
-                stgcn_data = self._convert_to_stgcn_basic(preprocessed_data)
-            
-            # 라벨 정보 추가 (추론 시에는 더미 값)
-            stgcn_data['label'] = 0
-            
-            return stgcn_data
+                logging.error(f"Invalid preprocessed_data type or format: {type(preprocessed_data)}")
+                return None
             
         except Exception as e:
+            import traceback
             logging.error(f"Error preparing ST-GCN++ input: {str(e)}")
+            logging.error(f"Full traceback: {traceback.format_exc()}")
             return None
     
     def _convert_to_stgcn_basic(self, data: np.ndarray) -> Dict[str, Any]:
         """기본 ST-GCN++ 변환 구현"""
-        # data shape: (C, T, V, M)
-        C, T, V, M = data.shape
-        
-        # 배치 차원 추가: (1, C, T, V, M)
-        stgcn_data = np.expand_dims(data, axis=0)
+        try:
+            logging.info(f"ST-GCN input data shape: {data.shape}, ndim: {data.ndim}, dtype: {data.dtype}")
+            
+            # data shape: (C, T, V, M)
+            if data.ndim != 4:
+                raise ValueError(f"Expected 4D array, got {data.ndim}D with shape {data.shape}")
+            
+            C, T, V, M = data.shape
+            logging.info(f"Unpacked dimensions: C={C}, T={T}, V={V}, M={M}")
+            
+            # 최소 차원 검증
+            if C == 0 or T == 0 or V == 0 or M == 0:
+                raise ValueError(f"Invalid dimensions: C={C}, T={T}, V={V}, M={M}")
+            
+            # 배치 차원 추가: (C, T, V, M) -> (1, C, T, V, M)
+            stgcn_data = np.expand_dims(data, axis=0)
+        except (ValueError, IndexError) as e:
+            logging.error(f"Error in basic ST-GCN conversion: {str(e)}")
+            # 기본값으로 더미 데이터 생성
+            stgcn_data = np.zeros((1, 3, 100, 17, 2))
         
         return {
-            'keypoint': stgcn_data,
+            'keypoint': stgcn_data,  # 이미 (1, C, T, V, M) 형태
             'total_frames': T,
             'img_shape': (640, 640),  # 기본값
             'original_shape': (640, 640),
@@ -210,59 +243,60 @@ class STGCNActionClassifier(BaseActionClassifier):
         }
     
     def _process_inference_result(self, window_id: int, result: ActionDataSample) -> ClassificationResult:
-        """MMAction2 추론 결과 후처리"""
+        """MMAction2 추론 결과 후처리 (기존 rtmo_gcn_pipeline과 동일한 방식)"""
         try:
             # 예측 점수 추출
             pred_scores = result.pred_score
             if isinstance(pred_scores, torch.Tensor):
                 pred_scores = pred_scores.cpu().numpy()
             
-            # 최대 점수와 클래스 찾기
-            max_score_idx = int(np.argmax(pred_scores))
-            max_confidence = float(pred_scores[max_score_idx])
+            logging.info(f"Processing inference result for window {window_id}: scores={pred_scores}")
+            
+            # 기존 rtmo_gcn_pipeline과 동일한 방식으로 처리
+            # scores[1]이 Fight 점수, scores[0]이 NonFight 점수
+            if len(pred_scores) > 1:
+                fight_score = float(pred_scores[1])
+                nonfight_score = float(pred_scores[0])
+                predicted_class_idx = 1 if fight_score > nonfight_score else 0
+                confidence = fight_score if predicted_class_idx == 1 else nonfight_score
+            else:
+                # 점수가 1개만 있는 경우 (이상한 상황)
+                fight_score = float(pred_scores[0])
+                nonfight_score = 1.0 - fight_score
+                predicted_class_idx = 1 if fight_score > 0.5 else 0
+                confidence = fight_score if predicted_class_idx == 1 else nonfight_score
             
             # 클래스 이름 결정
-            if max_score_idx < len(self.class_names):
-                predicted_class = self.class_names[max_score_idx]
-            else:
-                predicted_class = 'Unknown'
+            predicted_class = self.class_names[predicted_class_idx] if predicted_class_idx < len(self.class_names) else 'Unknown'
             
-            # 모든 클래스별 확률 계산
-            class_probabilities = {}
-            for i, class_name in enumerate(self.class_names):
-                if i < len(pred_scores):
-                    class_probabilities[class_name] = float(pred_scores[i])
-                else:
-                    class_probabilities[class_name] = 0.0
+            logging.info(f"STGCN RESULT - Window {window_id}: {predicted_class} ({confidence:.3f})")
             
-            # 결과 생성
-            return ClassificationResult(
-                window_id=window_id,
-                predicted_class=predicted_class,
-                confidence=max_confidence,
-                class_probabilities=class_probabilities,
-                model_output={
-                    'raw_scores': pred_scores.tolist(),
-                    'prediction_index': max_score_idx
-                }
+            # ClassificationResult 생성 (윈도우 번호 메타데이터에 추가)
+            result = ClassificationResult(
+                prediction=predicted_class_idx,
+                confidence=confidence,
+                probabilities=pred_scores.tolist(),
+                model_name='stgcn'
             )
             
+            # 윈도우 번호를 결과에 저장 (메타데이터로)
+            if not hasattr(result, 'metadata'):
+                result.metadata = {}
+            result.metadata = {'display_id': window_id}
+            
+            return result
+            
         except Exception as e:
-            logging.error(f"Error processing inference result: {str(e)}")
+            logging.error(f"Error processing inference result for window {window_id}: {str(e)}")
             return self._create_error_result(window_id, f"Result processing error: {str(e)}")
     
     def _create_error_result(self, window_id: int, error_msg: str) -> ClassificationResult:
         """에러 결과 생성"""
-        default_probs = {cls: 0.0 for cls in self.class_names}
-        if self.class_names:
-            default_probs[self.class_names[0]] = 1.0
-        
         return ClassificationResult(
-            window_id=window_id,
-            predicted_class=self.class_names[0] if self.class_names else 'Unknown',
+            prediction=0,  # 기본값으로 NonFight
             confidence=0.0,
-            class_probabilities=default_probs,
-            error=error_msg
+            probabilities=[1.0, 0.0],  # [NonFight_prob, Fight_prob]
+            model_name='stgcn'
         )
     
     def get_classifier_info(self) -> Dict[str, Any]:

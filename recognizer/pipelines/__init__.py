@@ -13,19 +13,22 @@ from .base import BasePipeline, ModuleInitializer, PerformanceTracker
 
 # 분리형 파이프라인
 from .separated import (
-    SeparatedPipelineConfig, SeparatedPipeline, 
+    SeparatedPipeline, 
     StageResult, VisualizationData, STGCNData
 )
 
 # 실시간 추론 파이프라인
 from .inference import (
-    RealtimeConfig, RealtimeAlert, InferencePipeline
+    InferencePipeline
 )
 
 # 통합 파이프라인
 from .unified import (
-    PipelineConfig, PipelineResult, UnifiedPipeline
+    UnifiedPipeline
 )
+
+# 설정 클래스들은 통합 설정 시스템으로 대체
+# SeparatedPipelineConfig, RealtimeConfig, RealtimeAlert, PipelineConfig, PipelineResult
 
 __all__ = [
     # 베이스 클래스
@@ -34,19 +37,19 @@ __all__ = [
     'PerformanceTracker',
     
     # 분리형 파이프라인
-    'SeparatedPipelineConfig',
+    # 'SeparatedPipelineConfig',  # 통합 설정 시스템으로 대체
     'SeparatedPipeline',
     'StageResult',
     'VisualizationData', 
     'STGCNData',
     
     # 실시간 추론
-    'RealtimeConfig',
-    'RealtimeAlert',
+    # 'RealtimeConfig',          # 통합 설정 시스템으로 대체
+    # 'RealtimeAlert',           # 통합 설정 시스템으로 대체
     'InferencePipeline',
     
     # 통합 파이프라인
-    'PipelineConfig',
-    'PipelineResult', 
+    # 'PipelineConfig',          # 통합 설정 시스템으로 대체
+    # 'PipelineResult',          # 통합 설정 시스템으로 대체
     'UnifiedPipeline'
 ]

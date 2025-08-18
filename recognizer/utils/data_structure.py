@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple, Union
 import numpy as np
 from enum import Enum
-from .gpu_manager import get_gpu_manager, setup_multi_gpu
 import multiprocessing as mp
 
 
@@ -69,6 +68,7 @@ class FramePoses:
     persons: List[PersonPose]
     timestamp: float
     image_shape: Optional[Tuple[int, int]] = None  # (H, W)
+    metadata: Dict[str, Any] = field(default_factory=dict)  # 메타데이터
     
     def get_person_count(self) -> int:
         """person 수 반환"""
@@ -103,12 +103,12 @@ class FramePoses:
 
 @dataclass
 class WindowAnnotation:
-    """윈도우 어노테이션 데이터 (ST-GCN++ 형식)"""
+    """윈도우 어노테이션 데이터 (MMAction2 표준 형식)"""
     window_idx: int
     start_frame: int
     end_frame: int
-    keypoint: np.ndarray  # [T, M, V, C] - Time, Max_persons, Vertices, Coordinates
-    keypoint_score: np.ndarray  # [T, M, V] - confidence scores
+    keypoint: np.ndarray  # [M, T, V, C] - Max_persons, Time, Vertices, Coordinates (MMAction2 표준)
+    keypoint_score: np.ndarray  # [M, T, V] - confidence scores (MMAction2 표준)
     frame_dir: str
     img_shape: Tuple[int, int]  # (H, W)
     original_shape: Tuple[int, int]  # (H, W)
@@ -121,11 +121,11 @@ class WindowAnnotation:
     person_rankings: Optional[List[Tuple[int, float]]] = None  # (track_id, score) 순위
     
     def get_shape_info(self) -> Dict[str, Any]:
-        """형태 정보 반환"""
-        T, M, V, C = self.keypoint.shape
+        """형태 정보 반환 (MMAction2 표준 형식)"""
+        M, T, V, C = self.keypoint.shape
         return {
-            'temporal_frames': T,
             'max_persons': M,
+            'temporal_frames': T,
             'num_joints': V,
             'coordinates': C,
             'total_frames': self.total_frames
@@ -205,12 +205,11 @@ class PoseEstimationConfig:
     
     def __post_init__(self):
         """초기화 후 GPU 설정"""
-        if isinstance(self.device, (str, int, list)):
-            self._allocated_devices = setup_multi_gpu(
-                self.device, 
-                'pose_estimator', 
-                self.gpu_allocation_strategy
-            )
+        if isinstance(self.device, str):
+            self._allocated_devices = [self.device]
+        elif isinstance(self.device, (int, list)):
+            # 단순화: 첫 번째 GPU 또는 CPU 사용
+            self._allocated_devices = ['cuda:0' if str(self.device).isdigit() else 'cpu']
         else:
             self._allocated_devices = ['cpu']
     
@@ -315,6 +314,56 @@ class ScoringConfig:
 
 
 @dataclass
+class AnnotationData:
+    """어노테이션 데이터 구조"""
+    video_path: str
+    total_frames: int
+    fps: float
+    duration: float
+    frames: List[FramePoses]
+    classifications: List[Dict[str, Any]]
+    metadata: Optional[Dict[str, Any]] = None
+    
+    def get_frame_by_idx(self, frame_idx: int) -> Optional[FramePoses]:
+        """프레임 인덱스로 프레임 데이터 가져오기"""
+        for frame in self.frames:
+            if frame.frame_idx == frame_idx:
+                return frame
+        return None
+    
+    def get_frame_range(self, start_idx: int, end_idx: int) -> List[FramePoses]:
+        """프레임 범위 데이터 가져오기"""
+        return [frame for frame in self.frames if start_idx <= frame.frame_idx <= end_idx]
+
+
+@dataclass
+class PipelineResult:
+    """파이프라인 실행 결과"""
+    video_path: str
+    total_frames: int
+    processing_time: float
+    frame_results: List[FramePoses]
+    classification_results: List[Dict[str, Any]]
+    performance_stats: Dict[str, Any]
+    metadata: Optional[Dict[str, Any]] = None
+    
+    @property
+    def fps(self) -> float:
+        """처리 FPS 계산"""
+        if self.processing_time > 0:
+            return self.total_frames / self.processing_time
+        return 0.0
+    
+    @property
+    def success_rate(self) -> float:
+        """성공률 계산"""
+        if self.total_frames > 0:
+            successful_frames = len(self.frame_results)
+            return successful_frames / self.total_frames
+        return 0.0
+
+
+@dataclass
 class ActionClassificationConfig:
     """행동 분류 설정"""
     model_name: str
@@ -327,6 +376,7 @@ class ActionClassificationConfig:
     input_format: str = 'stgcn'
     expected_keypoint_count: int = 17
     coordinate_dimensions: int = 2
+    coordinate_format: str = 'xy'
     max_persons: int = 2
     
     # 멀티 GPU 관련 설정
@@ -338,12 +388,11 @@ class ActionClassificationConfig:
     
     def __post_init__(self):
         """초기화 후 GPU 설정"""
-        if isinstance(self.device, (str, int, list)):
-            self._allocated_devices = setup_multi_gpu(
-                self.device, 
-                'action_classifier', 
-                self.gpu_allocation_strategy
-            )
+        if isinstance(self.device, str):
+            self._allocated_devices = [self.device]
+        elif isinstance(self.device, (int, list)):
+            # 단순화: 첫 번째 GPU 또는 CPU 사용
+            self._allocated_devices = ['cuda:0' if str(self.device).isdigit() else 'cpu']
         else:
             self._allocated_devices = ['cpu']
     
@@ -419,12 +468,11 @@ class PipelineConfig:
     def __post_init__(self):
         """초기화 후 GPU 설정 및 검증"""
         # 파이프라인 전체 GPU 설정
-        if isinstance(self.device, (str, int, list)):
-            self._allocated_devices = setup_multi_gpu(
-                self.device, 
-                'pipeline', 
-                self.gpu_allocation_strategy
-            )
+        if isinstance(self.device, str):
+            self._allocated_devices = [self.device]
+        elif isinstance(self.device, (int, list)):
+            # 단순화: 첫 번째 GPU 또는 CPU 사용
+            self._allocated_devices = ['cuda:0' if str(self.device).isdigit() else 'cpu']
         else:
             self._allocated_devices = ['cpu']
         
@@ -433,24 +481,15 @@ class PipelineConfig:
             self._redistribute_devices()
     
     def _redistribute_devices(self):
-        """컴포넌트별 GPU 재분배"""
+        """컴포넌트별 GPU 재분배 (단순화됨)"""
         if not self.is_multi_gpu():
             return
         
-        gpu_manager = get_gpu_manager()
-        available_devices = [d.split(':')[1] for d in self._allocated_devices if 'cuda' in d]
-        
-        if len(available_devices) >= 2:
-            # 포즈 추정과 행동 분류는 계산량이 많으므로 우선적으로 할당
-            pose_devices = available_devices[:len(available_devices)//2]
-            classification_devices = available_devices[len(available_devices)//2:]
-            
-            # 설정 업데이트 (강제로 재할당)
-            gpu_manager.clear_allocation('pose_estimator')
-            gpu_manager.clear_allocation('action_classifier')
-            
-            setup_multi_gpu(pose_devices, 'pose_estimator', self.gpu_allocation_strategy)
-            setup_multi_gpu(classification_devices, 'action_classifier', self.gpu_allocation_strategy)
+        # 멀티 GPU 관리자가 삭제되었으므로 단순화된 로직 사용
+        # 일단 경고만 출력하고 기본 디바이스 사용
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning("Multi-GPU load balancing disabled - using primary device only")
     
     def get_primary_device(self) -> str:
         """주 디바이스 반환"""
@@ -469,14 +508,13 @@ class PipelineConfig:
         return len([d for d in self._allocated_devices if 'cuda' in d])
     
     def get_gpu_allocation_summary(self) -> Dict[str, Any]:
-        """GPU 할당 요약 반환"""
-        gpu_manager = get_gpu_manager()
+        """GPU 할당 요약 반환 (단순화됨)"""
         return {
             'pipeline_devices': self._allocated_devices,
             'total_gpu_count': self.get_device_count(),
             'is_multi_gpu': self.is_multi_gpu(),
             'load_balance_enabled': self.load_balance_components,
-            'component_allocation': gpu_manager.device_allocation.copy(),
+            'component_allocation': {},  # GPU 관리자 삭제로 인해 빈 딕셔너리
             'allocation_strategy': self.gpu_allocation_strategy
         }
     

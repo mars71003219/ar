@@ -144,7 +144,7 @@ def validate_stage2_result(pkl_path: str) -> bool:
         # 트래킹 정보 확인
         if data and isinstance(data[0], FramePoses):
             # 트래킹된 person_id가 있는지 확인
-            if data[0].poses and data[0].poses[0].person_id is not None:
+            if data[0].persons and data[0].persons[0].person_id is not None:
                 return True
         return False
     except Exception as e:

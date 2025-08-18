@@ -10,8 +10,12 @@ pose_estimation과 scoring 사이에서 정확한 입/출력을 통한 트래킹
 - SORT: (향후 추가)
 """
 
-from .base import BaseTracker
-from .bytetrack import ByteTrackerWrapper, ByteTrackerConfig
+try:
+    from tracking.base import BaseTracker
+    from tracking.bytetrack import ByteTrackerWrapper, ByteTrackerConfig
+except ImportError:
+    from .base import BaseTracker
+    from .bytetrack import ByteTrackerWrapper, ByteTrackerConfig
 
 __all__ = [
     'BaseTracker',

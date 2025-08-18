@@ -9,7 +9,20 @@ import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 import colorsys
 
-from ..utils.data_structure import PersonPose, FramePoses
+try:
+    from ..utils.import_utils import safe_import_pose_structures
+except ImportError:
+    try:
+        from utils.import_utils import safe_import_pose_structures
+    except ImportError:
+        def safe_import_pose_structures():
+            try:
+                from utils.data_structure import PersonPose, FramePoses
+                return PersonPose, FramePoses
+            except ImportError:
+                from ..utils.data_structure import PersonPose, FramePoses
+                return PersonPose, FramePoses
+PersonPose, FramePoses = safe_import_pose_structures()
 
 
 class PoseVisualizer:
@@ -39,7 +52,8 @@ class PoseVisualizer:
                  show_confidence: bool = True,
                  keypoint_radius: int = 3,
                  skeleton_thickness: int = 2,
-                 bbox_thickness: int = 2):
+                 bbox_thickness: int = 2,
+                 max_persons: int = 4):
         """
         Args:
             show_bbox: 바운딩 박스 표시 여부
@@ -60,6 +74,7 @@ class PoseVisualizer:
         self.keypoint_radius = keypoint_radius
         self.skeleton_thickness = skeleton_thickness
         self.bbox_thickness = bbox_thickness
+        self.max_persons = max_persons
         
         # 트랙별 색상 캐시
         self.track_colors: Dict[int, Tuple[int, int, int]] = {}
@@ -77,8 +92,13 @@ class PoseVisualizer:
         """
         vis_image = image.copy()
         
-        for person in frame_poses.persons:
-            color = self._get_person_color(person)
+        # person 정렬 (confidence 기준 내림차순)
+        persons_sorted = sorted(frame_poses.persons, key=lambda p: p.score if p.score else 0.0, reverse=True)
+        
+        for idx, person in enumerate(persons_sorted):
+            # max_persons 이내의 객체는 빨간색, 나머지는 파란색
+            is_top_ranked = idx < self.max_persons
+            color = self._get_person_color(person, is_top_ranked)
             
             # 바운딩 박스 그리기
             if self.show_bbox and person.bbox:
@@ -92,30 +112,19 @@ class PoseVisualizer:
                 if self.show_keypoints:
                     self._draw_keypoints(vis_image, person.keypoints, color)
         
-        # 프레임 정보 추가
-        self._draw_frame_info(vis_image, frame_poses)
+        # 프레임 정보 추가 (제거 예정)
+        # self._draw_frame_info(vis_image, frame_poses)
         
         return vis_image
     
-    def _get_person_color(self, person: PersonPose) -> Tuple[int, int, int]:
-        """Person별 고유 색상 반환"""
-        if person.track_id is not None:
-            if person.track_id not in self.track_colors:
-                # HSV 색상 공간에서 균등하게 분포된 색상 생성
-                hue = (self.color_index * 137.5) % 360  # 황금각 사용
-                saturation = 0.8
-                value = 0.9
-                
-                rgb = colorsys.hsv_to_rgb(hue/360, saturation, value)
-                bgr = tuple(int(c * 255) for c in rgb[::-1])  # RGB -> BGR
-                
-                self.track_colors[person.track_id] = bgr
-                self.color_index += 1
-            
-            return self.track_colors[person.track_id]
+    def _get_person_color(self, person: PersonPose, is_top_ranked: bool = False) -> Tuple[int, int, int]:
+        """인물별 색상 반환 (max_persons 이내: 빨간색, 이외: 파란색)"""
+        if is_top_ranked:
+            # max_persons 이내의 객체는 빨간색
+            return (0, 0, 255)  # BGR: 빨간색
         else:
-            # 트랙 ID가 없으면 기본 색상 (빨간색)
-            return (0, 0, 255)
+            # 나머지 객체는 파란색
+            return (255, 0, 0)  # BGR: 파란색
     
     def _draw_bbox(self, image: np.ndarray, bbox: List[float], color: Tuple[int, int, int], person: PersonPose):
         """바운딩 박스 그리기"""

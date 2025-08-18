@@ -52,7 +52,117 @@ class ModuleRegistry:
             
             # config를 첫 번째 인수로 받는지 확인
             if 'config' in sig.parameters:
-                instance = module_class(config=final_config, **kwargs)
+                # 카테고리에 따라 적절한 Config 객체 생성
+                if self.category_name == 'pose_estimator':
+                    from utils.data_structure import PoseEstimationConfig
+                    # 포즈 추정 설정 매핑
+                    pose_config = {}
+                    
+                    # 필수 model_name 필드 추가
+                    pose_config['model_name'] = final_config.get('model_name', 'rtmo')
+                    
+                    # checkpoint_path -> model_path 매핑
+                    if 'checkpoint_path' in final_config:
+                        pose_config['model_path'] = final_config['checkpoint_path']
+                    
+                    # 직접 매핑되는 필드들
+                    field_mapping = {
+                        'config_file': 'config_file',
+                        'device': 'device',
+                        'score_threshold': 'score_threshold',
+                        'input_size': 'input_size'
+                    }
+                    
+                    for old_key, new_key in field_mapping.items():
+                        if old_key in final_config:
+                            pose_config[new_key] = final_config[old_key]
+                    
+                    config_obj = PoseEstimationConfig(**pose_config)
+                elif self.category_name == 'tracker':
+                    from utils.data_structure import TrackingConfig
+                    # 기존 config field 매핑
+                    tracking_config = {}
+                    field_mapping = {
+                        'track_thresh': 'init_track_threshold',
+                        'track_high_thresh': 'high_threshold', 
+                        'track_low_thresh': 'low_threshold',
+                        'match_thresh': 'match_iou_high',
+                        'track_buffer': 'num_frames_retain'
+                    }
+                    
+                    # 매핑 적용
+                    for old_key, new_key in field_mapping.items():
+                        if old_key in final_config:
+                            tracking_config[new_key] = final_config[old_key]
+                    
+                    # 필수 tracker_name 필드 추가 (기본값 포함)
+                    tracking_config['tracker_name'] = final_config.get('tracker_name', 'bytetrack')
+                    
+                    # 직접 매핑되는 필드들
+                    for key in ['frame_rate']:
+                        if key in final_config:
+                            tracking_config[key] = final_config[key]
+                    
+                    config_obj = TrackingConfig(**tracking_config)
+                elif self.category_name == 'scorer':
+                    from utils.data_structure import ScoringConfig
+                    # 기존 config field 매핑 
+                    scoring_config = {}
+                    
+                    # scorer_name은 직접 매핑
+                    scoring_config['scorer_name'] = final_config.get('scorer_name', 'region_based')
+                    
+                    # weights 딕셔너리에서 개별 가중치로 매핑
+                    if 'weights' in final_config:
+                        weights = final_config['weights']
+                        scoring_config['movement_weight'] = weights.get('movement', 0.3)
+                        scoring_config['position_weight'] = weights.get('position', 0.2)
+                        scoring_config['interaction_weight'] = weights.get('interaction', 0.1)
+                        scoring_config['temporal_consistency_weight'] = weights.get('temporal', 0.2)
+                        scoring_config['persistence_weight'] = weights.get('persistence', 0.2)
+                    
+                    # 직접 매핑되는 필드들
+                    for key in ['quality_threshold', 'min_track_length']:
+                        if key in final_config:
+                            scoring_config[key] = final_config[key]
+                    
+                    config_obj = ScoringConfig(**scoring_config)
+                elif self.category_name == 'classifier':
+                    from utils.data_structure import ActionClassificationConfig
+                    # 분류 설정 매핑
+                    classifier_config = {}
+                    
+                    # 필수 model_name 필드 추가
+                    classifier_config['model_name'] = final_config.get('model_name', 'stgcn')
+                    
+                    # checkpoint_path -> model_path 매핑
+                    if 'checkpoint_path' in final_config:
+                        classifier_config['model_path'] = final_config['checkpoint_path']
+                    
+                    # 직접 매핑되는 필드들
+                    field_mapping = {
+                        'config_file': 'config_file', 
+                        'device': 'device',
+                        'window_size': 'window_size',
+                        'class_names': 'class_names',
+                        'confidence_threshold': 'confidence_threshold',
+                        'input_format': 'input_format',
+                        'expected_keypoint_count': 'expected_keypoint_count',
+                        'coordinate_dimensions': 'coordinate_dimensions',
+                        'coordinate_format': 'coordinate_format',
+                        'max_persons': 'max_persons'
+                    }
+                    
+                    for old_key, new_key in field_mapping.items():
+                        if old_key in final_config:
+                            classifier_config[new_key] = final_config[old_key]
+                    
+                    config_obj = ActionClassificationConfig(**classifier_config)
+                else:
+                    # 기타 모듈은 딕셔너리로 전달
+                    config_obj = final_config
+                
+                instance = module_class(config=config_obj, **kwargs)
             else:
                 # config의 각 키를 개별 인수로 전달
                 filtered_kwargs = {}
@@ -92,6 +202,7 @@ class ModuleFactory:
         'tracker': ModuleRegistry('tracker'),
         'scorer': ModuleRegistry('scorer'),
         'classifier': ModuleRegistry('classifier'),
+        'window_processor': ModuleRegistry('window_processor'),
     }
     
     @classmethod
@@ -168,6 +279,23 @@ class ModuleFactory:
     def list_classifiers(cls) -> Dict[str, Type]:
         """등록된 분류기 목록"""
         return cls._registries['classifier'].list_modules()
+    
+    # Window Processor 관련 메서드
+    @classmethod
+    def register_window_processor(cls, name: str, processor_class: Type,
+                                default_config: Optional[Dict[str, Any]] = None):
+        """윈도우 프로세서 등록"""
+        cls._registries['window_processor'].register(name, processor_class, default_config)
+    
+    @classmethod
+    def create_window_processor(cls, name: str, config: Dict[str, Any], **kwargs):
+        """윈도우 프로세서 생성"""
+        return cls._registries['window_processor'].create(name, config, **kwargs)
+    
+    @classmethod
+    def list_window_processors(cls) -> Dict[str, Type]:
+        """등록된 윈도우 프로세서 목록"""
+        return cls._registries['window_processor'].list_modules()
     
     # 통합 메서드들
     @classmethod

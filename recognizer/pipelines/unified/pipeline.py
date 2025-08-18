@@ -13,7 +13,7 @@ import sys
 recognizer_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(recognizer_root))
 
-from .config import PipelineConfig, PipelineResult
+# from .config import PipelineConfig, Dict[str, Any]
 from ..base import BasePipeline, ModuleInitializer, PerformanceTracker
 from utils.data_structure import FramePoses, WindowAnnotation, ClassificationResult
 
@@ -21,7 +21,7 @@ from utils.data_structure import FramePoses, WindowAnnotation, ClassificationRes
 class UnifiedPipeline(BasePipeline):
     """통합 4단계 파이프라인 매니저"""
     
-    def __init__(self, config: PipelineConfig):
+    def __init__(self, config: Dict[str, Any]):
         if not config.validate():
             raise ValueError("Invalid pipeline configuration")
         
@@ -39,7 +39,7 @@ class UnifiedPipeline(BasePipeline):
         
         # 콜백 함수들
         self.progress_callbacks: List[Callable[[float, str], None]] = []
-        self.result_callbacks: List[Callable[[PipelineResult], None]] = []
+        self.result_callbacks: List[Callable[[Dict[str, Any]], None]] = []
     
     def initialize_pipeline(self) -> bool:
         """파이프라인 모듈 초기화"""
@@ -71,7 +71,7 @@ class UnifiedPipeline(BasePipeline):
             logging.error(f"Pipeline initialization failed: {e}")
             return False
     
-    def process_video(self, video_path: Union[str, Path]) -> PipelineResult:
+    def process_video(self, video_path: Union[str, Path]) -> Dict[str, Any]:
         """단일 비디오 처리"""
         if not self.pose_estimator:
             if not self.initialize_pipeline():
@@ -130,7 +130,7 @@ class UnifiedPipeline(BasePipeline):
         total_time = time.time() - start_time
         avg_fps = len(frame_poses_list) / total_time if total_time > 0 else 0
         
-        result = PipelineResult(
+        result = Dict[str, Any](
             video_path=str(video_path),
             total_frames=len(frame_poses_list),
             processed_windows=len(windows),
@@ -156,7 +156,7 @@ class UnifiedPipeline(BasePipeline):
         
         return result
     
-    def process_video_batch(self, video_paths: List[Union[str, Path]]) -> List[PipelineResult]:
+    def process_video_batch(self, video_paths: List[Union[str, Path]]) -> List[Dict[str, Any]]:
         """다중 비디오 배치 처리"""
         results = []
         
@@ -185,7 +185,7 @@ class UnifiedPipeline(BasePipeline):
         """고유 인물 수 계산"""
         person_ids = set()
         for frame_poses in poses:
-            for pose in frame_poses.poses:
+            for pose in frame_poses.persons:
                 if pose.person_id is not None:
                     person_ids.add(pose.person_id)
         return len(person_ids)
@@ -200,7 +200,7 @@ class UnifiedPipeline(BasePipeline):
         """진행률 콜백 추가"""
         self.progress_callbacks.append(callback)
     
-    def add_result_callback(self, callback: Callable[[PipelineResult], None]):
+    def add_result_callback(self, callback: Callable[[Dict[str, Any]], None]):
         """결과 콜백 추가"""
         self.result_callbacks.append(callback)
     
@@ -217,7 +217,7 @@ class UnifiedPipeline(BasePipeline):
             }
         }
     
-    def save_results(self, result: PipelineResult, output_path: Union[str, Path]):
+    def save_results(self, result: Dict[str, Any], output_path: Union[str, Path]):
         """결과 저장"""
         import pickle
         
