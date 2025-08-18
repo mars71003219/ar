@@ -58,8 +58,11 @@ def process_stage2_tracking_scoring(
     frame_poses_list = load_stage1_result(pkl_file_path)
     
     # 트래커 및 스코어링 모듈 생성
-    tracker = ModuleFactory.create_tracker(tracking_config_dict)
-    scorer = ModuleFactory.create_scorer(scoring_config_dict)
+    tracker_name = tracking_config_dict.get('tracker_name', 'bytetrack')
+    tracker = ModuleFactory.create_tracker(tracker_name, tracking_config_dict)
+    
+    scorer_name = scoring_config_dict.get('scorer_name', 'region_based')
+    scorer = ModuleFactory.create_scorer(scorer_name, scoring_config_dict)
     
     logging.info(f"Stage 2: Processing tracking and scoring for {video_name}")
     

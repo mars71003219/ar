@@ -98,10 +98,7 @@ class ModuleRegistry:
                     # 필수 tracker_name 필드 추가 (기본값 포함)
                     tracking_config['tracker_name'] = final_config.get('tracker_name', 'bytetrack')
                     
-                    # 직접 매핑되는 필드들
-                    for key in ['frame_rate']:
-                        if key in final_config:
-                            tracking_config[key] = final_config[key]
+                    # TrackingConfig에 없는 필드들은 제외 (frame_rate 등)
                     
                     config_obj = TrackingConfig(**tracking_config)
                 elif self.category_name == 'scorer':

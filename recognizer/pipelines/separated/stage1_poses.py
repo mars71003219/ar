@@ -52,11 +52,12 @@ def process_stage1_pose_extraction(
     video_name = video_path.stem
     
     # 포즈 추정기 생성
-    pose_estimator = ModuleFactory.create_pose_estimator(pose_config_dict)
+    model_name = pose_config_dict.get('model_name', 'rtmo')
+    pose_estimator = ModuleFactory.create_pose_estimator(model_name, pose_config_dict)
     
     # 포즈 추정 수행
     logging.info(f"Stage 1: Processing pose estimation for {video_name}")
-    frame_poses_list = pose_estimator.process_video(str(video_path))
+    frame_poses_list = pose_estimator.extract_video_poses(str(video_path))
     
     # 결과 저장
     pkl_path = output_path / f"{video_name}_stage1_poses.pkl"

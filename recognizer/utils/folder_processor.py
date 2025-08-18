@@ -176,46 +176,28 @@ class FolderVideoProcessor:
                      overlay_dir: Path, pkl_dir: Path, json_dir: Path,
                      final_stats: dict, classification_results: list,
                      frame_poses_results: list, rtmo_poses_results: list):
-        """결과 파일 저장"""
-        import json
-        import pickle
+        """결과 파일 저장 - 공용 ResultSaver 사용"""
+        from .result_saver import ResultSaver
         
         video_name = video_path.stem
         
-        # JSON 메타데이터
-        result_file = json_dir / f"{video_name}_results.json"
-        with open(result_file, 'w') as f:
-            json.dump({
+        # 결과 데이터 구성
+        result_dict = {
+            'classifications': classification_results,
+            'total_frames': len(frame_poses_results),
+            'raw_pose_results': rtmo_poses_results,
+            'processed_frame_poses': frame_poses_results,
+            'performance_stats': final_stats,
+            'folder_metadata': {
                 'input_video': str(video_path),
                 'relative_path': str(relative_path),
-                'video_name': video_name,
                 'input_folder_name': self.input_dir.name,
-                'output_directory_structure': {
-                    'base_dir': str(base_output_dir),
-                    'overlay_dir': str(overlay_dir),
-                    'pkl_dir': str(pkl_dir),
-                    'json_dir': str(json_dir)
-                },
-                'processing_duration': self.processing_duration,
-                'performance_stats': final_stats,
-                'classification_results': classification_results,
-                'summary': {
-                    'total_classifications': len(classification_results),
-                    'fight_predictions': len([r for r in classification_results if r.get('prediction') == 1]),
-                    'non_fight_predictions': len([r for r in classification_results if r.get('prediction') == 0]),
-                    'total_pose_frames': len(frame_poses_results)
-                },
-                'timestamp': time.time()
-            }, f, indent=2)
+                'processing_duration': self.processing_duration
+            }
+        }
         
-        # PKL 파일들
-        poses_file = pkl_dir / f"{video_name}_frame_poses.pkl"
-        with open(poses_file, 'wb') as f:
-            pickle.dump(frame_poses_results, f)
-        
-        rtmo_poses_file = pkl_dir / f"{video_name}_rtmo_poses.pkl"
-        with open(rtmo_poses_file, 'wb') as f:
-            pickle.dump(rtmo_poses_results, f)
+        # 공용 ResultSaver로 저장
+        ResultSaver.save_analysis_results(str(video_path), str(json_dir), result_dict)
     
     def _create_visualization(self, video_path: Path, overlay_dir: Path,
                             classification_results: list, frame_poses_results: list,
@@ -245,42 +227,23 @@ class FolderVideoProcessor:
     
     def _calculate_processing_duration(self, video_path: Path) -> float:
         """비디오 길이 기반 동적 처리 시간 계산"""
+        from .video_utils import get_video_duration
+        
         try:
-            import cv2
-            cap = cv2.VideoCapture(str(video_path))
-            
-            if not cap.isOpened():
-                logger.warning(f"Cannot open video for duration calculation: {video_path}")
-                return self.processing_duration  # 기본값 사용
-            
-            # 비디오 정보 가져오기
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            cap.release()
-            
-            if fps <= 0 or frame_count <= 0:
-                logger.warning(f"Invalid video properties: fps={fps}, frames={frame_count}")
+            video_duration = get_video_duration(str(video_path))
+            if video_duration <= 0:
                 return self.processing_duration
             
-            # 비디오 실제 길이 (초)
-            video_duration = frame_count / fps
-            
-            # 처리 시간 계산: 비디오 길이 * 1.2 + 버퍼 시간  
-            # - 실시간보다 20% 더 여유롭게 (테스트용으로 축소)
-            # - 최소 10초, 최대 30초 제한 (테스트용으로 축소)
+            # 처리 시간 계산: 비디오 길이 * 1.2 + 3초 버퍼
             calculated_duration = video_duration * 1.2 + 3.0
-            
-            # 제한 적용
             final_duration = max(10.0, min(calculated_duration, 30.0))
             
-            logger.debug(f"Video analysis: {frame_count} frames, {fps:.1f} FPS, {video_duration:.1f}s duration")
-            logger.debug(f"Processing time: calculated={calculated_duration:.1f}s, final={final_duration:.1f}s")
-            
+            logger.debug(f"Video duration: {video_duration:.1f}s, Processing: {final_duration:.1f}s")
             return final_duration
             
         except Exception as e:
             logger.warning(f"Error calculating processing duration for {video_path}: {e}")
-            return self.processing_duration  # 기본값으로 fallback
+            return self.processing_duration
     
     def _wait_for_processing_completion(self, pipeline, max_duration: float) -> float:
         """처리 완료까지 대기 (윈도우 완료 조건 포함)"""

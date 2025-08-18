@@ -4,15 +4,15 @@
 # 실행 모드 (기본값)
 # mode: "inference.realtime"  # inference.analysis, inference.realtime, inference.visualize
 # mode: "inference.analysis"  # inference.analysis, inference.realtime, inference.visualize
-mode: "inference.visualize"  # inference.analysis, inference.realtime, inference.visualize
-                           # annotation.stage1, annotation.stage2, annotation.stage3, annotation.visualize
+# mode: "inference.visualize"  # inference.analysis, inference.realtime, inference.visualize
+mode: "annotation.visualize"    # annotation.stage1, annotation.stage2, annotation.stage3, annotation.visualize
 
 # 추론 모드 설정
 inference:
   # 분석 모드 - JSON/PKL 파일 생성
   analysis:
-    input: "/workspace/recognizer/test_data"  # 파일 또는 폴더 자동 감지
-    # input: "/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4"
+    # input: "/workspace/recognizer/test_data"  # 파일 또는 폴더 자동 감지
+    input: "/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4"
     output_dir: "output"
   
   # 실시간 모드 - 실시간 디스플레이
@@ -26,13 +26,13 @@ inference:
   
   # 시각화 모드 - PKL 기반 오버레이
   visualize:
-    results_dir: "/workspace/recognizer/output/test_data"
-    input: "/workspace/recognizer/test_data"  # 파일 또는 폴더 자동 감지
-    save_dir: "/workspace/recognizer/output/test_data"
+    # results_dir: "/workspace/recognizer/output/test_data"
+    # input: "/workspace/recognizer/test_data"  # 파일 또는 폴더 자동 감지
+    # save_dir: "/workspace/recognizer/output/test_data"
     save_mode: true                # true: 저장, false: 실시간 표시
-    # results_dir: "/workspace/recognizer/output/N_9_0_0_1_0"
-    # input: "/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4"  # 파일 또는 폴더 자동 감지
-    # save_dir: "/workspace/recognizer/output/N_9_0_0_1_0"
+    results_dir: "/workspace/recognizer/output/N_9_0_0_1_0"
+    input: "/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4"  # 파일 또는 폴더 자동 감지
+    save_dir: "/workspace/recognizer/output/N_9_0_0_1_0"
 
 # 어노테이션 모드 설정
 annotation:
@@ -57,11 +57,13 @@ annotation:
   
   # 어노테이션 시각화
   visualize:
+    # stage: "stage1"                 # stage1, stage2, stage3
+    # results_dir: "output/annotation/stage1_poses"
     stage: "stage2"                 # stage1, stage2, stage3
     results_dir: "output/annotation/stage2_tracking"
     video_dir: "/workspace/recognizer/test_data"
-    save_mode: false
-    save_dir: "output/annotation_overlay"
+    save_mode: true
+    save_dir: "output/annotation/annotation_overlay"
 
 # 모델 설정 (모든 모드 공통)
 models:

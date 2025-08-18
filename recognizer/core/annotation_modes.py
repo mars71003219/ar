@@ -49,11 +49,13 @@ class Stage1Mode(BaseMode):
                 logger.error(f"Unsupported file format: {path_obj.suffix}")
                 return False
         elif path_obj.is_dir():
-            # 폴더 처리
+            # 폴더 처리 (재귀적 탐색)
             video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv']
             video_files = []
             for ext in video_extensions:
-                video_files.extend(path_obj.glob(f"*{ext}"))
+                # 재귀적으로 하위 폴더까지 탐색
+                video_files.extend(path_obj.rglob(f"*{ext}"))
+                video_files.extend(path_obj.rglob(f"*{ext.upper()}"))  # 대문자 확장자도 포함
         else:
             logger.error(f"Input path does not exist: {input_path}")
             return False
@@ -63,12 +65,20 @@ class Stage1Mode(BaseMode):
         
         for video_file in video_files:
             try:
-                output_path = Path(output_dir) / f"{video_file.stem}_poses.pkl"
-                result = process_stage1_pose_extraction(str(video_file), str(output_path), self.config)
+                # pose_config_dict 추출
+                pose_config_dict = self.config.get('models', {}).get('pose_estimation', {})
+                
+                # process_stage1_pose_extraction 함수 시그니처에 맞게 호출
+                result = process_stage1_pose_extraction(
+                    video_path=str(video_file),
+                    pose_config_dict=pose_config_dict,
+                    output_dir=output_dir,
+                    save_visualization=True
+                )
                 
                 if result:
                     processed_count += 1
-                    logger.info(f"Processed: {video_file.name}")
+                    logger.info(f"Processed: {video_file.name} -> {result.output_path}")
                 else:
                     failed_count += 1
                     logger.error(f"Failed: {video_file.name}")
@@ -117,12 +127,22 @@ class Stage2Mode(BaseMode):
         
         for pkl_file in pkl_files:
             try:
-                output_path = Path(output_dir) / f"{pkl_file.stem.replace('_poses', '_tracking')}.pkl"
-                result = process_stage2_tracking_scoring(str(pkl_file), str(output_path), self.config)
+                # 설정 추출
+                tracking_config_dict = self.config.get('models', {}).get('tracking', {})
+                scoring_config_dict = self.config.get('models', {}).get('scoring', {})
+                
+                # process_stage2_tracking_scoring 함수 시그니처에 맞게 호출
+                result = process_stage2_tracking_scoring(
+                    pkl_file_path=str(pkl_file),
+                    tracking_config_dict=tracking_config_dict,
+                    scoring_config_dict=scoring_config_dict,
+                    output_dir=output_dir,
+                    save_visualization=True
+                )
                 
                 if result:
                     processed_count += 1
-                    logger.info(f"Processed: {pkl_file.name}")
+                    logger.info(f"Processed: {pkl_file.name} -> {result.output_path}")
                 else:
                     failed_count += 1
                     logger.error(f"Failed: {pkl_file.name}")
@@ -281,7 +301,9 @@ class AnnotationVisualizeMode(BaseMode):
         result_files = list(results_path.glob(pattern))
         video_files = []
         for ext in ['.mp4', '.avi', '.mov', '.mkv']:
-            video_files.extend(video_path.glob(f"*{ext}"))
+            # 재귀적으로 하위 폴더까지 탐색
+            video_files.extend(video_path.rglob(f"*{ext}"))
+            video_files.extend(video_path.rglob(f"*{ext.upper()}"))
         
         logger.info(f"Found {len(result_files)} result files")
         logger.info(f"Found {len(video_files)} video files")
@@ -292,8 +314,91 @@ class AnnotationVisualizeMode(BaseMode):
         if len(video_files) == 0:
             logger.warning("No video files found")
         
-        # 시각화는 준비되어 있다고 가정 (실제 구현은 추후)
-        logger.info(f"Annotation visualization completed for {stage}")
-        logger.info(f"Note: Actual visualization implementation pending")
-        
-        return True
+        # 실제 시각화 수행
+        try:
+            from visualization.annotation_stage_visualizer import AnnotationStageVisualizer
+            
+            # max_persons 설정 가져오기
+            max_persons = self.config.get('models', {}).get('action_classification', {}).get('max_persons', 4)
+            visualizer = AnnotationStageVisualizer(max_persons=max_persons)
+            save_mode = self.mode_config.get('save_mode', True)
+            save_dir = self.mode_config.get('save_dir', 'output/annotation_overlay')
+            
+            # 출력 디렉토리 생성
+            Path(save_dir).mkdir(parents=True, exist_ok=True)
+            
+            processed_count = 0
+            failed_count = 0
+            
+            # PKL 파일과 비디오 파일 매칭 후 시각화
+            for result_file in result_files:
+                try:
+                    # 비디오 파일명에서 매칭되는 비디오 찾기
+                    video_stem = result_file.stem.replace('_stage1_poses', '').replace('_stage2_tracking', '')
+                    matching_video = None
+                    
+                    for video_file in video_files:
+                        if video_file.stem == video_stem:
+                            matching_video = video_file
+                            break
+                    
+                    if not matching_video:
+                        logger.warning(f"No matching video found for {result_file.name}")
+                        failed_count += 1
+                        continue
+                    
+                    # 출력 경로 설정
+                    if save_mode:
+                        if stage == 'stage1':
+                            output_video_path = Path(save_dir) / f"{video_stem}_stage1_overlay.mp4"
+                        elif stage == 'stage2':
+                            output_video_path = Path(save_dir) / f"{video_stem}_stage2_overlay.mp4"
+                        else:
+                            output_video_path = None
+                    else:
+                        output_video_path = None
+                    
+                    # Stage별 시각화 수행
+                    if stage == 'stage1':
+                        success = visualizer.visualize_stage1_pkl(
+                            pkl_path=result_file,
+                            video_path=matching_video,
+                            output_path=output_video_path
+                        )
+                        
+                    elif stage == 'stage2':
+                        success = visualizer.visualize_stage2_pkl(
+                            pkl_path=result_file,
+                            video_path=matching_video,
+                            output_path=output_video_path
+                        )
+                    
+                    else:  # stage3은 데이터셋이므로 시각화 스킵
+                        logger.info(f"Stage 3 visualization not implemented")
+                        success = True
+                    
+                    if success:
+                        processed_count += 1
+                        if output_video_path:
+                            logger.info(f"Visualized: {result_file.name} -> {output_video_path}")
+                        else:
+                            logger.info(f"Visualized: {result_file.name} (displayed)")
+                    else:
+                        failed_count += 1
+                        logger.error(f"Failed to visualize: {result_file.name}")
+                        
+                except Exception as e:
+                    failed_count += 1
+                    logger.error(f"Error visualizing {result_file.name}: {e}")
+            
+            logger.info(f"Annotation visualization completed for {stage}")
+            logger.info(f"Processed: {processed_count}/{len(result_files)} files")
+            if failed_count > 0:
+                logger.warning(f"Failed: {failed_count} files")
+                
+            return failed_count == 0
+            
+        except ImportError as e:
+            logger.error(f"Failed to import visualization modules: {e}")
+            logger.info(f"Note: Visualization implementation not available")
+            return True

@@ -79,7 +79,7 @@ class SeparatedPipeline:
         """Stage 1: 포즈 추정 실행"""
         logging.info("=== Stage 1: Pose Estimation ===")
         
-        if self.config.enable_multiprocessing and len(video_paths) > 1:
+        if hasattr(self.config, 'enable_multiprocessing') and self.config.enable_multiprocessing and len(video_paths) > 1:
             self._run_stage1_multiprocess(video_paths)
         else:
             self._run_stage1_sequential(video_paths)
@@ -128,9 +128,18 @@ class SeparatedPipeline:
             })
         
         if tasks:
-            with MultiprocessManager(num_workers=self.config.num_workers) as manager:
-                results = manager.run_tasks(tasks)
-                self.results['stage1'].extend(results)
+            with MultiprocessManager(num_workers=getattr(self.config, 'num_workers', 4)) as manager:
+                # 각 task의 함수와 인자를 분리하여 처리
+                for task in tasks:
+                    task_id = manager.submit_task(
+                        func_name=f"{task['func'].__module__}.{task['func'].__name__}",
+                        *task['args']
+                    )
+                    result = manager.get_result(task_id)
+                    if result.success:
+                        self.results['stage1'].append(result.result)
+                    else:
+                        logging.error(f"Task failed: {result.error}")
     
     def _run_stage2(self):
         """Stage 2: 트래킹 및 스코어링 실행"""
@@ -139,7 +148,7 @@ class SeparatedPipeline:
         # Stage 1 결과 파일 찾기
         stage1_files = list(Path(self.config.stage1_output_dir).glob("*_stage1_poses.pkl"))
         
-        if self.config.enable_multiprocessing and len(stage1_files) > 1:
+        if hasattr(self.config, 'enable_multiprocessing') and self.config.enable_multiprocessing and len(stage1_files) > 1:
             self._run_stage2_multiprocess(stage1_files)
         else:
             self._run_stage2_sequential(stage1_files)
@@ -190,9 +199,18 @@ class SeparatedPipeline:
             })
         
         if tasks:
-            with MultiprocessManager(num_workers=self.config.num_workers) as manager:
-                results = manager.run_tasks(tasks)
-                self.results['stage2'].extend(results)
+            with MultiprocessManager(num_workers=getattr(self.config, 'num_workers', 4)) as manager:
+                # 각 task의 함수와 인자를 분리하여 처리
+                for task in tasks:
+                    task_id = manager.submit_task(
+                        func_name=f"{task['func'].__module__}.{task['func'].__name__}",
+                        *task['args']
+                    )
+                    result = manager.get_result(task_id)
+                    if result.success:
+                        self.results['stage2'].append(result.result)
+                    else:
+                        logging.error(f"Task failed: {result.error}")
     
     def _run_stage3(self):
         """Stage 3: 분류 및 복합점수 실행"""
@@ -201,7 +219,7 @@ class SeparatedPipeline:
         # Stage 2 결과 파일 찾기
         stage2_files = list(Path(self.config.stage2_output_dir).glob("*_stage2_tracking.pkl"))
         
-        if self.config.enable_multiprocessing and len(stage2_files) > 1:
+        if hasattr(self.config, 'enable_multiprocessing') and self.config.enable_multiprocessing and len(stage2_files) > 1:
             self._run_stage3_multiprocess(stage2_files)
         else:
             self._run_stage3_sequential(stage2_files)
