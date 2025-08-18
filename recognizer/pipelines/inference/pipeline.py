@@ -3,7 +3,6 @@
 """
 
 import time
-import threading
 import cv2
 import numpy as np
 import logging
@@ -49,22 +48,14 @@ class InferencePipeline(BasePipeline):
         # 설정에서 큐 크기 가져오기
         max_queue_size = config.get('max_queue_size', 200) if isinstance(config, dict) else 200
         
-        # 실시간 처리용 큐들
-        self.frame_queue = Queue(maxsize=max_queue_size)
-        self.pose_queue = Queue(maxsize=max_queue_size)
+        # 실시간 처리용 결과 큐
         self.result_queue = Queue(maxsize=100)
         
-        # 윈도우 버퍼
-        self.window_buffer: List[FramePoses] = []
-        self.frame_buffer: List[FramePoses] = []  # 실시간 처리용 프레임 버퍼
-        self.last_inference_frame = 0
+        # 프레임 버퍼
+        self.frame_buffer: List[FramePoses] = []
         
         # 실시간 디스플레이용 최근 분류 결과 유지
         self.latest_classification = None
-        
-        # 스레드 관리
-        self.processing_thread = None
-        self.is_running = False
         
         # 성능 추적
         self.performance_tracker = PerformanceTracker()
@@ -89,12 +80,7 @@ class InferencePipeline(BasePipeline):
         self.frame_poses_results = []  # 트래킹 및 스코어링 완료된 데이터
         self.rtmo_poses_results = []   # RTMO 원본 포즈 데이터
         
-        # 콜백 함수들
-        self.alert_callbacks: List[Callable[[Dict[str, Any]], None]] = []
-        self.frame_callbacks: List[Callable[[np.ndarray, List[PersonPose]], None]] = []
         
-        # 윈도우 크기 설정
-        self.window_size = 100  # 기본값
         
         # 처리 모드 설정
         if hasattr(config, 'processing_mode'):
@@ -297,91 +283,6 @@ class InferencePipeline(BasePipeline):
             logging.error(f"Pipeline initialization failed: {e}")
             return False
     
-    def start_realtime_processing(self, source: Union[str, int] = 0):
-        """실시간 처리 시작"""
-        if self.is_running:
-            logging.warning("Pipeline is already running")
-            return
-        
-        if not self.initialize_pipeline():
-            raise RuntimeError("Failed to initialize pipeline")
-        
-        self.is_running = True
-        self._clear_queues()
-        
-        # 백그라운드 스레드에서 처리 시작
-        self.processing_thread = threading.Thread(
-            target=self._processing_loop,
-            args=(source,),
-            daemon=True
-        )
-        self.processing_thread.start()
-        
-        logging.info(f"Realtime processing started with source: {source}")
-    
-    def stop_realtime_processing(self):
-        """실시간 처리 중지"""
-        if not self.is_running:
-            return
-        
-        self.is_running = False
-        
-        if self.processing_thread and self.processing_thread.is_alive():
-            self.processing_thread.join(timeout=5.0)
-        
-        self._clear_queues()
-        logging.info("Realtime processing stopped")
-    
-    def _processing_loop(self, source: Union[str, int]):
-        """메인 처리 루프"""
-        cap = cv2.VideoCapture(source)
-        
-        if not cap.isOpened():
-            logging.error(f"Failed to open video source: {source}")
-            self.is_running = False
-            return
-        
-        frame_idx = 0
-        
-        try:
-            while self.is_running:
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                
-                # 프레임 스킵 처리
-                skip_frames = self.config.get('skip_frames', 1) if isinstance(self.config, dict) else getattr(self.config, 'skip_frames', 1)
-                if frame_idx % skip_frames != 0:
-                    frame_idx += 1
-                    continue
-                
-                # 입력 리사이즈
-                resize_input = self.config.get('resize_input') if isinstance(self.config, dict) else getattr(self.config, 'resize_input', None)
-                if resize_input:
-                    frame = cv2.resize(frame, resize_input)
-                
-                # 프레임 처리
-                self._process_single_frame(frame, frame_idx)
-                frame_idx += 1
-                
-                # FPS 제어
-                target_fps = self.config.get('target_fps', 30.0) if isinstance(self.config, dict) else getattr(self.config, 'target_fps', 30.0)
-                time.sleep(1.0 / target_fps)
-                
-        except Exception as e:
-            logging.error(f"Processing loop error: {e}")
-        finally:
-            # 마지막 윈도우 처리 (패딩 포함)
-            try:
-                final_windows = self.window_processor.finalize_processing()
-                for window in final_windows:
-                    self._process_window(window, frame_idx)
-                    logging.info(f"Processed final padded window: {window.window_idx}")
-            except Exception as e:
-                logging.error(f"Error processing final windows: {e}")
-            
-            cap.release()
-            self.is_running = False
     
     def _process_single_frame(self, frame: np.ndarray, frame_idx: int):
         """단일 프레임 처리"""
@@ -429,9 +330,6 @@ class InferencePipeline(BasePipeline):
             for window in new_windows:
                 self._process_window(window, frame_idx)
             
-            # 콜백 호출
-            for callback in self.frame_callbacks:
-                callback(frame, frame_poses.persons)
             
             # 성능 통계 업데이트
             processing_time = time.time() - frame_start_time
@@ -481,91 +379,11 @@ class InferencePipeline(BasePipeline):
         except Exception as e:
             logging.error(f"Window processing error: {e}")
     
-    def _run_inference(self, frame_idx: int):
-        """윈도우 기반 추론 실행 (기존 호환성 유지)"""
-        if len(self.window_buffer) < self.config.window_size:
-            return
-        
-        try:
-            # 윈도우 생성
-            windows = self.window_processor.process_frames(self.window_buffer)
-            
-            for window in windows:
-                # 분류 수행
-                class_start = time.time()
-                result = self.classifier.classify_window(window)
-                class_time = time.time() - class_start
-                self.stage_timings['classification'].append(class_time)
-                
-                # 분류 결과 저장
-                classification_data = {
-                    'timestamp': time.time(),
-                    'frame_idx': frame_idx,
-                    'window_start': window.start_frame if hasattr(window, 'start_frame') else 0,
-                    'window_end': window.end_frame if hasattr(window, 'end_frame') else 0,
-                    'prediction': result.prediction,
-                    'predicted_class': result.get_predicted_label(),
-                    'confidence': result.confidence,
-                    'probabilities': result.probabilities
-                }
-                self.classification_results.append(classification_data)
-                
-                # 알림 체크
-                if result.confidence >= self.config.alert_threshold:
-                    alert = {
-                        'timestamp': time.time(),
-                        'frame_idx': frame_idx,
-                        'alert_type': result.predicted_class_name,
-                        'confidence': result.confidence,
-                        'details': {
-                            'window_info': {
-                                'start_frame': window.start_frame if hasattr(window, 'start_frame') else 0,
-                                'end_frame': window.end_frame if hasattr(window, 'end_frame') else 0,
-                                'person_count': self._count_unique_persons([self.window_buffer[-1]])
-                            },
-                            'classification': result.to_dict()
-                        }
-                    }
-                    
-                    # 알림 콜백 호출
-                    for callback in self.alert_callbacks:
-                        callback(alert)
-                    
-                    self.performance_stats['total_alerts'] += 1
-                
-                # 결과 큐에 추가
-                if not self.result_queue.full():
-                    self.result_queue.put(result)
-            
-            self.performance_stats['windows_classified'] += len(windows)
-            
-        except Exception as e:
-            logging.error(f"Inference error: {e}")
     
-    def _count_unique_persons(self, poses: List[FramePoses]) -> int:
-        """고유 인물 수 계산"""
-        person_ids = set()
-        for frame_poses in poses:
-            for pose in frame_poses.persons:
-                if pose.person_id is not None:
-                    person_ids.add(pose.person_id)
-        return len(person_ids)
     
     
     def _clear_queues(self):
-        """큐 초기화"""
-        while not self.frame_queue.empty():
-            try:
-                self.frame_queue.get_nowait()
-            except Empty:
-                break
-        
-        while not self.pose_queue.empty():
-            try:
-                self.pose_queue.get_nowait()
-            except Empty:
-                break
-        
+        """결과 큐 초기화"""
         while not self.result_queue.empty():
             try:
                 self.result_queue.get_nowait()
@@ -628,13 +446,6 @@ class InferencePipeline(BasePipeline):
         """RTMO 원본 포즈 결과 반환 (트래킹 전)"""
         return self.rtmo_poses_results.copy()
     
-    def add_alert_callback(self, callback: Callable[[Dict[str, Any]], None]):
-        """알림 콜백 추가"""
-        self.alert_callbacks.append(callback)
-    
-    def add_frame_callback(self, callback: Callable[[np.ndarray, List[PersonPose]], None]):
-        """프레임 콜백 추가"""
-        self.frame_callbacks.append(callback)
     
     def start_realtime_display(self, 
                              input_source: Union[str, int],
@@ -904,128 +715,12 @@ class InferencePipeline(BasePipeline):
         try:
             logging.info(f"Processing window {window_number} with {len(frames)} frames")
             
-            # 1. 복합점수 계산 (전체 윈도우 프레임에 대해 한 번에)
-            if self.scorer and any(len(frame.persons) > 0 for frame in frames):
-                person_scores = self.scorer.calculate_scores(frames)
-                logging.info(f"Calculated composite scores for {len(person_scores)} persons")
-                
-                # 복합점수를 각 프레임의 person에 적용
-                scored_frames = []
-                for frame in frames:
-                    scored_persons = []
-                    for person in frame.persons:
-                        if person.track_id and person.track_id in person_scores:
-                            # 복합점수 정보 추가
-                            person.metadata = getattr(person, 'metadata', {})
-                            person.metadata['composite_score'] = person_scores[person.track_id].composite_score
-                            person.metadata['movement_score'] = person_scores[person.track_id].movement_score
-                            person.metadata['interaction_score'] = person_scores[person.track_id].interaction_score
-                        scored_persons.append(person)
-                    
-                    # 프레임 복사본 생성
-                    from utils.data_structure import FramePoses
-                    scored_frame = FramePoses(
-                        frame_idx=frame.frame_idx,
-                        persons=scored_persons,
-                        timestamp=frame.timestamp,
-                        image_shape=frame.image_shape,
-                        metadata=frame.metadata
-                    )
-                    scored_frames.append(scored_frame)
-            else:
-                scored_frames = frames
-                logging.info("No persons to score, using original frames")
+            # 1. 복합점수 계산
+            from utils.pipeline_common import PipelineCommonUtils
+            scored_frames = PipelineCommonUtils.apply_composite_scores(frames, self.scorer)
             
             # 2. 윈도우 어노테이션 생성 (MMAction2 표준 형식)
-            try:
-                # 직접 정의된 create_window_annotation 함수 사용
-                from utils.data_structure import convert_poses_to_stgcn_format, WindowAnnotation
-                
-                # ST-GCN 형식으로 변환 (직접 구현된 함수 사용)
-                def convert_to_stgcn_format(frame_poses_list, max_persons=4):
-                    import numpy as np
-                    T = len(frame_poses_list)
-                    M = max_persons  # 더 많은 person을 고려
-                    V = 17  # COCO 키포인트 수
-                    C = 2   # x, y (confidence는 별도로 저장)
-                    
-                    keypoint = np.zeros((M, T, V, C), dtype=np.float32)  # MMAction2 표준: [M, T, V, C]
-                    keypoint_score = np.zeros((M, T, V), dtype=np.float32)
-                    
-                    # 실제 데이터 통계 수집
-                    person_count_per_frame = []
-                    valid_keypoint_count = 0
-                    total_keypoint_count = 0
-                    
-                    for t, frame_poses in enumerate(frame_poses_list):
-                        person_count_per_frame.append(len(frame_poses.persons))
-                        
-                        for m, person in enumerate(frame_poses.persons[:max_persons]):
-                            total_keypoint_count += 1
-                            
-                            if isinstance(person.keypoints, np.ndarray):
-                                kpts = person.keypoints
-                                if kpts.shape == (V, 3):  # [17, 3] 형태 (x, y, confidence)
-                                    keypoint[m, t, :, :] = kpts[:, :2]  # x, y만 사용
-                                    keypoint_score[m, t, :] = kpts[:, 2]  # confidence
-                                    valid_keypoint_count += 1
-                                elif kpts.shape == (V, 2):  # [17, 2] 형태 (x, y만)
-                                    keypoint[m, t, :, :] = kpts
-                                    keypoint_score[m, t, :] = 1.0  # 기본 confidence
-                                    valid_keypoint_count += 1
-                                elif len(kpts.flatten()) >= V * 2:
-                                    # 1D 배열인 경우
-                                    reshaped = kpts.flatten()[:V*3].reshape(-1, 3) if len(kpts.flatten()) >= V*3 else kpts.flatten()[:V*2].reshape(-1, 2)
-                                    if reshaped.shape[1] >= 2:
-                                        keypoint[m, t, :reshaped.shape[0], :] = reshaped[:, :2]
-                                        if reshaped.shape[1] >= 3:
-                                            keypoint_score[m, t, :reshaped.shape[0]] = reshaped[:, 2]
-                                        else:
-                                            keypoint_score[m, t, :reshaped.shape[0]] = 1.0
-                                        valid_keypoint_count += 1
-                    
-                    # 통계 로그 출력
-                    avg_person_count = np.mean(person_count_per_frame) if person_count_per_frame else 0
-                    max_person_count = max(person_count_per_frame) if person_count_per_frame else 0
-                    data_fill_ratio = valid_keypoint_count / total_keypoint_count if total_keypoint_count > 0 else 0
-                    
-                    logging.info(f"DEBUG: Window conversion stats - Avg persons: {avg_person_count:.1f}, Max persons: {max_person_count}")
-                    logging.info(f"DEBUG: Valid keypoints: {valid_keypoint_count}/{total_keypoint_count} ({data_fill_ratio:.3f})")
-                    logging.info(f"DEBUG: Final keypoint shape: {keypoint.shape}, range: [{keypoint.min():.2f}, {keypoint.max():.2f}]")
-                    
-                    return keypoint, keypoint_score
-                
-                keypoint, keypoint_score = convert_to_stgcn_format(scored_frames)
-                
-                # 이미지 크기 추정 (첫 번째 유효한 프레임에서)
-                img_shape = (640, 640)  # 기본값
-                for frame_poses in scored_frames:
-                    if frame_poses.image_shape is not None:
-                        img_shape = frame_poses.image_shape
-                        break
-                
-                window_annotation = WindowAnnotation(
-                    window_idx=window_number - 1,
-                    start_frame=scored_frames[0].frame_idx,
-                    end_frame=scored_frames[-1].frame_idx,
-                    keypoint=keypoint,
-                    keypoint_score=keypoint_score,
-                    frame_dir=f"window_{window_number}",
-                    img_shape=img_shape,
-                    original_shape=img_shape,
-                    total_frames=len(scored_frames),
-                    label=0
-                )
-            except Exception as e:
-                logging.error(f"Error creating window annotation: {e}")
-                # 간단한 윈도우 객체로 fallback
-                class SimpleWindow:
-                    def __init__(self, frames, window_num):
-                        self.frames = frames
-                        self.start_frame = frames[0].frame_idx
-                        self.end_frame = frames[-1].frame_idx
-                        self.window_idx = window_num - 1
-                window_annotation = SimpleWindow(scored_frames, window_number)
+            window_annotation = PipelineCommonUtils.create_window_annotation(scored_frames, window_number)
             
             # 3. STGCN 분류
             if self.classifier:
@@ -1064,27 +759,6 @@ class InferencePipeline(BasePipeline):
             logging.error(f"Error processing window {window_number}: {e}")
             logging.error(f"Full traceback: {traceback.format_exc()}")
     
-    def _trigger_alert(self, classification_result, frame_number):
-        """알림 트리거"""
-        alert = {
-            'timestamp': time.time(),
-            'frame_idx': frame_number,
-            'alert_type': classification_result.get_predicted_label(),
-            'confidence': classification_result.confidence,
-            'details': {
-                'classification': classification_result.to_dict()
-            }
-        }
-        
-        # 알림 콜백 호출
-        for callback in self.alert_callbacks:
-            try:
-                callback(alert)
-            except Exception as e:
-                logging.error(f"Error in alert callback: {e}")
-        
-        self.performance_stats['total_alerts'] += 1
-        logging.warning(f"VIOLENCE ALERT: {classification_result.get_predicted_label()} (confidence: {classification_result.confidence:.3f}) at frame {frame_number}")
     
     def process_video_analysis_mode(self, video_path: str) -> Dict[str, Any]:
         """분석 모드 전용 비디오 처리 - 한 번에 모든 프레임 처리"""

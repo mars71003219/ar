@@ -2,9 +2,9 @@
 # 모든 모드를 지원하는 완전 통합된 설정
 
 # 실행 모드 (기본값)
-mode: "inference.realtime"  # inference.analysis, inference.realtime, inference.visualize
+# mode: "inference.realtime"  # inference.analysis, inference.realtime, inference.visualize
 # mode: "inference.analysis"  # inference.analysis, inference.realtime, inference.visualize
-# mode: "inference.visualize"  # inference.analysis, inference.realtime, inference.visualize
+mode: "inference.visualize"  # inference.analysis, inference.realtime, inference.visualize
                            # annotation.stage1, annotation.stage2, annotation.stage3, annotation.visualize
 
 # 추론 모드 설정
