@@ -75,14 +75,49 @@ annotation:
 models:
   # 포즈 추정
   pose_estimation:
-    model_name: "rtmo"
-    config_file: "/workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py"
-    checkpoint_path: "/workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth"
-    device: "cuda:0"
-    score_threshold: 0.2
-    nms_threshold: 0.65
-    keypoint_threshold: 0.3
-    input_size: [640, 640]
+    # 추론 방식 선택: "pth", "onnx", "tensorrt"
+    inference_mode: "pth"
+    
+    # PyTorch (.pth) 모드 설정
+    pth:
+      model_name: "rtmo"
+      config_file: "/workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py"
+      checkpoint_path: "/workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth"
+      device: "cuda:0"
+      score_threshold: 0.2
+      nms_threshold: 0.65
+      keypoint_threshold: 0.3
+      input_size: [640, 640]
+    
+    # ONNX 모드 설정
+    onnx:
+      model_name: "rtmo_onnx"
+      model_path: "/workspace/mmpose/checkpoints/end2end.onnx"
+      device: "cuda:0"  # GPU 기본 설정 (CUDA 미지원시 자동으로 CPU 사용)
+      score_threshold: 0.3
+      nms_threshold: 0.45
+      keypoint_threshold: 0.3
+      max_detections: 100
+      model_input_size: [640, 640]
+      mean: null  # [123.675, 116.28, 103.53] 정규화가 필요한 경우
+      std: null   # [58.395, 57.12, 57.375] 정규화가 필요한 경우
+      backend: "onnxruntime"  # onnxruntime 백엔드 사용
+      to_openpose: false  # true면 OpenPose 18 키포인트 형식으로 변환
+    
+    # TensorRT 모드 설정
+    tensorrt:
+      model_name: "rtmo_tensorrt"
+      model_path: "/workspace/mmpose/checkpoints/rtmo.trt"  # TensorRT engine 파일
+      device: "cuda:0"
+      score_threshold: 0.3
+      nms_threshold: 0.45
+      keypoint_threshold: 0.3
+      max_detections: 100
+      model_input_size: [640, 640]
+      mean: null  # [123.675, 116.28, 103.53]
+      std: null   # [58.395, 57.12, 57.375]
+      to_openpose: false
+      fp16_mode: false
   
   # 트래킹
   tracking:

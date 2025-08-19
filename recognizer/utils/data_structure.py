@@ -199,6 +199,14 @@ class PoseEstimationConfig:
     keypoint_threshold: float = 0.3
     max_detections: int = 100
     
+    # ONNX/TensorRT 추가 설정
+    model_input_size: Optional[Tuple[int, int]] = None
+    mean: Optional[List[float]] = None
+    std: Optional[List[float]] = None
+    backend: str = 'pytorch'
+    to_openpose: bool = False
+    fp16_mode: bool = False
+    
     # 멀티 GPU 관련 설정
     gpu_allocation_strategy: str = 'round_robin'  # round_robin, memory_based, first_available
     use_data_parallel: bool = False  # DataParallel 사용 여부
