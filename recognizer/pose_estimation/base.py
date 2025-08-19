@@ -25,6 +25,7 @@ class BasePoseEstimator(ABC):
         self.device = config.device
         self.score_threshold = config.score_threshold
         self.nms_threshold = config.nms_threshold
+        self.keypoint_threshold = getattr(config, 'keypoint_threshold', 0.3)
         self.max_detections = config.max_detections
         
         # 모델 관련 속성
@@ -185,17 +186,20 @@ class BasePoseEstimator(ABC):
             'device': self.device,
             'score_threshold': self.score_threshold,
             'nms_threshold': self.nms_threshold,
+            'keypoint_threshold': self.keypoint_threshold,
             'max_detections': self.max_detections,
             'is_initialized': self.is_initialized
         }
     
     def set_thresholds(self, score_threshold: Optional[float] = None, 
-                      nms_threshold: Optional[float] = None):
+                      nms_threshold: Optional[float] = None,
+                      keypoint_threshold: Optional[float] = None):
         """임계값 설정
         
         Args:
             score_threshold: 점수 임계값
             nms_threshold: NMS 임계값
+            keypoint_threshold: 키포인트 임계값
         """
         if score_threshold is not None:
             self.score_threshold = score_threshold
@@ -204,6 +208,10 @@ class BasePoseEstimator(ABC):
         if nms_threshold is not None:
             self.nms_threshold = nms_threshold
             self.config.nms_threshold = nms_threshold
+            
+        if keypoint_threshold is not None:
+            self.keypoint_threshold = keypoint_threshold
+            self.config.keypoint_threshold = keypoint_threshold
     
     def benchmark(self, video_path: str, num_frames: int = 100) -> Dict[str, float]:
         """성능 벤치마크

@@ -23,20 +23,29 @@ class Stage1Mode(BaseMode):
     
     def execute(self) -> bool:
         """Stage 1 실행"""
-        if not self._validate_config(['input', 'output_dir']):
+        # 경로 관리자 사용
+        from utils.annotation_path_manager import create_path_manager
+        path_manager = create_path_manager(self.config)
+        
+        # 경로 설정
+        annotation_config = self.config.get('annotation', {})
+        input_path = annotation_config.get('input')
+        if not input_path:
+            logger.error("Input path not specified in annotation config")
             return False
+        
+        # 출력 디렉토리 생성
+        output_dir = path_manager.create_directories('stage1')
         
         from pipelines.separated import process_stage1_pose_extraction
         import os
         from pathlib import Path
         
-        input_path = self.mode_config.get('input')
-        output_dir = self.mode_config.get('output_dir')
-        
         logger.info(f"Stage 1: Processing poses from {input_path}")
+        logger.info(f"Output directory: {output_dir}")
         
-        # 출력 디렉토리 생성
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        # 경로 정보 저장
+        path_manager.save_path_info('stage1', output_dir)
         
         # 경로가 파일인지 폴더인지 자동 감지
         path_obj = Path(input_path)
@@ -72,7 +81,7 @@ class Stage1Mode(BaseMode):
                 result = process_stage1_pose_extraction(
                     video_path=str(video_file),
                     pose_config_dict=pose_config_dict,
-                    output_dir=output_dir,
+                    output_dir=str(output_dir),
                     save_visualization=True
                 )
                 
@@ -105,19 +114,22 @@ class Stage2Mode(BaseMode):
     
     def execute(self) -> bool:
         """Stage 2 실행"""
-        if not self._validate_config(['poses_dir', 'output_dir']):
-            return False
+        # 경로 관리자 사용
+        from utils.annotation_path_manager import create_path_manager
+        path_manager = create_path_manager(self.config)
         
         from pipelines.separated import process_stage2_tracking_scoring
         from pathlib import Path
         
-        poses_dir = self.mode_config.get('poses_dir')
-        output_dir = self.mode_config.get('output_dir')
+        # 경로 설정
+        poses_dir = path_manager.get_stage2_input_dir()
+        output_dir = path_manager.create_directories('stage2')
         
         logger.info(f"Stage 2: Processing tracking from {poses_dir}")
+        logger.info(f"Output directory: {output_dir}")
         
-        # 출력 디렉토리 생성
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        # 경로 정보 저장
+        path_manager.save_path_info('stage2', output_dir)
         
         # PKL 파일 찾기
         pkl_files = list(Path(poses_dir).glob("*_poses.pkl"))
@@ -136,7 +148,7 @@ class Stage2Mode(BaseMode):
                     pkl_file_path=str(pkl_file),
                     tracking_config_dict=tracking_config_dict,
                     scoring_config_dict=scoring_config_dict,
-                    output_dir=output_dir,
+                    output_dir=str(output_dir),
                     save_visualization=True
                 )
                 
@@ -169,8 +181,9 @@ class Stage3Mode(BaseMode):
     
     def execute(self) -> bool:
         """Stage 3 실행 - MMAction2 호환 형식으로 생성"""
-        if not self._validate_config(['tracking_dir', 'output_dir', 'split_ratios']):
-            return False
+        # 경로 관리자 사용
+        from utils.annotation_path_manager import create_path_manager
+        path_manager = create_path_manager(self.config)
         
         from pathlib import Path
         import pickle
@@ -182,14 +195,16 @@ class Stage3Mode(BaseMode):
         # 호환성을 위한 모듈 등록
         self._setup_pickle_compatibility()
         
-        tracking_dir = self.mode_config.get('tracking_dir')
-        output_dir = self.mode_config.get('output_dir')
-        split_ratios = self.mode_config.get('split_ratios')
+        # 경로 설정
+        tracking_dir = path_manager.get_stage3_input_dir()
+        output_dir = path_manager.create_directories('stage3')
+        split_ratios = self.mode_config.get('split_ratios', {})
         
         logger.info(f"Stage 3: Creating MMAction2 dataset from {tracking_dir}")
+        logger.info(f"Output directory: {output_dir}")
         
-        # 출력 디렉토리 생성
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        # 경로 정보 저장
+        path_manager.save_path_info('stage3', output_dir)
         
         # 트래킹 결과 파일 찾기
         tracking_files = list(Path(tracking_dir).glob("*_tracking.pkl"))
@@ -537,9 +552,9 @@ class AnnotationVisualizeMode(BaseMode):
         results_dir = self.mode_config.get('results_dir')
         video_dir = self.mode_config.get('video_dir')
         save_mode = self.mode_config.get('save_mode', False)
-        save_dir = self.mode_config.get('save_dir', 'annotation_overlay')
         
-        from pathlib import Path
+        # save_dir을 results_dir 아래 overlay 폴더로 자동 설정
+        save_dir = str(Path(results_dir) / 'overlay')
         
         logger.info(f"Annotation visualization - {stage}")
         logger.info(f"Results dir: {results_dir}")
@@ -591,8 +606,6 @@ class AnnotationVisualizeMode(BaseMode):
             # max_persons 설정 가져오기
             max_persons = self.config.get('models', {}).get('action_classification', {}).get('max_persons', 4)
             visualizer = AnnotationStageVisualizer(max_persons=max_persons)
-            save_mode = self.mode_config.get('save_mode', True)
-            save_dir = self.mode_config.get('save_dir', 'output/annotation_overlay')
             
             # 출력 디렉토리 생성
             Path(save_dir).mkdir(parents=True, exist_ok=True)

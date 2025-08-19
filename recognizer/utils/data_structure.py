@@ -196,6 +196,7 @@ class PoseEstimationConfig:
     input_size: List[int] = field(default_factory=lambda: [640, 640])
     score_threshold: float = 0.3
     nms_threshold: float = 0.65
+    keypoint_threshold: float = 0.3
     max_detections: int = 100
     
     # 멀티 GPU 관련 설정
@@ -239,6 +240,7 @@ class PoseEstimationConfig:
             'input_size': self.input_size,
             'score_threshold': self.score_threshold,
             'nms_threshold': self.nms_threshold,
+            'keypoint_threshold': self.keypoint_threshold,
             'max_detections': self.max_detections,
             'gpu_allocation_strategy': self.gpu_allocation_strategy,
             'use_data_parallel': self.use_data_parallel,

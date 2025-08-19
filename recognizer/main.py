@@ -147,6 +147,13 @@ def main():
         # 모드 결정 (인자 우선, 그 다음 설정 파일)
         mode = args.mode or config.get('mode', 'inference.analysis')
         
+        # 파이프라인 모드 자동 감지 (시각화 모드는 제외)
+        if mode.startswith('annotation.') and mode not in ['annotation.pipeline', 'annotation.visualize']:
+            from core.annotation_pipeline_mode import should_use_pipeline_mode
+            if should_use_pipeline_mode(config):
+                mode = 'annotation.pipeline'
+                logger.info("Pipeline mode detected - switching to annotation.pipeline")
+        
         logger.info(f"=== EXECUTING MODE: {mode} ===")
         
         # 모드 실행

@@ -5,7 +5,7 @@
 # mode: "inference.realtime"  # inference.analysis, inference.realtime, inference.visualize
 # mode: "inference.analysis"  # inference.analysis, inference.realtime, inference.visualize
 # mode: "inference.visualize"  # inference.analysis, inference.realtime, inference.visualize
-mode: "annotation.stage3"    # annotation.stage1, annotation.stage2, annotation.stage3, annotation.visualize
+mode: "annotation.visualize"    # annotation.stage1, annotation.stage2, annotation.stage3, annotation.pipeline, annotation.visualize
 
 # 추론 모드 설정
 inference:
@@ -36,20 +36,27 @@ inference:
 
 # 어노테이션 모드 설정
 annotation:
+  # 공통 설정
+  input: "/workspace/recognizer/test_data"  # 파일 또는 폴더 자동 감지
+  output_dir: "output"  # 기본 출력 디렉토리 (입력 구조 보존)
+  
+  # 연속 실행 설정
+  pipeline_mode: true  # true: stage 1-3 연속 실행, false: 개별 실행
+  
   # Stage 1 - 포즈 추정
   stage1:
-    input: "/workspace/recognizer/test_data"  # 파일 또는 폴더 자동 감지
-    output_dir: "output/annotation/stage1_poses"
+    # input과 output_dir은 공통 설정 사용
+    enabled: true
   
   # Stage 2 - 트래킹 및 정렬
   stage2:
-    poses_dir: "output/annotation/stage1_poses"
-    output_dir: "output/annotation/stage2_tracking"
+    # poses_dir과 output_dir은 공통 설정 기반 자동 계산
+    enabled: true
   
   # Stage 3 - 통합 데이터셋
   stage3:
-    tracking_dir: "output/annotation/stage2_tracking"
-    output_dir: "output/annotation/stage3_dataset"
+    # tracking_dir과 output_dir은 공통 설정 기반 자동 계산
+    enabled: true
     split_ratios:
       train: 0.7
       val: 0.15
@@ -60,10 +67,9 @@ annotation:
     # stage: "stage1"                 # stage1, stage2, stage3
     # results_dir: "output/annotation/stage1_poses"
     stage: "stage2"                 # stage1, stage2, stage3
-    results_dir: "output/annotation/stage2_tracking"
+    results_dir: "output/test_data/stage2_tracking/bytetrack_region_based_t0.2_q0.3_347f9838"
     video_dir: "/workspace/recognizer/test_data"
     save_mode: true
-    save_dir: "output/annotation/annotation_overlay"
 
 # 모델 설정 (모든 모드 공통)
 models:
@@ -74,6 +80,8 @@ models:
     checkpoint_path: "/workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth"
     device: "cuda:0"
     score_threshold: 0.2
+    nms_threshold: 0.65
+    keypoint_threshold: 0.3
     input_size: [640, 640]
   
   # 트래킹

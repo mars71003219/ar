@@ -27,9 +27,11 @@ class ModeManager:
         
         # 어노테이션 모드들
         from .annotation_modes import Stage1Mode, Stage2Mode, Stage3Mode, AnnotationVisualizeMode
+        from .annotation_pipeline_mode import AnnotationPipelineMode
         self._modes['annotation.stage1'] = Stage1Mode
         self._modes['annotation.stage2'] = Stage2Mode
         self._modes['annotation.stage3'] = Stage3Mode
+        self._modes['annotation.pipeline'] = AnnotationPipelineMode
         self._modes['annotation.visualize'] = AnnotationVisualizeMode
         
         logger.info(f"Registered {len(self._modes)} modes")
@@ -66,6 +68,7 @@ class ModeManager:
             'annotation.stage1': 'Stage 1 - 포즈 추정 결과 생성',
             'annotation.stage2': 'Stage 2 - 트래킹 및 정렬 결과 생성',
             'annotation.stage3': 'Stage 3 - 통합 데이터셋 생성',
+            'annotation.pipeline': 'Stage 1-3 연속 실행 (파이프라인 모드)',
             'annotation.visualize': '어노테이션 시각화 모드'
         }
 
