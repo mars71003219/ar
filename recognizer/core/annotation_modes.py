@@ -162,13 +162,13 @@ class Stage2Mode(BaseMode):
 
 
 class Stage3Mode(BaseMode):
-    """Stage 3 - train/val/test 통합 데이터셋 생성"""
+    """Stage 3 - train/val/test 통합 데이터셋 생성 (MMAction2 형식)"""
     
     def _get_mode_config(self) -> Dict[str, Any]:
         return self.config.get('annotation', {}).get('stage3', {})
     
     def execute(self) -> bool:
-        """Stage 3 실행"""
+        """Stage 3 실행 - MMAction2 호환 형식으로 생성"""
         if not self._validate_config(['tracking_dir', 'output_dir', 'split_ratios']):
             return False
         
@@ -176,12 +176,17 @@ class Stage3Mode(BaseMode):
         import pickle
         import json
         import random
+        import numpy as np
+        import sys
+        
+        # 호환성을 위한 모듈 등록
+        self._setup_pickle_compatibility()
         
         tracking_dir = self.mode_config.get('tracking_dir')
         output_dir = self.mode_config.get('output_dir')
         split_ratios = self.mode_config.get('split_ratios')
         
-        logger.info(f"Stage 3: Integrating dataset from {tracking_dir}")
+        logger.info(f"Stage 3: Creating MMAction2 dataset from {tracking_dir}")
         
         # 출력 디렉토리 생성
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -193,63 +198,328 @@ class Stage3Mode(BaseMode):
             logger.error(f"No tracking files found in {tracking_dir}")
             return False
         
-        # 데이터 수집
-        all_data = []
+        # 모든 어노테이션 수집
+        all_annotations = []
+        failed_files = []
+        
         for tracking_file in tracking_files:
             try:
+                # 호환성을 위한 모듈 등록 (파일별로)
+                self._setup_pickle_compatibility()
+                
                 with open(tracking_file, 'rb') as f:
                     data = pickle.load(f)
-                    all_data.append({
-                        'filename': tracking_file.name,
-                        'data': data
-                    })
-                logger.info(f"Loaded: {tracking_file.name}")
+                
+                # tracking 데이터에서 MMAction2 형식으로 변환
+                annotation = self._convert_to_mmaction_format(tracking_file, data)
+                if annotation:
+                    all_annotations.append(annotation)
+                    logger.info(f"Converted: {tracking_file.name}")
+                else:
+                    logger.warning(f"Skip: {tracking_file.name} - invalid data")
+                    failed_files.append(tracking_file.name)
+                    
             except Exception as e:
                 logger.error(f"Failed to load {tracking_file.name}: {e}")
+                failed_files.append(tracking_file.name)
         
-        # 데이터 분할
-        random.shuffle(all_data)
-        total_count = len(all_data)
+        if not all_annotations:
+            logger.error("No valid annotations were created")
+            return False
         
+        # 데이터 셔플
+        random.seed(42)  # 재현 가능한 결과를 위해
+        random.shuffle(all_annotations)
+        total_count = len(all_annotations)
+        
+        # 분할 계산
         train_count = int(total_count * split_ratios['train'])
         val_count = int(total_count * split_ratios['val'])
         test_count = total_count - train_count - val_count
         
-        train_data = all_data[:train_count]
-        val_data = all_data[train_count:train_count + val_count]
-        test_data = all_data[train_count + val_count:]
+        # 분할 수행
+        train_annotations = all_annotations[:train_count]
+        val_annotations = all_annotations[train_count:train_count + val_count]
+        test_annotations = all_annotations[train_count + val_count:]
         
-        # 분할된 데이터 저장
-        splits = [
-            ('train', train_data, train_count),
-            ('val', val_data, val_count),
-            ('test', test_data, test_count)
+        # MMAction2 형식으로 저장
+        splits_data = [
+            ('train', train_annotations, train_count),
+            ('val', val_annotations, val_count),
+            ('test', test_annotations, test_count)
         ]
         
-        for split_name, split_data, count in splits:
+        all_frame_dirs = []
+        
+        for split_name, annotations, count in splits_data:
             if count > 0:
+                # MMAction2 형식: split이 없으면 annotations만 저장, 있으면 split과 함께 저장
+                # train/val/test 파일은 각각 독립적이므로 split 정보는 필요 없음
                 output_path = Path(output_dir) / f"{split_name}.pkl"
                 with open(output_path, 'wb') as f:
-                    pickle.dump(split_data, f)
-                logger.info(f"Saved {split_name}.pkl: {count} samples")
+                    pickle.dump(annotations, f, protocol=pickle.HIGHEST_PROTOCOL)
+                
+                logger.info(f"Saved {split_name}.pkl: {count} annotations")
+                
+                # 샘플 검증
+                if annotations:
+                    sample = annotations[0]
+                    logger.info(f"  Sample keypoint shape: {sample['keypoint'].shape}")
+                    logger.info(f"  Sample label: {sample['label']}")
+                
+                # frame_dir 수집
+                all_frame_dirs.extend([ann['frame_dir'] for ann in annotations])
         
         # 메타데이터 저장
         metadata = {
-            'total_files': total_count,
+            'total_annotations': total_count,
             'train_count': train_count,
             'val_count': val_count,
             'test_count': test_count,
-            'split_ratios': split_ratios
+            'split_ratios': split_ratios,
+            'failed_files': failed_files,
+            'dataset_info': {
+                'num_classes': 2,
+                'class_names': ['NonFight', 'Fight'],
+                'keypoint_format': 'coco17',
+                'coordinate_dimensions': 2,
+                'max_persons': 4
+            }
         }
         
         metadata_path = Path(output_dir) / "metadata.json"
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
         
-        logger.info("Stage 3 completed: Dataset integration successful")
+        logger.info("Stage 3 completed: MMAction2 dataset created successfully")
         logger.info(f"Train: {train_count}, Val: {val_count}, Test: {test_count}")
+        if failed_files:
+            logger.warning(f"Failed files: {len(failed_files)}")
         
         return True
+    
+    def _setup_pickle_compatibility(self):
+        """pickle 파일 호환성을 위한 모듈 설정"""
+        import sys
+        import numpy as np
+        from dataclasses import dataclass
+        from typing import List, Dict, Any, Optional
+        
+        # 더미 클래스들 정의
+        @dataclass
+        class PersonPose:
+            person_id: int = 0
+            keypoints: np.ndarray = None
+            bbox: List[float] = None
+            confidence: float = 0.0
+            
+            def to_dict(self):
+                return self.__dict__
+        
+        @dataclass
+        class FramePoses:
+            frame_idx: int = 0
+            persons: List[PersonPose] = None
+            metadata: Dict[str, Any] = None
+            
+            def to_dict(self):
+                return self.__dict__
+        
+        @dataclass
+        class WindowAnnotation:
+            start_frame: int = 0
+            end_frame: int = 0
+            keypoints_sequence: np.ndarray = None
+            label: int = 0
+            confidence: float = 0.0
+            metadata: Dict[str, Any] = None
+            person_id: int = None
+            
+        @dataclass
+        class ClassificationResult:
+            label: int = 0
+            confidence: float = 0.0
+            class_name: str = ""
+            
+            def to_dict(self):
+                return self.__dict__
+        
+        @dataclass
+        class VisualizationData:
+            video_name: str = ""
+            frame_data: List[FramePoses] = None
+            stage_info: Dict[str, Any] = None
+            poses_only: Optional[List[FramePoses]] = None
+            poses_with_tracking: Optional[List[FramePoses]] = None
+            tracking_info: Optional[Dict[str, Any]] = None
+            poses_with_scores: Optional[List[FramePoses]] = None
+            scoring_info: Optional[Dict[str, Any]] = None
+            classification_results: Optional[List[ClassificationResult]] = None
+            
+            def to_dict(self):
+                return self.__dict__
+        
+        @dataclass
+        class StageResult:
+            stage_name: str = ""
+            input_path: str = ""
+            output_path: str = ""
+            processing_time: float = 0.0
+            metadata: Dict[str, Any] = None
+        
+        @dataclass
+        class STGCNData:
+            video_name: str = ""
+            keypoints_sequence: np.ndarray = None
+            label: int = 0
+            confidence: float = 0.0
+            metadata: Dict[str, Any] = None
+            person_id: Optional[int] = None
+            window_info: Optional[Dict[str, Any]] = None
+            quality_score: Optional[float] = None
+            
+            def to_dict(self):
+                return self.__dict__
+        
+        # 모듈 생성 및 클래스 등록
+        if 'pipelines' not in sys.modules:
+            pipelines_module = type('module', (), {})()
+            sys.modules['pipelines'] = pipelines_module
+            
+            separated_module = type('module', (), {})()
+            sys.modules['pipelines.separated'] = separated_module
+            
+            data_structures_module = type('module', (), {})()
+            data_structures_module.PersonPose = PersonPose
+            data_structures_module.FramePoses = FramePoses
+            data_structures_module.WindowAnnotation = WindowAnnotation
+            data_structures_module.ClassificationResult = ClassificationResult
+            data_structures_module.VisualizationData = VisualizationData
+            data_structures_module.StageResult = StageResult
+            data_structures_module.STGCNData = STGCNData
+            sys.modules['pipelines.separated.data_structures'] = data_structures_module
+            
+            # 기타 모듈들
+            sys.modules['pipelines.transforms'] = type('module', (), {})()
+            sys.modules['pipelines.utils'] = type('module', (), {})()
+            
+            # utils.data_structure 모듈도 등록
+            utils_module = type('module', (), {})()
+            sys.modules['utils'] = utils_module
+            
+            data_structure_module = type('module', (), {})()
+            data_structure_module.PersonPose = PersonPose
+            data_structure_module.FramePoses = FramePoses
+            data_structure_module.WindowAnnotation = WindowAnnotation
+            data_structure_module.ClassificationResult = ClassificationResult
+            sys.modules['utils.data_structure'] = data_structure_module
+    
+    def _convert_to_mmaction_format(self, tracking_file: Path, data) -> dict:
+        """tracking 데이터를 MMAction2 형식으로 변환"""
+        try:
+            import numpy as np
+            
+            # VisualizationData 객체에서 데이터 추출
+            if hasattr(data, 'poses_with_tracking') and data.poses_with_tracking:
+                frame_data = data.poses_with_tracking
+            elif hasattr(data, 'frame_data') and data.frame_data:
+                frame_data = data.frame_data
+            else:
+                logger.warning(f"No frame data in {tracking_file.name}")
+                return None
+            
+            if not frame_data:
+                logger.warning(f"Empty frame data in {tracking_file.name}")
+                return None
+            
+            # 프레임별 keypoint 데이터 수집
+            frame_keypoints = {}
+            frame_scores = {}
+            
+            for frame_poses in frame_data:
+                if not hasattr(frame_poses, 'frame_idx') or not hasattr(frame_poses, 'persons'):
+                    continue
+                
+                frame_idx = frame_poses.frame_idx
+                persons = frame_poses.persons if frame_poses.persons else []
+                
+                if not persons:
+                    continue
+                
+                # person별 keypoint 수집
+                frame_kps = []
+                frame_scs = []
+                
+                for person in persons:
+                    if hasattr(person, 'keypoints') and person.keypoints is not None:
+                        kp = person.keypoints
+                        if kp.shape[-1] == 3:
+                            # (17, 3) -> (17, 2) + (17,)
+                            coords = kp[:, :2]  # (17, 2)
+                            scores = kp[:, 2]   # (17,)
+                        else:
+                            coords = kp  # (17, 2)
+                            scores = np.ones(kp.shape[0])  # (17,)
+                        
+                        frame_kps.append(coords)
+                        frame_scs.append(scores)
+                
+                if frame_kps:
+                    frame_keypoints[frame_idx] = np.array(frame_kps)  # (N, 17, 2)
+                    frame_scores[frame_idx] = np.array(frame_scs)     # (N, 17)
+            
+            if not frame_keypoints:
+                logger.warning(f"No valid keypoints in {tracking_file.name}")
+                return None
+            
+            # 연속된 프레임 시퀀스 생성
+            frame_indices = sorted(frame_keypoints.keys())
+            total_frames = len(frame_indices)
+            
+            if total_frames == 0:
+                return None
+            
+            # 최대 person 수 결정 (설정에서 가져오거나 기본값 4)
+            max_persons = 4
+            num_keypoints = 17  # COCO format
+            
+            # keypoint 배열 초기화: (M, T, V, C) = (max_persons, total_frames, 17, 2)
+            keypoint_array = np.zeros((max_persons, total_frames, num_keypoints, 2), dtype=np.float32)
+            score_array = np.zeros((max_persons, total_frames, num_keypoints), dtype=np.float32)
+            
+            # 프레임별 데이터 채우기
+            for t, frame_idx in enumerate(frame_indices):
+                frame_kp = frame_keypoints[frame_idx]  # (N, 17, 2)
+                frame_sc = frame_scores[frame_idx]     # (N, 17)
+                
+                # 최대 person 수만큼만 사용
+                num_persons = min(frame_kp.shape[0], max_persons)
+                keypoint_array[:num_persons, t, :, :] = frame_kp[:num_persons]
+                score_array[:num_persons, t, :] = frame_sc[:num_persons]
+            
+            # 파일명에서 라벨 추출 (예: F_로 시작하면 Fight(1), 아니면 NonFight(0))
+            filename = tracking_file.stem
+            if filename.startswith('F_') or 'fight' in filename.lower() or 'violence' in filename.lower():
+                label = 1  # Fight
+            else:
+                label = 0  # NonFight
+            
+            # MMAction2 어노테이션 형식
+            annotation = {
+                'frame_dir': filename,  # 고유 식별자
+                'total_frames': total_frames,
+                'img_shape': (480, 640),  # 기본 이미지 크기
+                'original_shape': (480, 640),
+                'label': label,
+                'keypoint': keypoint_array,  # (M, T, V, C)
+                'keypoint_score': score_array  # (M, T, V)
+            }
+            
+            return annotation
+            
+        except Exception as e:
+            logger.error(f"Error converting {tracking_file.name}: {e}")
+            return None
 
 
 class AnnotationVisualizeMode(BaseMode):

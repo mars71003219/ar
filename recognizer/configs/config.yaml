@@ -5,7 +5,7 @@
 # mode: "inference.realtime"  # inference.analysis, inference.realtime, inference.visualize
 # mode: "inference.analysis"  # inference.analysis, inference.realtime, inference.visualize
 # mode: "inference.visualize"  # inference.analysis, inference.realtime, inference.visualize
-mode: "annotation.visualize"    # annotation.stage1, annotation.stage2, annotation.stage3, annotation.visualize
+mode: "annotation.stage3"    # annotation.stage1, annotation.stage2, annotation.stage3, annotation.visualize
 
 # 추론 모드 설정
 inference:
