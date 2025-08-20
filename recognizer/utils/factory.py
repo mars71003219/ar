@@ -61,11 +61,22 @@ class ModuleRegistry:
                     # 필수 model_name 필드 추가
                     pose_config['model_name'] = final_config.get('model_name', 'rtmo')
                     
+                    
                     # checkpoint_path 또는 model_path -> model_path 매핑
-                    if 'checkpoint_path' in final_config:
+                    if 'checkpoint_path' in final_config and final_config['checkpoint_path']:
                         pose_config['model_path'] = final_config['checkpoint_path']
-                    elif 'model_path' in final_config:
+                    elif 'model_path' in final_config and final_config['model_path']:
                         pose_config['model_path'] = final_config['model_path']
+                    
+                    # config_file 필드 확인 및 매핑 (ONNX, TensorRT는 제외)
+                    if name not in ['rtmo_onnx', 'rtmo_tensorrt']:
+                        if 'config_file' not in final_config or not final_config['config_file']:
+                            logger.warning(f"config_file not found in {self.category_name} config: {final_config}")
+                            raise ValueError(f"config_file is required for {name} but not found in configuration")
+                    else:
+                        # ONNX, TensorRT 모드에서는 config_file이 선택적
+                        if 'config_file' in final_config and final_config['config_file']:
+                            pose_config['config_file'] = final_config['config_file']
                     
                     # 직접 매핑되는 필드들
                     field_mapping = {

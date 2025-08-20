@@ -51,9 +51,8 @@ def process_stage1_pose_extraction(
     video_path = Path(video_path)
     video_name = video_path.stem
     
-    # 포즈 추정기 생성
-    model_name = pose_config_dict.get('model_name', 'rtmo')
-    pose_estimator = ModuleFactory.create_pose_estimator(model_name, pose_config_dict)
+    # 포즈 추정기 생성 (inference_mode 설정을 고려)
+    pose_estimator = ModuleFactory.create_pose_estimator_from_inference_config(pose_config_dict)
     
     # 포즈 추정 수행
     logging.info(f"Stage 1: Processing pose estimation for {video_name}")

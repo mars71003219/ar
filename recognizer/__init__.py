@@ -27,6 +27,20 @@ def initialize_factory():
         from .pose_estimation.rtmo import RTMOPoseEstimator
         factory.register_pose_estimator('rtmo', RTMOPoseEstimator)
         
+        # ONNX 포즈 추정 모듈
+        try:
+            from .pose_estimation.rtmo.rtmo_onnx_estimator import RTMOONNXEstimator
+            factory.register_pose_estimator('rtmo_onnx', RTMOONNXEstimator)
+        except ImportError as e:
+            print(f"ONNX pose estimator not available: {e}")
+        
+        # TensorRT 포즈 추정 모듈  
+        try:
+            from .pose_estimation.rtmo.rtmo_tensorrt_estimator import RTMOTensorRTEstimator
+            factory.register_pose_estimator('rtmo_tensorrt', RTMOTensorRTEstimator)
+        except ImportError as e:
+            print(f"TensorRT pose estimator not available: {e}")
+        
         # 트래킹 모듈 (mmtracking 사용)
         from .tracking.mmtracking_adapter import MMTrackingAdapter
         factory.register_tracker('bytetrack', MMTrackingAdapter)
