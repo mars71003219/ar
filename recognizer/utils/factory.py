@@ -257,8 +257,12 @@ class ModuleFactory:
         # 추론 방식 확인
         inference_mode = pose_config.get('inference_mode', 'pth')
         
+        # 디버깅을 위한 로그 추가
+        logger.info(f"Detected inference_mode: {inference_mode}")
+        logger.info(f"Available configurations: {list(pose_config.keys())}")
+        
         if inference_mode not in pose_config:
-            raise ValueError(f"Configuration for inference mode '{inference_mode}' not found")
+            raise ValueError(f"Configuration for inference mode '{inference_mode}' not found. Available: {list(pose_config.keys())}")
         
         mode_config = pose_config[inference_mode].copy()
         model_name = mode_config.get('model_name', 'rtmo')

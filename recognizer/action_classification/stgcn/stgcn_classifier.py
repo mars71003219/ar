@@ -71,6 +71,10 @@ class STGCNActionClassifier(BaseActionClassifier):
         
         # 윈도우 카운터 (STGCN 내부에서 관리)
         self.window_counter = 0
+        
+        # 워밍업 관련
+        self.is_warmed_up = False
+        self.warmup_runs = 1  # 워밍업 실행 횟수 (에러 방지를 위해 1번만)
     
     def initialize_model(self) -> bool:
         """ST-GCN++ 모델 초기화"""
@@ -98,6 +102,13 @@ class STGCNActionClassifier(BaseActionClassifier):
                 device=self.device
             )
             
+            # 모델 워밍업 실행
+            logging.info("Starting STGCN model warmup...")
+            self._warmup_model()
+            
+            # GPU 메모리 최적화 
+            self._optimize_gpu_performance()
+            
             self.is_initialized = True
             logging.info("ST-GCN++ classifier initialized successfully")
             return True
@@ -107,6 +118,138 @@ class STGCNActionClassifier(BaseActionClassifier):
             self.is_initialized = False
             return False
     
+    def _warmup_model(self):
+        """모델 워밍업을 통한 Cold Start 해결"""
+        try:
+            import time
+            logging.info(f"Performing {self.warmup_runs} warmup iterations...")
+            
+            # 더미 데이터 생성 (실제 입력과 동일한 형태)
+            # 각 warmup마다 새로운 더미 데이터 생성하여 메모리 충돌 방지
+            
+            warmup_times = []
+            
+            with torch.no_grad():
+                for i in range(self.warmup_runs):
+                    start_time = time.time()
+                    
+                    # 각 warmup마다 새로운 더미 데이터 생성
+                    dummy_data = {
+                        'keypoint': np.random.randn(4, 100, 17, 2).astype(np.float32),  # (M, T, V, C)
+                        'keypoint_score': np.random.rand(4, 100, 17).astype(np.float32),  # (M, T, V)
+                        'total_frames': 100,
+                        'img_shape': (640, 640),
+                        'original_shape': (640, 640),
+                        'label': 0
+                    }
+                    
+                    try:
+                        # MMAction2 추론 실행
+                        logging.debug(f"Warmup {i+1}: Starting inference_recognizer call")
+                        result = inference_recognizer(self.recognizer, dummy_data)
+                        logging.debug(f"Warmup {i+1}: inference_recognizer completed successfully")
+                        
+                        warmup_time = time.time() - start_time
+                        warmup_times.append(warmup_time)
+                        logging.info(f"  Warmup {i+1}/{self.warmup_runs}: {warmup_time*1000:.2f}ms")
+                        
+                        # 메모리 정리 - 각 워밍업 후 즉시 정리
+                        del result
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                            
+                    except Exception as e:
+                        warmup_time = time.time() - start_time
+                        warmup_times.append(warmup_time)
+                        import traceback
+                        full_traceback = traceback.format_exc()
+                        logging.warning(f"  Warmup {i+1}/{self.warmup_runs}: {warmup_time*1000:.2f}ms")
+                        logging.warning(f"  Error: {str(e)}")
+                        logging.debug(f"  Full traceback:\n{full_traceback}")
+                        
+                        # 에러 발생해도 메모리 정리
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                    
+                    # 각 warmup 후 더미 데이터 정리
+                    del dummy_data
+            
+            # warmup 완료 후 최종 메모리 정리
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
+            # 최종 GPU 메모리 동기화 및 정리
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+            
+            avg_warmup_time = sum(warmup_times) / len(warmup_times)
+            logging.info(f"Warmup completed! Average time: {avg_warmup_time*1000:.2f}ms")
+            logging.info(f"Final warmup time: {warmup_times[-1]*1000:.2f}ms ({1.0/warmup_times[-1]:.1f} FPS)")
+            
+            self.is_warmed_up = True
+            
+        except Exception as e:
+            logging.warning(f"Model warmup failed, but continuing: {str(e)}")
+            self.is_warmed_up = False
+    
+    def _optimize_gpu_performance(self):
+        """GPU 성능 최적화"""
+        try:
+            import time
+            if torch.cuda.is_available() and 'cuda' in str(self.device):
+                logging.info("Optimizing GPU performance...")
+                
+                # CUDA 컨텍스트 최적화
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                
+                # 모델을 evaluation mode로 설정하여 최적화 활성화
+                self.recognizer.eval()
+                
+                # PyTorch 성능 최적화 설정
+                torch.backends.cudnn.benchmark = True  # cuDNN 자동 튜닝
+                torch.backends.cudnn.deterministic = False  # 성능 우선
+                
+                # GPU 메모리 풀 설정
+                torch.cuda.set_per_process_memory_fraction(0.8)  # 메모리 사용량 제한
+                
+                # 추가 워밍업 (GPU 커널 최적화 완료까지)
+                extended_warmup_times = []
+                dummy_data = {
+                    'keypoint': np.random.randn(4, 100, 17, 2).astype(np.float32),
+                    'keypoint_score': np.random.rand(4, 100, 17).astype(np.float32),
+                    'total_frames': 100,
+                    'img_shape': (640, 640),
+                    'original_shape': (640, 640),
+                    'label': 0
+                }
+                
+                with torch.no_grad():
+                    # 연속 실행으로 커널 최적화 완료
+                    for i in range(5):  # 5번 더 실행하여 안정화
+                        start_time = time.time()
+                        try:
+                            result = inference_recognizer(self.recognizer, dummy_data)
+                            warmup_time = time.time() - start_time
+                            extended_warmup_times.append(warmup_time)
+                            logging.info(f"  Extended warmup {i+1}/5: {warmup_time*1000:.2f}ms")
+                        except Exception as e:
+                            warmup_time = time.time() - start_time
+                            extended_warmup_times.append(warmup_time)
+                            logging.warning(f"  Extended warmup {i+1}/5: {warmup_time*1000:.2f}ms (with error: {str(e)[:50]})")
+                
+                # 성능 안정화 확인
+                recent_avg = sum(extended_warmup_times[-3:]) / 3
+                logging.info(f"GPU optimization completed! Stable performance: {recent_avg*1000:.2f}ms ({1.0/recent_avg:.1f} FPS)")
+                
+                # 메모리 최종 정리
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                
+        except Exception as e:
+            logging.warning(f"GPU performance optimization failed: {str(e)}")
+    
     def classify_window(self, window_data: WindowAnnotation) -> ClassificationResult:
         """단일 윈도우 분류 - 파이프라인 호환용 메서드명"""
         logging.info(f"STGCN classify_window called for window {window_data.window_idx}")
@@ -114,6 +257,9 @@ class STGCNActionClassifier(BaseActionClassifier):
     
     def classify_single_window(self, window_data: WindowAnnotation) -> ClassificationResult:
         """단일 윈도우 분류"""
+        import time
+        total_start = time.time()
+        
         # STGCN이 처리할 때마다 윈도우 카운터 증가
         self.window_counter += 1
         
@@ -123,23 +269,53 @@ class STGCNActionClassifier(BaseActionClassifier):
             raise RuntimeError("Failed to initialize STGCN model")
         
         try:
-            # 윈도우 데이터 전처리
+            # 1. 윈도우 데이터 전처리
+            preprocess_start = time.time()
             preprocessed_data = self.preprocess_window_data(window_data)
+            preprocess_time = time.time() - preprocess_start
+            
             if preprocessed_data is None:
                 logging.warning(f"Preprocessing failed for STGCN window {self.window_counter}")
                 return self._create_error_result(self.window_counter, "Preprocessing failed")
             
-            # ST-GCN++ 입력 형태로 변환
+            # 2. ST-GCN++ 입력 형태로 변환
+            prepare_start = time.time()
             stgcn_input = self._prepare_stgcn_input(preprocessed_data)
+            prepare_time = time.time() - prepare_start
+            
             if stgcn_input is None:
                 return self._create_error_result(self.window_counter, "ST-GCN++ input preparation failed")
             
-            # MMAction2 추론 실행
+            # 3. MMAction2 추론 실행
+            inference_start = time.time()
             with torch.no_grad():
                 result = inference_recognizer(self.recognizer, stgcn_input)
+            inference_time = time.time() - inference_start
+            
+            # 중간 데이터 정리
+            del stgcn_input
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
                 
-            # 결과 후처리 (윈도우 번호 포함)
-            return self._process_inference_result(self.window_counter, result)
+            # 4. 결과 후처리
+            postprocess_start = time.time()
+            final_result = self._process_inference_result(self.window_counter, result)
+            postprocess_time = time.time() - postprocess_start
+            
+            # 추론 결과 정리
+            del result
+            
+            total_time = time.time() - total_start
+            
+            # 상세한 성능 로깅
+            logging.info(f"STGCN Window {self.window_counter} Performance Breakdown:")
+            logging.info(f"  - Preprocess: {preprocess_time*1000:.2f}ms")
+            logging.info(f"  - Input prep: {prepare_time*1000:.2f}ms")
+            logging.info(f"  - Inference:  {inference_time*1000:.2f}ms")
+            logging.info(f"  - Postprocess: {postprocess_time*1000:.2f}ms")
+            logging.info(f"  - Total:      {total_time*1000:.2f}ms ({1.0/total_time:.1f} FPS)")
+            
+            return final_result
             
         except Exception as e:
             import traceback
@@ -220,8 +396,13 @@ class STGCNActionClassifier(BaseActionClassifier):
             if data.ndim != 4:
                 raise ValueError(f"Expected 4D array, got {data.ndim}D with shape {data.shape}")
             
-            C, T, V, M = data.shape
-            logging.info(f"Unpacked dimensions: C={C}, T={T}, V={V}, M={M}")
+            logging.info(f"Attempting to unpack data.shape: {data.shape}")
+            try:
+                C, T, V, M = data.shape
+                logging.info(f"Successfully unpacked dimensions: C={C}, T={T}, V={V}, M={M}")
+            except ValueError as unpack_err:
+                logging.error(f"Failed to unpack data.shape {data.shape}: {unpack_err}")
+                raise
             
             # 최소 차원 검증
             if C == 0 or T == 0 or V == 0 or M == 0:
@@ -292,12 +473,19 @@ class STGCNActionClassifier(BaseActionClassifier):
     
     def _create_error_result(self, window_id: int, error_msg: str) -> ClassificationResult:
         """에러 결과 생성"""
-        return ClassificationResult(
+        result = ClassificationResult(
             prediction=0,  # 기본값으로 NonFight
             confidence=0.0,
             probabilities=[1.0, 0.0],  # [NonFight_prob, Fight_prob]
             model_name='stgcn'
         )
+        
+        # 에러 결과에도 메타데이터 추가
+        if not hasattr(result, 'metadata'):
+            result.metadata = {}
+        result.metadata = {'display_id': window_id, 'error': error_msg}
+        
+        return result
     
     def get_classifier_info(self) -> Dict[str, Any]:
         """분류기 정보 반환"""

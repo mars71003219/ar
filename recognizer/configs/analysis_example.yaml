@@ -1,9 +1,0 @@
-# 분석 모드 예시 설정
-execution:
-  mode: "analysis"
-  input: "/path/to/video.mp4"           # 단일 파일 분석
-  # input_dir: "/path/to/video_folder"  # 폴더 분석 (input과 둘 중 하나만)
-  output_dir: "analysis_results"
-
-# 모델 설정은 기본값 사용 (config.yaml 참조)
-# 필요시 오버라이드 가능

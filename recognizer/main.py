@@ -34,13 +34,35 @@ def register_modules():
     from utils.factory import ModuleFactory
     
     try:
-        # RTMO 포즈 추정기
+        # RTMO 포즈 추정기 (PyTorch)
         from pose_estimation.rtmo.rtmo_estimator import RTMOPoseEstimator
         ModuleFactory.register_pose_estimator(
             name='rtmo',
             estimator_class=RTMOPoseEstimator,
             default_config={'score_threshold': 0.3, 'device': 'cuda:0'}
         )
+        
+        # RTMO ONNX 추정기
+        try:
+            from pose_estimation.rtmo.rtmo_onnx_estimator import RTMOONNXEstimator
+            ModuleFactory.register_pose_estimator(
+                name='rtmo_onnx',
+                estimator_class=RTMOONNXEstimator,
+                default_config={'score_threshold': 0.3, 'device': 'cuda:0'}
+            )
+        except ImportError as e:
+            logger.warning(f"ONNX estimator not available: {e}")
+        
+        # RTMO TensorRT 추정기
+        try:
+            from pose_estimation.rtmo.rtmo_tensorrt_estimator import RTMOTensorRTEstimator
+            ModuleFactory.register_pose_estimator(
+                name='rtmo_tensorrt', 
+                estimator_class=RTMOTensorRTEstimator,
+                default_config={'score_threshold': 0.3, 'device': 'cuda:0'}
+            )
+        except ImportError as e:
+            logger.warning(f"TensorRT estimator not available: {e}")
         
         # ByteTracker
         from tracking.bytetrack.byte_tracker import ByteTrackerWrapper

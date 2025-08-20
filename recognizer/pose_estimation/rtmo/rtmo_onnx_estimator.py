@@ -43,6 +43,11 @@ class RTMOONNXEstimator(BasePoseEstimator):
         # ONNX 특화 설정
         self.onnx_model_path = config.model_path  # ONNX 모델 경로
         self.model_input_size = getattr(config, 'model_input_size', (640, 640))
+        
+        # model_input_size가 None이거나 잘못된 경우 기본값 설정
+        if self.model_input_size is None or len(self.model_input_size) != 2:
+            self.model_input_size = (640, 640)
+            logging.warning(f"Invalid model_input_size, using default: {self.model_input_size}")
         self.mean = getattr(config, 'mean', None)
         self.std = getattr(config, 'std', None)
         self.backend = getattr(config, 'backend', 'onnxruntime')
@@ -173,6 +178,11 @@ class RTMOONNXEstimator(BasePoseEstimator):
             import time
             start_time = time.time()
             
+            # 프레임 확인
+            if frame is None:
+                logging.error(f"Frame {frame_idx} is None")
+                return []
+            
             # ONNX 추론
             keypoints, scores = self._inference_onnx(frame)
             
@@ -190,7 +200,9 @@ class RTMOONNXEstimator(BasePoseEstimator):
             return persons
             
         except Exception as e:
+            import traceback
             logging.error(f"Error in ONNX pose extraction for frame {frame_idx}: {str(e)}")
+            logging.error(f"Traceback: {traceback.format_exc()}")
             return []
     
     def _inference_onnx(self, image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -200,6 +212,8 @@ class RTMOONNXEstimator(BasePoseEstimator):
         
         # 추론
         outputs = self._inference(preprocessed_img)
+        if outputs is None:
+            return np.empty((0, 17, 2)), np.empty((0, 17))
         
         # 후처리
         keypoints, scores = self._postprocess(outputs, ratio)
@@ -212,6 +226,9 @@ class RTMOONNXEstimator(BasePoseEstimator):
     
     def _preprocess(self, img: np.ndarray) -> Tuple[np.ndarray, float]:
         """전처리: 이미지 리사이즈 및 패딩"""
+        if img is None:
+            raise ValueError("Input image is None")
+        
         if len(img.shape) == 3:
             padded_img = np.ones(
                 (self.model_input_size[0], self.model_input_size[1], 3),
@@ -251,12 +268,22 @@ class RTMOONNXEstimator(BasePoseEstimator):
             self._output_names = [output.name for output in self.session.get_outputs()]
         
         # 추론 실행
-        outputs = self.session.run(self._output_names, {self._input_name: input_tensor})
-        
-        return outputs
+        try:
+            outputs = self.session.run(self._output_names, {self._input_name: input_tensor})
+            if outputs is None:
+                logging.warning("ONNX session.run returned None")
+                return None
+            return outputs
+        except Exception as e:
+            logging.error(f"ONNX inference failed: {str(e)}")
+            return None
     
     def _postprocess(self, outputs: List[np.ndarray], ratio: float) -> Tuple[np.ndarray, np.ndarray]:
         """후처리: NMS 적용 및 좌표 복원"""
+        if outputs is None or len(outputs) != 2:
+            logging.warning(f"Invalid ONNX outputs: {outputs}")
+            return np.empty((0, 17, 2)), np.empty((0, 17))
+        
         det_outputs, pose_outputs = outputs
         
         # 검출 결과 처리

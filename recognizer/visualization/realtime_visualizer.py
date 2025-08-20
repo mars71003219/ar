@@ -51,7 +51,8 @@ class RealtimeVisualizer:
                  save_output: bool = False,
                  output_path: Optional[str] = None,
                  max_persons: int = 4,
-                 processing_mode: str = "realtime"):
+                 processing_mode: str = "realtime",
+                 confidence_threshold: float = 0.4):
         """
         모드별 시각화 초기화
         
@@ -64,6 +65,7 @@ class RealtimeVisualizer:
             output_path: 저장할 비디오 파일 경로
             max_persons: 최대 인원 수
             processing_mode: 처리 모드 ('realtime' 또는 'analysis')
+            confidence_threshold: 분류 결과 표시 임계값
         """
         self.window_name = window_name
         self.display_width = display_width
@@ -72,6 +74,7 @@ class RealtimeVisualizer:
         self.save_output = save_output
         self.output_path = output_path
         self.max_persons = max_persons
+        self.confidence_threshold = confidence_threshold
         
         # 처리 모드 설정
         self.processing_mode = processing_mode
@@ -105,6 +108,10 @@ class RealtimeVisualizer:
         else:  # analysis
             self.realtime_overlay_enabled = False
             self.show_composite_scores = True   # 분석에서는 활성화
+        
+        # 이벤트 히스토리 표시
+        self.event_history = []
+        self.max_event_history = 10  # 최대 표시할 이벤트 수
         
         # 스케일링 정보 초기화
         self.scale_factor = 1.0
@@ -199,6 +206,9 @@ class RealtimeVisualizer:
         # 분류 결과와 오버레이 표시 (원래 방식)
         vis_frame = self.draw_classification_results(display_frame)
         vis_frame = self.add_overlay_info(vis_frame, additional_info)
+        
+        # 이벤트 상태 표시 (항상)
+        vis_frame = self._draw_event_history(vis_frame)
         
         # 화면에 표시
         cv2.imshow(self.window_name, vis_frame)
@@ -352,6 +362,9 @@ class RealtimeVisualizer:
         # 3. 추가 정보 (프레임 번호, FPS 등)
         if additional_info:
             vis_frame = self.add_realtime_info_overlay(vis_frame, additional_info, overlay_data)
+        
+        # 4. 이벤트 상태 표시 (항상)
+        vis_frame = self._draw_event_history(vis_frame)
             
         return vis_frame
     
@@ -402,10 +415,44 @@ class RealtimeVisualizer:
         """실시간 오버레이 활성화 상태 확인"""
         return self.realtime_overlay_enabled
     
+    def update_event_history(self, event_data: Dict[str, Any]):
+        """이벤트 히스토리 업데이트"""
+        if not isinstance(event_data, dict):
+            return
+        
+        # 디버깅 로그 추가
+        event_type = event_data.get('event_type', 'unknown')
+        logging.info(f"[EVENT UPDATE] Received event: {event_type}")
+        
+        # 타임스탬프 기반으로 정렬하여 삽입
+        self.event_history.append({
+            'event_type': event_type,
+            'timestamp': event_data.get('timestamp', time.time()),
+            'window_id': event_data.get('window_id', 0),
+            'confidence': event_data.get('confidence', 0.0),
+            'duration': event_data.get('duration'),
+            'frame_number': self.frame_count
+        })
+        
+        # 최대 개수 제한
+        if len(self.event_history) > self.max_event_history:
+            self.event_history.pop(0)
+        
+        logging.info(f"[EVENT UPDATE] Event history updated: {event_type}, total events: {len(self.event_history)}")
+
     def update_classification_history(self, classification: Dict[str, Any]):
         """분류 결과 히스토리 업데이트 - 파이프라인에서 전달받은 윈도우 번호 사용"""
+        if not isinstance(classification, dict):
+            logging.warning(f"Invalid classification data type: {type(classification)}")
+            return
+            
         # 파이프라인에서 전달받은 윈도우 번호
         display_id = classification.get('display_id', 0)
+        
+        # display_id 유효성 검사
+        if not isinstance(display_id, (int, float)):
+            logging.warning(f"Invalid display_id type: {type(display_id)}, converting to 0")
+            display_id = 0
         
         # probabilities 변환 (List[float] -> Dict[str, float])
         raw_probabilities = classification.get('probabilities', [0.0, 0.0])
@@ -510,8 +557,18 @@ class RealtimeVisualizer:
             
             window_text = f"window {display_id} ({status}) : Fight({fight_prob:.3f}) | NonFight({nonfight_prob:.3f})"
             
-            # 색상 결정 - Fight는 빨간색, NonFight는 초록색
-            bg_color = (0, 0, 200) if pred_class == 'Fight' else (0, 200, 0)  # BGR format
+            # 색상 결정 - confidence_threshold 고려
+            # config에서 설정된 confidence_threshold 가져오기 (기본값 0.4)
+            confidence_threshold = getattr(self, 'confidence_threshold', 0.4)
+            
+            # threshold 기반 색상 결정
+            if fight_prob >= confidence_threshold and fight_prob > nonfight_prob:
+                bg_color = (0, 0, 200)  # 빨간색 - Fight가 임계값 이상이고 더 높을 때
+            elif nonfight_prob >= confidence_threshold and nonfight_prob > fight_prob:
+                bg_color = (0, 200, 0)  # 초록색 - NonFight가 임계값 이상이고 더 높을 때
+            else:
+                bg_color = (128, 128, 128)  # 회색 - 불확실한 경우 (임계값 미달)
+            
             text_color = (255, 255, 255)
             
             # 배경 박스와 텍스트
@@ -615,21 +672,76 @@ class RealtimeVisualizer:
                    cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
     
     def add_overlay_info(self, frame: np.ndarray, additional_info: Optional[Dict[str, Any]]) -> np.ndarray:
-        """오버레이 정보 추가 - 하단 타임 삭제"""
-        # FPS 계산을 위한 프레임 카운터 업데이트
-        if not hasattr(self, '_frame_count_for_fps'):
-            self._frame_count_for_fps = 0
-            self._last_fps_time = time.time()
+        """오버레이 정보 추가 - 순수 처리 FPS 및 단계별 FPS 표시"""
+        if additional_info is None:
+            return frame
         
-        self._frame_count_for_fps += 1
+        height, width = frame.shape[:2]
         
-        # 1초마다 FPS 리셋
-        current_time = time.time()
-        if current_time - self._last_fps_time >= 1.0:
-            self._frame_count_for_fps = 0
-            self._last_fps_time = current_time
+        # 해상도에 따른 동적 폰트 크기 조정
+        base_scale = min(width, height) / 1000.0
+        font_scale = max(0.4, base_scale * 0.5)
+        thickness = max(1, int(base_scale * 2))
         
-        # 하단 오버레이 삭제 (아무것도 표시하지 않음)
+        # 오버레이 정보 표시 영역 (좌측 상단)
+        overlay_x = 10
+        overlay_y = 30
+        line_height = int(25 * font_scale)
+        
+        # 배경 박스 (단계별 FPS 포함하여 높이 증가)
+        box_width = 320
+        box_height = line_height * 8 + 20
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (overlay_x - 5, overlay_y - 20), 
+                     (overlay_x + box_width, overlay_y + box_height), 
+                     (0, 0, 0), -1)
+        frame = cv2.addWeighted(frame, 0.7, overlay, 0.3, 0)
+        
+        # 순수 처리 FPS (시각화 제외)
+        processing_fps = additional_info.get('processing_fps', 0)
+        cv2.putText(frame, f"Processing FPS: {processing_fps:.1f}", 
+                   (overlay_x, overlay_y), cv2.FONT_HERSHEY_SIMPLEX, 
+                   font_scale, (0, 255, 0), thickness)
+        
+        # 처리 시간
+        processing_time = additional_info.get('pure_processing_time', 0)
+        cv2.putText(frame, f"Processing Time: {processing_time*1000:.1f}ms", 
+                   (overlay_x, overlay_y + line_height), cv2.FONT_HERSHEY_SIMPLEX, 
+                   font_scale, (255, 255, 0), thickness)
+        
+        # 단계별 FPS 정보 표시
+        pose_fps = additional_info.get('pose_estimation_fps', 0)
+        cv2.putText(frame, f"Pose FPS: {pose_fps:.1f}", 
+                   (overlay_x, overlay_y + line_height * 2), cv2.FONT_HERSHEY_SIMPLEX, 
+                   font_scale, (255, 100, 100), thickness)
+        
+        tracking_fps = additional_info.get('tracking_fps', 0)
+        cv2.putText(frame, f"Track FPS: {tracking_fps:.1f}", 
+                   (overlay_x, overlay_y + line_height * 3), cv2.FONT_HERSHEY_SIMPLEX, 
+                   font_scale, (100, 255, 100), thickness)
+        
+        scoring_fps = additional_info.get('scoring_fps', 0)
+        cv2.putText(frame, f"Score FPS: {scoring_fps:.1f}", 
+                   (overlay_x, overlay_y + line_height * 4), cv2.FONT_HERSHEY_SIMPLEX, 
+                   font_scale, (100, 100, 255), thickness)
+        
+        classification_fps = additional_info.get('classification_fps', 0)
+        cv2.putText(frame, f"Class FPS: {classification_fps:.1f}", 
+                   (overlay_x, overlay_y + line_height * 5), cv2.FONT_HERSHEY_SIMPLEX, 
+                   font_scale, (255, 255, 100), thickness)
+        
+        # 검출된 사람 수
+        total_persons = additional_info.get('total_persons', 0)
+        cv2.putText(frame, f"Persons: {total_persons}", 
+                   (overlay_x, overlay_y + line_height * 6), cv2.FONT_HERSHEY_SIMPLEX, 
+                   font_scale, (255, 255, 255), thickness)
+        
+        # 버퍼 크기
+        buffer_size = additional_info.get('buffer_size', 0)
+        cv2.putText(frame, f"Buffer: {buffer_size}", 
+                   (overlay_x, overlay_y + line_height * 7), cv2.FONT_HERSHEY_SIMPLEX, 
+                   font_scale, (255, 255, 255), thickness)
+        
         return frame
     
     def calculate_current_fps(self) -> float:
@@ -757,14 +869,20 @@ class RealtimeVisualizer:
                 bg_color = (0, 0, 0)  # 검은색 배경
                 text_color = (255, 255, 255)  # 흰색 글씨
             else:
-                # Current 윈도우는 Fight/NonFight 확률 수치 비교로 색상 결정
-                if fight_prob > nonfight_prob:
-                    # Fight 수치가 더 높으면 빨간색
+                # Current 윈도우는 confidence_threshold를 고려한 색상 결정
+                confidence_threshold = getattr(self, 'confidence_threshold', 0.4)
+                
+                if fight_prob >= confidence_threshold and fight_prob > nonfight_prob:
+                    # Fight 임계값을 넘고 더 높으면 빨간색
                     bg_color = (0, 0, 200)  # 빨간색 배경
                     text_color = (255, 255, 255)
-                else:
-                    # NonFight 수치가 더 높으면 녹색
+                elif nonfight_prob >= confidence_threshold and nonfight_prob > fight_prob:
+                    # NonFight 임계값을 넘고 더 높으면 녹색
                     bg_color = (0, 200, 0)  # 녹색 배경
+                    text_color = (255, 255, 255)
+                else:
+                    # 둘 다 임계값 미달이면 회색 (불확실)
+                    bg_color = (128, 128, 128)  # 회색 배경
                     text_color = (255, 255, 255)
             
             y_pos = start_y + i * (line_height + 15)  # 라인 간격을 늘림 (확률 표시 공간 확보)
@@ -814,6 +932,132 @@ class RealtimeVisualizer:
         cv2.putText(frame, f"Mode: {self.processing_mode.upper()}", 
                    (start_x, start_y + line_height * 2), 
                    font, font_scale, (0, 255, 255), thickness)
+        
+        # 이벤트 상태 표시
+        current_y = start_y + line_height * 3
+        if additional_info:
+            # 현재 이벤트 활성 상태
+            event_active = additional_info.get('event_active', False)
+            if event_active:
+                cv2.putText(frame, "ALERT: VIOLENCE!", (start_x, current_y), 
+                           font, font_scale, (0, 0, 255), thickness + 1)
+                current_y += line_height
+                
+                # 이벤트 지속 시간
+                event_duration = additional_info.get('event_duration')
+                if event_duration:
+                    cv2.putText(frame, f"Duration: {event_duration:.1f}s", (start_x, current_y), 
+                               font, font_scale, (0, 165, 255), thickness)
+                    current_y += line_height
+            
+            # 연속 탐지 횟수
+            consecutive_violence = additional_info.get('consecutive_violence', 0)
+            consecutive_normal = additional_info.get('consecutive_normal', 0)
+            if consecutive_violence > 0:
+                cv2.putText(frame, f"Violence: {consecutive_violence}", (start_x, current_y), 
+                           font, font_scale, (0, 100, 255), thickness)
+                current_y += line_height
+            elif consecutive_normal > 0:
+                cv2.putText(frame, f"Normal: {consecutive_normal}", (start_x, current_y), 
+                           font, font_scale, (0, 255, 0), thickness)
+                current_y += line_height
+        
+        # 이벤트 히스토리는 apply_realtime_visualization에서 처리하므로 여기서는 제거
+        
+        return frame
+    
+    def _draw_event_history(self, frame: np.ndarray) -> np.ndarray:
+        """이벤트 상태를 우측 상단에 표시"""
+        height, width = frame.shape[:2]
+        
+        # 우측 상단 위치 설정
+        box_width = 250
+        box_x = width - box_width - 10
+        start_y = 30
+        
+        # 디버깅: 이벤트 히스토리 상태 출력
+        if not hasattr(self, '_last_event_debug_time'):
+            self._last_event_debug_time = 0
+            
+        if time.time() - self._last_event_debug_time > 3:  # 3초마다 한번만 출력
+            self._last_event_debug_time = time.time()
+            logging.info(f"[EVENT DEBUG] _draw_event_history called! History length: {len(self.event_history)}")
+            logging.info(f"[EVENT DEBUG] Frame size: {width}x{height}, Box position: x={box_x}, y={start_y}")
+            if self.event_history:
+                latest = self.event_history[-1]
+                logging.info(f"[EVENT DEBUG] Latest event: {latest}")
+        line_height = 25
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.6
+        thickness = 2
+        
+        # 현재 이벤트 상태 판단
+        current_status = "Normal"  # 기본 상태
+        status_color = (0, 255, 0)  # 기본 초록색 (Normal)
+        status_details = ""
+        
+        if self.event_history:
+            latest_event = self.event_history[-1]
+            event_type = latest_event.get('event_type', '')
+            
+            if event_type == 'violence_start':
+                current_status = "Violence Detected!"
+                status_color = (0, 0, 255)  # 빨간색
+                confidence = latest_event.get('confidence', 0.0)
+                status_details = f"Confidence: {confidence:.3f}"
+                
+            elif event_type == 'violence_ongoing':
+                current_status = "Violence In Progress"
+                status_color = (0, 140, 255)  # 주황색
+                duration = latest_event.get('duration', 0.0)
+                status_details = f"Duration: {duration:.1f}s"
+                
+            elif event_type == 'violence_end':
+                current_status = "Normal"
+                status_color = (0, 255, 0)  # 초록색
+                duration = latest_event.get('duration', 0.0)
+                status_details = f"Last event: {duration:.1f}s"
+        
+        # 배경 박스 높이 계산
+        box_height = line_height * 3 + 20  # 상태, 상세정보, 여백
+        
+        # 반투명 배경 박스
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (box_x - 10, start_y - 20), 
+                     (box_x + box_width, start_y + box_height), (0, 0, 0), -1)
+        frame = cv2.addWeighted(frame, 0.7, overlay, 0.3, 0)
+        
+        # 테두리 (더 두껍게 해서 잘 보이도록)
+        cv2.rectangle(frame, (box_x - 10, start_y - 20), 
+                     (box_x + box_width, start_y + box_height), status_color, 3)
+        
+        # 디버깅용: 작은 빨간색 점 표시 (우측 상단 모서리)
+        cv2.circle(frame, (width - 20, 20), 5, (0, 0, 255), -1)
+        
+        # 제목
+        cv2.putText(frame, "Event Status", (box_x, start_y), 
+                   font, 0.5, (255, 255, 255), 1)
+        
+        # 현재 상태 (큰 글씨, 강조)
+        cv2.putText(frame, current_status, (box_x, start_y + line_height), 
+                   font, font_scale, status_color, thickness)
+        
+        # 상세 정보
+        if status_details:
+            cv2.putText(frame, status_details, (box_x, start_y + line_height * 2), 
+                       font, 0.4, (255, 255, 255), 1)
+        
+        # 추가: 이벤트 히스토리 요약 (항상 표시)
+        total_events = len([e for e in self.event_history if e.get('event_type') == 'violence_start']) if self.event_history else 0
+        summary_text = f"Total Violence Events: {total_events}"
+        cv2.putText(frame, summary_text, (box_x, start_y + line_height * 2 + 20), 
+                   font, 0.35, (180, 180, 180), 1)
+        
+        # 디버깅 정보 (임시)
+        debug_text = f"History: {len(self.event_history)} events"
+        cv2.putText(frame, debug_text, (box_x, start_y + line_height * 2 + 40), 
+                   font, 0.3, (100, 100, 100), 1)
         
         return frame
     
