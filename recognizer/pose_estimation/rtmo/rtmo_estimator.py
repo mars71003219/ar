@@ -412,9 +412,10 @@ class RTMOPoseEstimator(BasePoseEstimator):
         return info
     
     def set_thresholds(self, score_threshold: Optional[float] = None, 
-                      nms_threshold: Optional[float] = None):
+                      nms_threshold: Optional[float] = None,
+                      keypoint_threshold: Optional[float] = None):
         """임계값 설정 및 모델에 적용"""
-        super().set_thresholds(score_threshold, nms_threshold)
+        super().set_thresholds(score_threshold, nms_threshold, keypoint_threshold)
         
         # 모델이 초기화되어 있으면 설정 적용
         if self.is_initialized:

@@ -33,12 +33,16 @@ model = dict(
 # ============================================================================
 # Dataset Configuration
 # ============================================================================
-
 dataset_type = 'PoseDataset'
-data_root = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/UCF_Crime_test2'
-ann_file_train = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/RWF-2000_train_windows.pkl'
-ann_file_val = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/RWF-2000_val_windows.pkl'
-ann_file_test = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/RWF-2000_test_windows.pkl'
+data_root = '/workspace/recognizer/test_data'
+ann_file_train = '/workspace/recognizer/output/annotation/stage3_dataset/train.pkl'
+ann_file_val = '/workspace/recognizer/output/annotation/stage3_dataset/val.pkl'
+ann_file_test = '/workspace/recognizer/output/annotation/stage3_dataset/test.pkl'
+# dataset_type = 'PoseDataset'
+# data_root = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/UCF_Crime_test2'
+# ann_file_train = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/RWF-2000_train_windows.pkl'
+# ann_file_val = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/RWF-2000_val_windows.pkl'
+# ann_file_test = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/RWF-2000_test_windows.pkl'
 
 # ============================================================================
 # Pipeline Configuration
@@ -65,7 +69,7 @@ val_pipeline = [
 test_pipeline = [
     dict(type='PreNormalize2D'),
     dict(type='GenSkeFeat', dataset='coco', feats=['b']),
-    dict(type='UniformSampleFrames', clip_len=100, num_clips=10, test_mode=True),
+    dict(type='UniformSampleFrames', clip_len=100, num_clips=1, test_mode=True),
     dict(type='PoseDecode'),
     dict(type='FormatGCNInput', num_person=4),
     dict(type='PackActionInputs')

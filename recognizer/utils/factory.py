@@ -61,16 +61,38 @@ class ModuleRegistry:
                     # 필수 model_name 필드 추가
                     pose_config['model_name'] = final_config.get('model_name', 'rtmo')
                     
-                    # checkpoint_path -> model_path 매핑
-                    if 'checkpoint_path' in final_config:
+                    
+                    # checkpoint_path 또는 model_path -> model_path 매핑
+                    if 'checkpoint_path' in final_config and final_config['checkpoint_path']:
                         pose_config['model_path'] = final_config['checkpoint_path']
+                    elif 'model_path' in final_config and final_config['model_path']:
+                        pose_config['model_path'] = final_config['model_path']
+                    
+                    # config_file 필드 확인 및 매핑 (ONNX, TensorRT는 제외)
+                    if name not in ['rtmo_onnx', 'rtmo_tensorrt']:
+                        if 'config_file' not in final_config or not final_config['config_file']:
+                            logger.warning(f"config_file not found in {self.category_name} config: {final_config}")
+                            raise ValueError(f"config_file is required for {name} but not found in configuration")
+                    else:
+                        # ONNX, TensorRT 모드에서는 config_file이 선택적
+                        if 'config_file' in final_config and final_config['config_file']:
+                            pose_config['config_file'] = final_config['config_file']
                     
                     # 직접 매핑되는 필드들
                     field_mapping = {
                         'config_file': 'config_file',
                         'device': 'device',
                         'score_threshold': 'score_threshold',
-                        'input_size': 'input_size'
+                        'nms_threshold': 'nms_threshold',
+                        'keypoint_threshold': 'keypoint_threshold',
+                        'max_detections': 'max_detections',
+                        'input_size': 'input_size',
+                        'model_input_size': 'model_input_size',
+                        'mean': 'mean',
+                        'std': 'std',
+                        'backend': 'backend',
+                        'to_openpose': 'to_openpose',
+                        'fp16_mode': 'fp16_mode'
                     }
                     
                     for old_key, new_key in field_mapping.items():
@@ -220,6 +242,42 @@ class ModuleFactory:
     def create_pose_estimator(cls, name: str, config: Dict[str, Any], **kwargs):
         """포즈 추정기 생성"""
         return cls._registries['pose_estimator'].create(name, config, **kwargs)
+    
+    @classmethod
+    def create_pose_estimator_from_inference_config(cls, pose_config: Dict[str, Any], **kwargs):
+        """추론 설정을 기반으로 포즈 추정기 생성
+        
+        Args:
+            pose_config: 포즈 추정 설정 (inference_mode와 각 모드별 설정 포함)
+            **kwargs: 추가 키워드 인자
+            
+        Returns:
+            포즈 추정기 인스턴스
+        """
+        # 추론 방식 확인
+        inference_mode = pose_config.get('inference_mode', 'pth')
+        
+        # 디버깅을 위한 로그 추가
+        logger.info(f"Detected inference_mode: {inference_mode}")
+        logger.info(f"Available configurations: {list(pose_config.keys())}")
+        
+        if inference_mode not in pose_config:
+            raise ValueError(f"Configuration for inference mode '{inference_mode}' not found. Available: {list(pose_config.keys())}")
+        
+        mode_config = pose_config[inference_mode].copy()
+        model_name = mode_config.get('model_name', 'rtmo')
+        
+        # 추론 방식에 따라 모델명 자동 매핑
+        if inference_mode == 'onnx' and not model_name.endswith('_onnx'):
+            if model_name == 'rtmo':
+                model_name = 'rtmo_onnx'
+        elif inference_mode == 'tensorrt' and not model_name.endswith('_tensorrt'):
+            if model_name == 'rtmo':
+                model_name = 'rtmo_tensorrt'
+        
+        logger.info(f"Creating pose estimator: {model_name} (inference_mode: {inference_mode})")
+        
+        return cls.create_pose_estimator(model_name, mode_config, **kwargs)
     
     @classmethod
     def list_pose_estimators(cls) -> Dict[str, Type]:

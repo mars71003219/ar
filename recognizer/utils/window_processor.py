@@ -174,32 +174,51 @@ class SlidingWindowProcessor:
             return self._create_realtime_windows()
     
     def _create_realtime_windows(self) -> List[WindowAnnotation]:
-        """실시간 모드용 윈도우 생성 (기존 로직 단순화)"""
+        """실시간 모드용 윈도우 생성 (stride 기반 최적화)"""
         windows = []
         
         if len(self.frames_buffer) < self.window_size:
             return windows
         
-        # 실시간에서는 현재 버퍼로 하나의 윈도우만 생성 시도
-        if len(self.frames_buffer) >= self.window_size:
+        # stride 기반 윈도우 생성 조건 확인
+        current_frame_idx = self.frames_buffer[-1].frame_idx
+        
+        # 첫 윈도우이거나 마지막 윈도우로부터 stride만큼 진행된 경우에만 생성
+        should_create_window = False
+        
+        if not hasattr(self, 'last_window_end_frame'):
+            # 첫 번째 윈도우
+            if len(self.frames_buffer) >= self.window_size:
+                should_create_window = True
+        else:
+            # stride 간격 확인 (50프레임마다)
+            frames_since_last_window = current_frame_idx - self.last_window_end_frame
+            if frames_since_last_window >= self.window_stride and len(self.frames_buffer) >= self.window_size:
+                should_create_window = True
+        
+        if should_create_window:
             # 가장 최근 window_size개 프레임으로 윈도우 생성
             recent_frames = self.frames_buffer[-self.window_size:]
             
-            # 연속성 확인
-            sorted_frames = sorted(recent_frames, key=lambda x: x.frame_idx)
-            is_consecutive = all(
-                sorted_frames[i].frame_idx == sorted_frames[i-1].frame_idx + 1 
-                for i in range(1, len(sorted_frames))
-            )
-            
-            if is_consecutive:
-                window = self._create_window_from_frames(sorted_frames, self.window_counter)
-                if window:
-                    window.window_start = sorted_frames[0].frame_idx
-                    window.window_end = sorted_frames[-1].frame_idx
-                    windows.append(window)
-                    self.window_counter += 1
-                    logging.info(f"Created realtime window: {window.window_start}-{window.window_end}")
+            # 빠른 연속성 확인 (이미 정렬되어 있다고 가정)
+            if len(recent_frames) == self.window_size:
+                start_frame = recent_frames[0].frame_idx
+                end_frame = recent_frames[-1].frame_idx
+                expected_span = self.window_size - 1
+                
+                # 간단한 연속성 체크
+                if (end_frame - start_frame) == expected_span:
+                    window = self._create_window_from_frames(recent_frames, self.window_counter)
+                    if window:
+                        window.window_start = start_frame
+                        window.window_end = end_frame
+                        windows.append(window)
+                        
+                        # 마지막 윈도우 종료 프레임 기록
+                        self.last_window_end_frame = end_frame
+                        self.window_counter += 1
+                        
+                        logging.info(f"Created stride-optimized window: {start_frame}-{end_frame} (stride: {frames_since_last_window if hasattr(self, 'last_window_end_frame') else 'first'})")
         
         return windows
     

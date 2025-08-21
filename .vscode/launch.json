@@ -11,10 +11,8 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--input",
-                "/workspace/rtmo_gcn_pipeline/rtmo_pose_track/raw_videos/Fight/cam04_06.mp4",
                 "--config",
-                "/workspace/recognizer/configs/main_config.yaml"
+                "/workspace/recognizer/configs/config.yaml"
             ]
         }
     ]

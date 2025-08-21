@@ -60,9 +60,8 @@ class ModuleInitializer:
     
     @staticmethod
     def init_pose_estimator(factory: ModuleFactory, config_dict: Dict[str, Any]):
-        """포즈 추정기 초기화"""
-        model_name = config_dict.get('model_name', 'rtmo')
-        return factory.create_pose_estimator(model_name, config_dict)
+        """포즈 추정기 초기화 (inference_mode 설정 고려)"""
+        return factory.create_pose_estimator_from_inference_config(config_dict)
     
     @staticmethod
     def init_tracker(factory: ModuleFactory, config_dict: Dict[str, Any]):
@@ -124,6 +123,12 @@ class PerformanceTracker:
     def get_stats(self) -> Dict[str, float]:
         """통계 반환"""
         return self.stats.copy()
+    
+    def get_fps(self) -> float:
+        """현재 평균 FPS 반환"""
+        if self.stats['avg_time'] > 0:
+            return 1.0 / self.stats['avg_time']
+        return 0.0
     
     def reset(self):
         """통계 초기화"""

@@ -196,7 +196,16 @@ class PoseEstimationConfig:
     input_size: List[int] = field(default_factory=lambda: [640, 640])
     score_threshold: float = 0.3
     nms_threshold: float = 0.65
+    keypoint_threshold: float = 0.3
     max_detections: int = 100
+    
+    # ONNX/TensorRT 추가 설정
+    model_input_size: Optional[Tuple[int, int]] = None
+    mean: Optional[List[float]] = None
+    std: Optional[List[float]] = None
+    backend: str = 'pytorch'
+    to_openpose: bool = False
+    fp16_mode: bool = False
     
     # 멀티 GPU 관련 설정
     gpu_allocation_strategy: str = 'round_robin'  # round_robin, memory_based, first_available
@@ -239,6 +248,7 @@ class PoseEstimationConfig:
             'input_size': self.input_size,
             'score_threshold': self.score_threshold,
             'nms_threshold': self.nms_threshold,
+            'keypoint_threshold': self.keypoint_threshold,
             'max_detections': self.max_detections,
             'gpu_allocation_strategy': self.gpu_allocation_strategy,
             'use_data_parallel': self.use_data_parallel,

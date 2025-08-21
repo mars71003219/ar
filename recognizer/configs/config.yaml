@@ -1,163 +1,214 @@
-# Recognizer 통합 설정 파일 v3
-# 모든 모드를 지원하는 완전 통합된 설정
+mode: inference.realtime
 
-# 실행 모드 (기본값)
-# mode: "inference.realtime"  # inference.analysis, inference.realtime, inference.visualize
-# mode: "inference.analysis"  # inference.analysis, inference.realtime, inference.visualize
-# mode: "inference.visualize"  # inference.analysis, inference.realtime, inference.visualize
-mode: "annotation.visualize"    # annotation.stage1, annotation.stage2, annotation.stage3, annotation.visualize
 
-# 추론 모드 설정
-inference:
-  # 분석 모드 - JSON/PKL 파일 생성
-  analysis:
-    # input: "/workspace/recognizer/test_data"  # 파일 또는 폴더 자동 감지
-    input: "/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4"
-    output_dir: "output"
-  
-  # 실시간 모드 - 실시간 디스플레이
-  realtime:
-    input: "/workspace/recognizer/test_data"  # 단일 비디오 파일 또는 카메라 (0)
-    # input: "/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4"
-    save_output: true              # true: 비디오 저장
-    output_path: "output"
-    display_width: 640
-    display_height: 480
-  
-  # 시각화 모드 - PKL 기반 오버레이
-  visualize:
-    # results_dir: "/workspace/recognizer/output/test_data"
-    # input: "/workspace/recognizer/test_data"  # 파일 또는 폴더 자동 감지
-    # save_dir: "/workspace/recognizer/output/test_data"
-    save_mode: true                # true: 저장, false: 실시간 표시
-    results_dir: "/workspace/recognizer/output/N_9_0_0_1_0"
-    input: "/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4"  # 파일 또는 폴더 자동 감지
-    save_dir: "/workspace/recognizer/output/N_9_0_0_1_0"
-
-# 어노테이션 모드 설정
 annotation:
-  # Stage 1 - 포즈 추정
+  input: /workspace/recognizer/test_data
+  output_dir: output
+  pipeline_mode: true
+
   stage1:
-    input: "/workspace/recognizer/test_data"  # 파일 또는 폴더 자동 감지
-    output_dir: "output/annotation/stage1_poses"
-  
-  # Stage 2 - 트래킹 및 정렬
+    enabled: true
   stage2:
-    poses_dir: "output/annotation/stage1_poses"
-    output_dir: "output/annotation/stage2_tracking"
-  
-  # Stage 3 - 통합 데이터셋
+    enabled: true
   stage3:
-    tracking_dir: "output/annotation/stage2_tracking"
-    output_dir: "output/annotation/stage3_dataset"
+    enabled: true
     split_ratios:
       train: 0.7
-      val: 0.15
-      test: 0.15
-  
-  # 어노테이션 시각화
-  visualize:
-    # stage: "stage1"                 # stage1, stage2, stage3
-    # results_dir: "output/annotation/stage1_poses"
-    stage: "stage2"                 # stage1, stage2, stage3
-    results_dir: "output/annotation/stage2_tracking"
-    video_dir: "/workspace/recognizer/test_data"
-    save_mode: true
-    save_dir: "output/annotation/annotation_overlay"
+      val: 0.2
+      test: 0.1
 
-# 모델 설정 (모든 모드 공통)
+  visualize:
+    stage: stage2
+    video_dir: /workspace/recognizer/test_data
+    results_dir: output/test_data/stage2_tracking/bytetrack_h0.3_l0.1_t0.2
+    save_mode: true
+
+inference:
+  analysis:
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4
+    output_dir: output
+
+  realtime:
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_77_1_0_0_0.mp4
+    output_path: output
+    save_output: true
+    display_width: 640
+    display_height: 480
+
+  visualize:
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4
+    results_dir: /workspace/recognizer/output/N_9_0_0_1_0
+    save_dir: /workspace/recognizer/output/N_9_0_0_1_0
+    save_mode: true
+
+
 models:
-  # 포즈 추정
+  action_classification:
+    checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-m_RWF2000plus_stable/best_acc_top1_epoch_14.pth
+    class_names:
+    - NonFight
+    - Fight
+    confidence_threshold: 0.4
+    config_file: /workspace/mmaction2/configs/skeleton/stgcnpp/stgcnpp_enhanced_fight_detection_stable.py
+    coordinate_dimensions: 2
+    device: cuda:0
+    expected_keypoint_count: 17
+    input_format: stgcn
+    max_persons: 4
+    model_name: stgcn
+    num_classes: 2
+    window_size: 100
+
   pose_estimation:
-    model_name: "rtmo"
-    config_file: "/workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py"
-    checkpoint_path: "/workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth"
-    device: "cuda:0"
-    score_threshold: 0.2
-    input_size: [640, 640]
-  
-  # 트래킹
-  tracking:
-    tracker_name: "bytetrack"
-    frame_rate: 30
-    track_thresh: 0.2
-    track_buffer: 120
-    match_thresh: 0.5
-    track_high_thresh: 0.3
-    track_low_thresh: 0.1
-    new_track_thresh: 0.5
-    min_box_area: 100
-    mot20: false
-    # 하이브리드 매칭
-    use_hybrid_matching: true
-    iou_weight: 0.7
-    keypoint_weight: 0.3
-    match_thresh_second: 0.4
-  
-  # 스코어링
+    inference_mode: onnx 
+    onnx:
+      arena_extend_strategy: kNextPowerOfTwo
+      backend: onnxruntime
+      benchmark_info:
+        benchmark_date: '2025-08-20 00:26:52'
+        gpu_name: NVIDIA RTX A5000
+        onnxruntime_version: 1.18.0
+        optimized_fps: 0
+      cudnn_conv_algo_search: HEURISTIC
+      cudnn_conv_use_max_workspace: true
+      device: cuda:0
+      do_copy_in_default_stream: false
+      enable_cpu_mem_arena: true
+      enable_mem_pattern: true
+      execution_mode: ORT_SEQUENTIAL
+      gpu_mem_limit_gb: 8
+      graph_optimization_level: ORT_ENABLE_ALL
+      keypoint_threshold: 0.3
+      max_detections: 100
+      mean: null
+      model_input_size:
+      - 640
+      - 640
+      model_name: rtmo_onnx
+      model_path: /workspace/mmpose/checkpoints/end2end.onnx
+      nms_threshold: 0.45
+      score_threshold: 0.3
+      std: null
+      to_openpose: false
+      tunable_op_enable: true
+      tunable_op_tuning_enable: true
+
+    pth:
+      checkpoint_path: /workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth
+      config_file: /workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py
+      device: cuda:0
+      input_size:
+      - 640
+      - 640
+      model_name: rtmo
+      score_threshold: 0.2
+      nms_threshold: 0.65
+      keypoint_threshold: 0.3
+
+    tensorrt:
+      device: cuda:0
+      fp16_mode: false
+      keypoint_threshold: 0.3
+      max_detections: 100
+      mean: null
+      model_input_size:
+      - 640
+      - 640
+      model_name: rtmo_tensorrt
+      model_path: /workspace/mmpose/checkpoints/rtmo.trt
+      nms_threshold: 0.45
+      score_threshold: 0.3
+      std: null
+      to_openpose: false
+
   scoring:
-    scorer_name: "region_based"
+    min_track_length: 10
+    quality_threshold: 0.3
+    scorer_name: region_based
     weights:
+      appearance: 0.05
       interaction: 0.4
       movement: 0.3
+      position: 0.05
       posture: 0.1
       temporal: 0.1
-      position: 0.05
-      appearance: 0.05
-    quality_threshold: 0.3
-    min_track_length: 10
-  
-  # 액션 분류
-  action_classification:
-    model_name: "stgcn"
-    config_file: "/workspace/mmaction2/configs/skeleton/stgcnpp/stgcnpp_enhanced_fight_detection_stable.py"
-    checkpoint_path: "/workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-m_RWF2000plus_stable/best_acc_top1_epoch_14.pth"
-    device: "cuda:0"
-    window_size: 100
-    class_names: ["NonFight", "Fight"]
-    confidence_threshold: 0.4
-    num_classes: 2
-    input_format: "stgcn"
-    expected_keypoint_count: 17
-    coordinate_dimensions: 2
-    max_persons: 4
 
-# 성능 설정
+  tracking:
+    frame_rate: 30
+    iou_weight: 0.7
+    keypoint_weight: 0.3
+    match_thresh: 0.5
+    match_thresh_second: 0.4
+    min_box_area: 100
+    mot20: false
+    new_track_thresh: 0.5
+    track_buffer: 120
+    track_high_thresh: 0.3
+    track_low_thresh: 0.1
+    track_thresh: 0.2
+    tracker_name: bytetrack
+    use_hybrid_matching: true
+
+
 performance:
-  device: "cuda:0"
+  batch_size: 8
+  device: cuda:0
+  enable_garbage_collection: true
+  gc_interval: 100
+  max_cache_size: 1000
   window_size: 100
   window_stride: 50
-  batch_size: 8
-  
-  # 메모리 관리
-  max_cache_size: 1000
-  gc_interval: 100
-  enable_garbage_collection: true
 
-# 파일 설정
-files:
-  video_extensions: [".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv"]
+
+events:
+  # 이벤트 발생 조건
+  alert_threshold: 0.7                    # 폭력 탐지 신뢰도 임계값
+  min_consecutive_detections: 3           # 연속 탐지 최소 횟수
   
-  # 출력 구조
-  output_structure:
-    json_dir: "json"
-    pkl_dir: "pkl"
-    overlay_dir: "overlay"
-    
-  # 명명 규칙
+  # 이벤트 해제 조건  
+  normal_threshold: 0.5                   # 정상 상태 신뢰도 임계값
+  min_consecutive_normal: 5               # 연속 정상 최소 횟수
+  
+  # 시간 기반 조건
+  min_event_duration: 2.0                 # 최소 이벤트 지속 시간 (초)
+  max_event_duration: 300.0               # 최대 이벤트 지속 시간 (초) 
+  cooldown_duration: 10.0                 # 이벤트 쿨다운 시간 (초)
+  
+  # 알림 설정
+  enable_ongoing_alerts: true             # 진행 중 알림 활성화
+  ongoing_alert_interval: 30.0            # 진행 중 알림 간격 (초)
+  
+  # 로그 설정
+  save_event_log: true                    # 이벤트 로그 저장 여부
+  event_log_format: json                  # 로그 형식 (json/csv)
+  event_log_path: output/event_logs       # 이벤트 로그 저장 경로
+
+
+files:
   naming:
     include_timestamp: false
-    results_suffix: "_results"
-    poses_suffix: "_frame_poses"
-    rtmo_suffix: "_rtmo_poses"
+    poses_suffix: _frame_poses
+    results_suffix: _results
+    rtmo_suffix: _rtmo_poses
+  output_structure:
+    json_dir: json
+    overlay_dir: overlay
+    pkl_dir: pkl
+  video_extensions:
+  - .mp4
+  - .avi
+  - .mov
+  - .mkv
+  - .flv
+  - .wmv
 
-# 로깅 설정
+
 logging:
-  level: "INFO"
-  format: "%(asctime)s - %(levelname)s - %(message)s"
+  format: '%(asctime)s - %(levelname)s - %(message)s'
+  level: WARNING
 
-# 오류 처리
+
 error_handling:
   continue_on_error: true
+  error_recovery_strategy: skip
   max_consecutive_errors: 10
-  error_recovery_strategy: "skip"
