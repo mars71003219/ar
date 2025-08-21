@@ -1,23 +1,46 @@
-# Recognizer - 모듈화된 비디오 분석 시스템
+# Recognizer - 실시간 폭력 감지 시스템
 
-**완전 모듈화된 8-모드 통합 실행 시스템**
+**MMPose + MMAction2 기반 통합 행동 분석 프레임워크**
 
-RTMO 포즈 추정, ByteTrack 추적, STGCN 행동 분류를 통합한 실시간 및 배치 비디오 분석 프레임워크
+RTMO 포즈 추정, ByteTrack 추적, ST-GCN 행동 분류를 통합한 실시간 폭력 감지 및 비디오 분석 시스템
 
-## 🎯 주요 특징
+##  주요 특징
 
-- **8개 독립 모드**: 추론 3개 + 어노테이션 5개 모드
-- **완전 모듈화**: 각 모드별 독립적 구현
-- **설정 파일 중심**: argparse 최소화 (3개 인자만)
-- **20초 제한 해결**: 실시간/분석 로직 완전 분리
-- **확장 가능**: 새로운 모드 추가 용이
+- **실시간 폭력 감지**: RTMO + ST-GCN 기반 고속 추론
+- **다중 추론 백엔드**: PyTorch, ONNX, TensorRT 지원
+- **완전 모듈화**: 8개 독립 모드 (추론 3개 + 어노테이션 5개)
+- **이벤트 관리 시스템**: 실시간 이벤트 탐지 및 로깅
+- **고성능 최적화**: ONNX/TensorRT 최적화 지원
+- **확장 가능**: 새로운 모드 및 모델 추가 용이
 
-## 🚀 빠른 시작
+##  빠른 시작
 
-### 설치
+### 환경 요구사항
+- Python 3.8+
+- CUDA 12.1+ (GPU 추론용)
+- Docker (권장)
+
+### Docker 환경 설정
 ```bash
+# 컨테이너 진입
+docker exec -it mmlabs bash
+
+# 작업 디렉토리 이동
 cd /workspace/recognizer
+```
+
+### 의존성 설치
+```bash
+# MMPose 설치
+cd /workspace/mmpose
 pip install -e .
+
+# MMAction2 설치
+cd /workspace/mmaction2
+pip install -e .
+
+# 추가 의존성
+pip install onnxruntime-gpu==1.18.0 --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
 ```
 
 ### 기본 사용법
@@ -25,7 +48,7 @@ pip install -e .
 # 모드 목록 확인
 python main.py --list-modes
 
-# 기본 실행 (분석 모드)
+# 기본 실행 (실시간 모드)
 python main.py
 
 # 특정 모드 실행
@@ -33,47 +56,108 @@ python main.py --mode inference.analysis
 python main.py --mode annotation.stage1
 ```
 
-## 📁 시스템 구조
+##  가중치 및 데이터셋 (https://192.168.190.100:5001/)
+
+### 가중치 파일 위치
+
+**RTMO 포즈 추정 모델:**
+```bash
+# 체크포인트(pytorch, onnx, tensorrt) & 설정파일
+/aivanas/gaon/weights/action_recognition/1. 3b665fe5aa/rtmo
+
+```
+
+**ST-GCN 행동 분류 모델:**
+```bash
+# 체크포인트 & 설정파일
+/aivanas/gaon/weights/action_recognition/1. 3b665fe5aa/stgcnpp
+```
+
+### 데이터셋 위치
+
+**UBI-FIGHTS 데이터셋:**
+```bash
+# 폭력 영상
+/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/
+
+# 정상 영상
+/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/
+```
+
+**RWF-2000 데이터셋:**
+```bash
+# 학습용 데이터셋
+/aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000/
+
+# 어노테이션 파일
+/aivanas/annotations/RWF-2000/
+```
+
+### 로컬 설정
+
+로컬 환경에서 사용할 경우 `configs/config.yaml`에서 경로를 다음과 같이 수정:
+
+```yaml
+models:
+  pose_estimation:
+    pth:
+      checkpoint_path: /workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth
+    onnx:
+      model_path: /workspace/mmpose/checkpoints/end2end.onnx
+    tensorrt:
+      model_path: /workspace/mmpose/checkpoints/rtmo.trt
+      
+  action_classification:
+    checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-m_RWF2000plus_stable/best_acc_top1_epoch_14.pth
+```
+
+##  시스템 구조
 
 ```
 recognizer/
-├── main.py                     # 통합 실행기 (3개 인자만)
-├── config.yaml                 # 통합 설정 파일
+├── main.py                     # 통합 실행기
+├── configs/config.yaml         # 통합 설정 파일
 ├── core/                       # 모드 관리 엔진
 │   ├── mode_manager.py         # 통합 모드 매니저
 │   ├── inference_modes.py      # 추론 모드들
 │   └── annotation_modes.py     # 어노테이션 모드들
-├── pipelines/                  # 처리 파이프라인
-├── models/                     # AI 모델들 
-├── utils/                      # 공통 유틸리티
+├── pose_estimation/            # 포즈 추정 모듈
+│   └── rtmo/                   # RTMO 구현체
+├── action_classification/      # 행동 분류 모듈
+│   └── stgcn/                  # ST-GCN 구현체
+├── tracking/                   # 객체 추적 모듈
+│   └── bytetrack/             # ByteTracker 구현체
+├── events/                     # 이벤트 관리 시스템
 ├── visualization/              # 시각화 모듈
-└── tools/                      # 보조 도구들
+├── utils/                      # 공통 유틸리티
+└── docs/                       # API 문서
 ```
 
-## 🎮 8개 실행 모드
+##  8개 실행 모드
 
 ### 추론 모드 (Inference)
 
 #### 1. `inference.analysis` - 분석 모드
-**목적**: 비디오 → JSON/PKL 파일 생성 (시각화 없음)
+**목적**: 영상 → JSON/PKL 파일 생성 (백그라운드 분석)
 ```bash
 python main.py --mode inference.analysis
 ```
-- 전체 비디오 완전 분석
-- JSON 결과 + PKL 데이터 저장
-- 20초 제한 문제 완전 해결
+- 전체 영상 완전 분석
+- 폭력/비폭력 분류 결과 저장
+- JSON 결과 + PKL 데이터 출력
 
 #### 2. `inference.realtime` - 실시간 모드  
-**목적**: 실시간 디스플레이 + 선택적 저장
+**목적**: 실시간 폭력 감지 + 이벤트 알림
 ```bash
 python main.py --mode inference.realtime
 ```
-- 실시간 비디오 스트림 처리
+- 실시간 영상 스트림 처리
 - 라이브 오버레이 표시
-- 선택적 결과 비디오 저장
+- 폭력 이벤트 실시간 탐지
+- 선택적 결과 영상 저장
 
 #### 3. `inference.visualize` - 시각화 모드
-**목적**: PKL 파일 + 원본 비디오 → 오버레이 비디오
+**목적**: PKL 파일 + 원본 영상 → 오버레이 영상
 ```bash
 python main.py --mode inference.visualize
 ```
@@ -119,7 +203,7 @@ python main.py --mode annotation.visualize
 - stage2: 추적 ID + 정렬 순위
 - stage3: 데이터셋 통계
 
-## ⚙️ 설정 관리
+##  설정 관리
 
 ### 통합 설정 파일 (`config.yaml`)
 
@@ -183,7 +267,7 @@ OPTIONS:
   --list-modes        사용 가능한 모드 목록
 ```
 
-## 📋 워크플로우 예시
+##  워크플로우 예시
 
 ### 완전한 분석 워크플로우
 ```bash
@@ -215,7 +299,7 @@ python main.py --mode annotation.visualize
 # → stage별 시각화
 ```
 
-## 🔧 고급 사용법
+##  고급 사용법
 
 ### 사용자 정의 설정
 ```bash
@@ -245,7 +329,7 @@ performance:
   batch_size: 8
 ```
 
-## 🏗️ AI 모델 아키텍처
+##  AI 모델 아키텍처
 
 ### 포즈 추정 (RTMO)
 - **입력**: 비디오 프레임
@@ -262,7 +346,7 @@ performance:
 - **출력**: Fight/NonFight 확률
 - **특징**: 시공간 그래프 컨볼루션
 
-## 📊 출력 형식
+##  출력 형식
 
 ### JSON 결과 (`results.json`)
 ```json
@@ -288,7 +372,7 @@ performance:
 - **윈도우 어노테이션**: `{keypoints, scores, tracking_ids, ...}`
 - **분류 결과**: `{window_data, predictions, metadata}`
 
-## 🛠️ 문제 해결
+##  문제 해결
 
 ### 자주 발생하는 오류
 
@@ -317,16 +401,8 @@ performance:
 python main.py --mode [MODE] --log-level DEBUG
 ```
 
-## 🔗 관련 프로젝트
+##  관련 프로젝트
 
 - **MMPose**: 포즈 추정 프레임워크
 - **MMAction2**: 행동 인식 프레임워크  
 - **ByteTrack**: 다중 객체 추적
-
-## 📜 라이선스
-
-OpenMMLab 라이선스 정책을 따릅니다.
-
----
-
-**완전 모듈화된 8-모드 통합 시스템으로 간편하고 강력한 비디오 분석을 경험하세요!** 🚀
