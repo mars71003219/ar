@@ -1,5 +1,15 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:conda",
     "python-envs.defaultPackageManager": "ms-python.python:conda",
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "markdown-preview-enhanced.puppeteerArgs": [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage"
+    ],
+    "markdown-preview-enhanced.chromePath": "/opt/google/chrome/google-chrome",
+    "markdown-preview-enhanced.executablePath": "/opt/google/chrome/google-chrome",
+    "terminal.integrated.env.linux": {
+        "PATH": "/opt/google/chrome:${env:PATH}"
+    }
 }

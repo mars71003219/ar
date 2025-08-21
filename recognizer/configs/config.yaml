@@ -14,8 +14,8 @@ annotation:
     enabled: true
     split_ratios:
       train: 0.7
-      val: 0.15
-      test: 0.15
+      val: 0.2
+      test: 0.1
 
   visualize:
     stage: stage2

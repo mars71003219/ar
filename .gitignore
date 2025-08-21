@@ -11,3 +11,9 @@
 **/*.json
 **/*.mp4
 **/*.avi
+
+**/.claude
+**/CLAUDE.md
+**/mmlabs.code-workspace
+/.gradio
+**/.gradio
