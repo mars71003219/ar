@@ -52,7 +52,7 @@ class RealtimeVisualizer:
                  output_path: Optional[str] = None,
                  max_persons: int = 4,
                  processing_mode: str = "realtime",
-                 confidence_threshold: float = 0.4):
+                 overlay_mode: str = "full"):
         """
         모드별 시각화 초기화
         
@@ -65,7 +65,7 @@ class RealtimeVisualizer:
             output_path: 저장할 비디오 파일 경로
             max_persons: 최대 인원 수
             processing_mode: 처리 모드 ('realtime' 또는 'analysis')
-            confidence_threshold: 분류 결과 표시 임계값
+            overlay_mode: 오버레이 표시 모드 ('full', 'skeleton_only', 'raw')
         """
         self.window_name = window_name
         self.display_width = display_width
@@ -74,7 +74,12 @@ class RealtimeVisualizer:
         self.save_output = save_output
         self.output_path = output_path
         self.max_persons = max_persons
-        self.confidence_threshold = confidence_threshold
+        
+        # 오버레이 모드 설정 ('full', 'skeleton_only', 'raw')
+        self.overlay_mode = overlay_mode.lower() if overlay_mode else "full"
+        if self.overlay_mode not in ["full", "skeleton_only", "raw"]:
+            logger.warning(f"Invalid overlay_mode: {overlay_mode}, using 'full'")
+            self.overlay_mode = "full"
         
         # 처리 모드 설정
         self.processing_mode = processing_mode
@@ -199,15 +204,12 @@ class RealtimeVisualizer:
         # 포즈 좌표 스케일링
         scaled_poses = self.scale_poses_to_display(poses) if poses else None
         
-        # 포즈 시각화
-        if scaled_poses and scaled_poses.persons:
-            display_frame = self.pose_visualizer.visualize_frame(display_frame, scaled_poses)
+        # 오버레이 모드에 따른 시각화
+        vis_frame = self.apply_overlay_mode(display_frame, scaled_poses, additional_info)
         
-        # 분류 결과와 오버레이 표시 (원래 방식)
-        vis_frame = self.draw_classification_results(display_frame)
+        # 기본 정보는 항상 표시 (모든 모드 공통)
+        vis_frame = self.draw_classification_results(vis_frame)
         vis_frame = self.add_overlay_info(vis_frame, additional_info)
-        
-        # 이벤트 상태 표시 (항상)
         vis_frame = self._draw_event_history(vis_frame)
         
         # 화면에 표시
@@ -327,6 +329,127 @@ class RealtimeVisualizer:
                         person.keypoints = scaled_keypoints
         
         return scaled_poses
+    
+    def apply_overlay_mode(self, frame: np.ndarray, poses: Optional[FramePoses], additional_info: Optional[Dict[str, Any]]) -> np.ndarray:
+        """
+        오버레이 모드에 따른 시각화 적용
+        
+        Args:
+            frame: 원본 프레임
+            poses: 포즈 데이터
+            additional_info: 추가 정보
+        
+        Returns:
+            오버레이가 적용된 프레임
+        """
+        vis_frame = frame.copy()
+        
+        if self.overlay_mode == "raw":
+            # raw 모드: 기본 정보만 (포즈나 추가 오버레이 없음)
+            return vis_frame
+            
+        elif self.overlay_mode == "skeleton_only":
+            # skeleton_only 모드: 기본 정보 + 사람 관절포인트만
+            if poses and poses.persons:
+                # 관절점만 표시 (bbox, track_id 제외)
+                vis_frame = self.draw_skeleton_only(vis_frame, poses)
+            return vis_frame
+            
+        elif self.overlay_mode == "full":
+            # full 모드: 모든 표시 (관절점, bbox, track_id 등)
+            if poses and poses.persons:
+                vis_frame = self.pose_visualizer.visualize_frame(vis_frame, poses)
+            return vis_frame
+            
+        else:
+            # 기본값으로 full 모드 처리
+            logger.warning(f"Unknown overlay_mode: {self.overlay_mode}, using full mode")
+            if poses and poses.persons:
+                vis_frame = self.pose_visualizer.visualize_frame(vis_frame, poses)
+            return vis_frame
+    
+    def draw_skeleton_only(self, frame: np.ndarray, poses: FramePoses) -> np.ndarray:
+        """
+        skeleton_only 모드: 관절점만 표시 (bbox, track_id 제외)
+        
+        Args:
+            frame: 원본 프레임
+            poses: 포즈 데이터
+        
+        Returns:
+            관절점만 표시된 프레임
+        """
+        if not poses or not poses.persons:
+            return frame
+        
+        vis_frame = frame.copy()
+        
+        # 각 사람별로 관절점만 그리기
+        for person in poses.persons:
+            if person.keypoints is not None:
+                self._draw_keypoints_only(vis_frame, person.keypoints)
+        
+        return vis_frame
+    
+    def _draw_keypoints_only(self, frame: np.ndarray, keypoints):
+        """
+        관절점만 그리기 (PoseVisualizer의 keypoint 그리기 부분만 사용)
+        
+        Args:
+            frame: 프레임
+            keypoints: 키포인트 데이터
+        """
+        if keypoints is None:
+            return
+        
+        # keypoints가 numpy array인지 확인
+        if hasattr(keypoints, 'shape'):
+            kpts = keypoints
+        else:
+            # 리스트 형태면 numpy array로 변환
+            try:
+                kpts = np.array(keypoints).reshape(-1, 3) if len(keypoints) > 34 else np.array(keypoints).reshape(-1, 2)
+            except:
+                return
+        
+        # COCO-17 관절점 연결 정보
+        skeleton = [
+            [16, 14], [14, 12], [17, 15], [15, 13], [12, 13],  # head
+            [6, 12], [7, 13], [6, 7],                          # torso
+            [6, 8], [7, 9], [8, 10], [9, 11],                 # arms
+            [12, 14], [13, 15], [14, 16], [15, 17]             # legs
+        ]
+        
+        # 관절점 그리기
+        for i in range(min(17, len(kpts))):
+            if len(kpts[i]) >= 2:
+                x, y = int(kpts[i][0]), int(kpts[i][1])
+                # 신뢰도 확인 (3번째 값이 있으면)
+                if len(kpts[i]) >= 3 and kpts[i][2] < 0.3:
+                    continue
+                # 좌표가 유효한지 확인
+                if x > 0 and y > 0:
+                    cv2.circle(frame, (x, y), 3, (0, 255, 0), -1)
+        
+        # 뼈대 연결선 그리기
+        for connection in skeleton:
+            kpt1_idx, kpt2_idx = connection[0] - 1, connection[1] - 1  # 1-based to 0-based
+            
+            if (kpt1_idx < len(kpts) and kpt2_idx < len(kpts) and 
+                kpt1_idx >= 0 and kpt2_idx >= 0):
+                
+                # 두 점의 좌표와 신뢰도 확인
+                if (len(kpts[kpt1_idx]) >= 2 and len(kpts[kpt2_idx]) >= 2):
+                    x1, y1 = int(kpts[kpt1_idx][0]), int(kpts[kpt1_idx][1])
+                    x2, y2 = int(kpts[kpt2_idx][0]), int(kpts[kpt2_idx][1])
+                    
+                    # 신뢰도 확인
+                    conf1 = kpts[kpt1_idx][2] if len(kpts[kpt1_idx]) >= 3 else 1.0
+                    conf2 = kpts[kpt2_idx][2] if len(kpts[kpt2_idx]) >= 3 else 1.0
+                    
+                    if (conf1 >= 0.3 and conf2 >= 0.3 and 
+                        x1 > 0 and y1 > 0 and x2 > 0 and y2 > 0):
+                        cv2.line(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
     
     def apply_realtime_visualization(self, 
                                    frame: np.ndarray,
@@ -557,19 +680,9 @@ class RealtimeVisualizer:
             
             window_text = f"window {display_id} ({status}) : Fight({fight_prob:.3f}) | NonFight({nonfight_prob:.3f})"
             
-            # 색상 결정 - confidence_threshold 고려
-            # config에서 설정된 confidence_threshold 가져오기 (기본값 0.4)
-            confidence_threshold = getattr(self, 'confidence_threshold', 0.4)
-            
-            # threshold 기반 색상 결정
-            if fight_prob >= confidence_threshold and fight_prob > nonfight_prob:
-                bg_color = (0, 0, 200)  # 빨간색 - Fight가 임계값 이상이고 더 높을 때
-            elif nonfight_prob >= confidence_threshold and nonfight_prob > fight_prob:
-                bg_color = (0, 200, 0)  # 초록색 - NonFight가 임계값 이상이고 더 높을 때
-            else:
-                bg_color = (128, 128, 128)  # 회색 - 불확실한 경우 (임계값 미달)
-            
-            text_color = (255, 255, 255)
+            # 배경색과 텍스트 색상 (단순화)
+            bg_color = (50, 50, 50)  # 회색 배경
+            text_color = (255, 255, 255)  # 흰색 텍스트
             
             # 배경 박스와 텍스트
             text_size = cv2.getTextSize(window_text, font, font_scale, thickness)[0]
@@ -685,7 +798,7 @@ class RealtimeVisualizer:
         
         # 오버레이 정보 표시 영역 (좌측 상단)
         overlay_x = 10
-        overlay_y = 30
+        overlay_y = 90
         line_height = int(25 * font_scale)
         
         # 배경 박스 (단계별 FPS 포함하여 높이 증가)
@@ -863,27 +976,15 @@ class RealtimeVisualizer:
             if window_id % 5 == 1:  # 5개 윈도우마다 한 번씩
                 logging.info(f"Window {window_id} probabilities - Fight: {fight_prob:.3f}, NonFight: {nonfight_prob:.3f}, predicted: {predicted_class}")
             
-            # 색상 결정
+            # 색상 결정 (단순화)
             if is_previous:
-                # Previous 윈도우는 항상 검은색 배경에 흰색 글씨
+                # Previous 윈도우는 검은색 배경
                 bg_color = (0, 0, 0)  # 검은색 배경
                 text_color = (255, 255, 255)  # 흰색 글씨
             else:
-                # Current 윈도우는 confidence_threshold를 고려한 색상 결정
-                confidence_threshold = getattr(self, 'confidence_threshold', 0.4)
-                
-                if fight_prob >= confidence_threshold and fight_prob > nonfight_prob:
-                    # Fight 임계값을 넘고 더 높으면 빨간색
-                    bg_color = (0, 0, 200)  # 빨간색 배경
-                    text_color = (255, 255, 255)
-                elif nonfight_prob >= confidence_threshold and nonfight_prob > fight_prob:
-                    # NonFight 임계값을 넘고 더 높으면 녹색
-                    bg_color = (0, 200, 0)  # 녹색 배경
-                    text_color = (255, 255, 255)
-                else:
-                    # 둘 다 임계값 미달이면 회색 (불확실)
-                    bg_color = (128, 128, 128)  # 회색 배경
-                    text_color = (255, 255, 255)
+                # Current 윈도우는 회색 배경
+                bg_color = (50, 50, 50)  # 회색 배경
+                text_color = (255, 255, 255)  # 흰색 글씨
             
             y_pos = start_y + i * (line_height + 15)  # 라인 간격을 늘림 (확률 표시 공간 확보)
             

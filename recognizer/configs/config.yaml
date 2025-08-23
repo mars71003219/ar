@@ -34,6 +34,8 @@ inference:
     save_output: true
     display_width: 640
     display_height: 480
+    # 오버레이 표시 모드 설정
+    overlay_mode: full  # full, skeleton_only, raw
 
   visualize:
     input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4

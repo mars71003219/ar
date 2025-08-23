@@ -770,14 +770,16 @@ class InferencePipeline(BasePipeline):
             
             window_title = f"Violence Detection - {processing_mode.upper()}"
             
-            # 설정에서 confidence_threshold 가져오기
-            if hasattr(self.config, 'classifier_confidence_threshold'):
-                confidence_threshold = self.config.classifier_confidence_threshold
-            else:
-                # 딕셔너리 형태 설정에서 가져오기
-                action_config = self.config.get('models', {}).get('action_classification', {})
-                confidence_threshold = action_config.get('confidence_threshold', 0.4)
+# confidence_threshold 관련 코드 제거됨
             
+            # 오버레이 모드 설정 가져오기
+            overlay_mode = "full"  # 기본값
+            if isinstance(self.config, dict):
+                realtime_config = self.config.get('inference', {}).get('realtime', {})
+                overlay_mode = realtime_config.get('overlay_mode', 'full')
+            elif hasattr(self.config, 'overlay_mode'):
+                overlay_mode = self.config.overlay_mode
+                
             visualizer = RealtimeVisualizer(
                 window_name=window_title,
                 display_width=display_width,
@@ -787,13 +789,13 @@ class InferencePipeline(BasePipeline):
                 output_path=output_path,
                 max_persons=max_persons,
                 processing_mode=processing_mode,
-                confidence_threshold=confidence_threshold
+                overlay_mode=overlay_mode
             )
             
             # 시각화 모듈 참조 저장 (이벤트 전달용)
             self._current_visualizer = visualizer
             
-            logging.info(f"Visualizer initialized with {processing_mode} mode")
+            logging.info(f"Visualizer initialized with {processing_mode} mode, overlay_mode: {overlay_mode}")
             
             # 입력 소스 시작
             if not input_manager.start():
