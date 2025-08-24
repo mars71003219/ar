@@ -699,18 +699,18 @@ class RealtimeVisualizer:
             
             y_offset += line_height
         
-        # FPS 정보 추가 (윈도우 아래에)
-        if hasattr(self, '_last_fps_time') and hasattr(self, '_frame_count_for_fps'):
-            current_time = time.time()
-            if current_time - self._last_fps_time > 0:
-                fps = self._frame_count_for_fps / (current_time - self._last_fps_time)
-                fps_text = f"FPS: {fps:.1f}"
-                cv2.putText(frame, fps_text, (start_x, start_y + y_offset), 
-                           font, font_scale, (255, 255, 255), thickness)
-        else:
-            # 초기화
-            self._last_fps_time = time.time()
-            self._frame_count_for_fps = 0
+        # # FPS 정보 추가 (윈도우 아래에)
+        # if hasattr(self, '_last_fps_time') and hasattr(self, '_frame_count_for_fps'):
+        #     current_time = time.time()
+        #     if current_time - self._last_fps_time > 0:
+        #         fps = self._frame_count_for_fps / (current_time - self._last_fps_time)
+        #         fps_text = f"FPS: {fps:.1f}"
+        #         cv2.putText(frame, fps_text, (start_x, start_y + y_offset), 
+        #                    font, font_scale, (255, 255, 255), thickness)
+        # else:
+        #     # 초기화
+        #     self._last_fps_time = time.time()
+        #     self._frame_count_for_fps = 0
         
         # 확률 그래프 삭제 - 의미없음 (Fight + NonFight = 1.0이라 반대 곡선만 나옴)
         # if len(self.classification_history) > 0:

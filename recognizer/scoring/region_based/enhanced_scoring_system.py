@@ -226,22 +226,21 @@ class EnhancedFightInvolvementScorer:
         if enable_adaptive:
             self.adaptive_analyzer = AdaptiveRegionImportance()
 
-        # 가중치 설정
-        if weights and len(weights) == 5:
+        # 가중치 설정 - 설정파일에서 4개 값만 사용 (persistence는 제거)
+        if weights and len(weights) == 4:
             self.weights = {
                 'movement': weights[0],
-                'position': weights[1],
-                'interaction': weights[2],
-                'temporal_consistency': weights[3],
-                'persistence': weights[4]
+                'interaction': weights[1], 
+                'position': weights[2],
+                'temporal_consistency': weights[3]
             }
         else:
+            # 기본값: movement_based 설정
             self.weights = {
-                'movement': 0.30,
-                'position': 0.35,
-                'interaction': 0.20,
-                'temporal_consistency': 0.10,
-                'persistence': 0.05
+                'movement': 0.4,
+                'interaction': 0.4,
+                'position': 0.1,
+                'temporal_consistency': 0.1
             }
     
     def calculate_enhanced_fight_score(self, track_data, all_tracks_data=None):
@@ -266,17 +265,20 @@ class EnhancedFightInvolvementScorer:
         # 4. 시간적 일관성 점수
         temporal_consistency = self._calculate_temporal_consistency(track_data)
         
-        # 5. 지속성 점수
-        persistence_score = len(track_data) / self._get_total_frames(all_tracks_data)
+        # 5. 고립 상태 확인 및 점수 조정
+        isolation_penalty = self._calculate_isolation_penalty(track_data, all_tracks_data)
         
-        # 최종 가중 점수 계산
+        # 최종 가중 점수 계산 (persistence 제거)
         composite_score = (
             movement_score * self.weights['movement'] +
             position_score * self.weights['position'] +
             interaction_score * self.weights['interaction'] +
-            temporal_consistency * self.weights['temporal_consistency'] +
-            persistence_score * self.weights['persistence']
+            temporal_consistency * self.weights['temporal_consistency']
         )
+        
+        # 고립된 객체의 경우 최소 점수로 조정
+        if isolation_penalty > 0:
+            composite_score = min(composite_score, 0.1)  # 최소 점수를 0.1로 설정
         
         return {
             'composite_score': composite_score,
@@ -285,7 +287,7 @@ class EnhancedFightInvolvementScorer:
                 'position': position_score,
                 'interaction': interaction_score,
                 'temporal_consistency': temporal_consistency,
-                'persistence': persistence_score
+                'isolation_penalty': isolation_penalty
             },
             'region_breakdown': region_breakdown
         }
@@ -497,3 +499,67 @@ class EnhancedFightInvolvementScorer:
             all_frames.update(track_data.keys())
         
         return len(all_frames) if all_frames else 1
+    
+    def _calculate_isolation_penalty(self, track_data, all_tracks_data):
+        """고립 상태 패널티 계산
+        
+        Args:
+            track_data: 현재 트랙 데이터
+            all_tracks_data: 모든 트랙 데이터
+            
+        Returns:
+            고립 패널티 값 (0: 고립 아님, 1: 완전 고립)
+        """
+        if not all_tracks_data or len(all_tracks_data) <= 1:
+            return 1.0  # 다른 객체가 없으면 완전 고립
+        
+        # 현재 트랙 ID 찾기
+        current_track_id = None
+        for tid, tdata in all_tracks_data.items():
+            if id(tdata) == id(track_data):
+                current_track_id = tid
+                break
+        
+        if current_track_id is None:
+            return 1.0
+        
+        # 상호작용 거리 임계값 (화면 대각선의 20%)
+        isolation_threshold = np.sqrt(self.img_shape[1]**2 + self.img_shape[0]**2) * 0.2
+        
+        frame_isolation_scores = []
+        
+        # 각 프레임에서 다른 객체와의 거리 확인
+        for frame_idx, frame_data in track_data.items():
+            curr_bbox = frame_data['bbox']
+            curr_center = np.array([(curr_bbox[0] + curr_bbox[2])/2, 
+                                   (curr_bbox[1] + curr_bbox[3])/2])
+            
+            min_distance = float('inf')
+            
+            # 같은 프레임의 다른 모든 객체와 거리 계산
+            for other_track_id, other_track_data in all_tracks_data.items():
+                if other_track_id == current_track_id:
+                    continue
+                
+                # 같은 프레임 데이터 찾기
+                if frame_idx in other_track_data:
+                    other_bbox = other_track_data[frame_idx]['bbox']
+                    other_center = np.array([(other_bbox[0] + other_bbox[2])/2,
+                                           (other_bbox[1] + other_bbox[3])/2])
+                    
+                    distance = np.linalg.norm(curr_center - other_center)
+                    min_distance = min(min_distance, distance)
+            
+            # 거리 기반 고립도 계산 (임계값보다 멀면 고립)
+            if min_distance == float('inf') or min_distance > isolation_threshold:
+                frame_isolation_scores.append(1.0)  # 완전 고립
+            else:
+                # 거리에 반비례하는 고립도 (가까울수록 고립도 낮음)
+                isolation_score = min(min_distance / isolation_threshold, 1.0)
+                frame_isolation_scores.append(isolation_score)
+        
+        # 전체 프레임에서 평균 고립도 계산
+        avg_isolation = np.mean(frame_isolation_scores) if frame_isolation_scores else 1.0
+        
+        # 고립도가 0.8 이상이면 패널티 적용
+        return avg_isolation if avg_isolation >= 0.8 else 0.0

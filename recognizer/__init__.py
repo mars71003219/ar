@@ -50,6 +50,7 @@ def initialize_factory():
         # 점수 계산 모듈
         from .scoring.region_based import RegionBasedScorer
         factory.register_scorer('region_based', RegionBasedScorer)
+        factory.register_scorer('movement_based', RegionBasedScorer)
         
         # 행동 분류 모듈
         from .action_classification.stgcn import STGCNActionClassifier

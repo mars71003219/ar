@@ -33,15 +33,14 @@ class PersonScores:
     
     def calculate_composite_score(self, weights: List[float]) -> float:
         """가중치를 적용하여 복합점수 계산"""
-        if len(weights) != 5:
-            weights = [0.3, 0.2, 0.1, 0.2, 0.2]  # 기본 가중치
+        if len(weights) != 4:
+            weights = [0.4, 0.4, 0.1, 0.1]  # 기본 가중치: movement, interaction, position, temporal
         
         self.composite_score = (
             self.movement_score * weights[0] +
-            self.position_score * weights[1] +
-            self.interaction_score * weights[2] +
-            self.temporal_consistency_score * weights[3] +
-            self.persistence_score * weights[4]
+            self.interaction_score * weights[1] +
+            self.position_score * weights[2] +
+            self.temporal_consistency_score * weights[3]
         )
         
         return self.composite_score
@@ -281,16 +280,15 @@ class BaseScorer(ABC):
         """가중치 설정
         
         Args:
-            weights: 5개 요소의 가중치 리스트
-                    [movement, position, interaction, temporal, persistence]
+            weights: 4개 요소의 가중치 리스트
+                    [movement, interaction, position, temporal]
         """
-        if len(weights) == 5 and all(isinstance(w, (int, float)) for w in weights):
+        if len(weights) == 4 and all(isinstance(w, (int, float)) for w in weights):
             self.weights = list(weights)
             self.config.movement_weight = weights[0]
-            self.config.position_weight = weights[1]
-            self.config.interaction_weight = weights[2]
+            self.config.interaction_weight = weights[1]
+            self.config.position_weight = weights[2]
             self.config.temporal_consistency_weight = weights[3]
-            self.config.persistence_weight = weights[4]
     
     def validate_track_data(self, track_data: Dict[int, List[Dict[str, Any]]]) -> Dict[int, List[Dict[str, Any]]]:
         """트랙 데이터 유효성 검사"""

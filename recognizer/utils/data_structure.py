@@ -292,11 +292,10 @@ class TrackingConfig:
 class ScoringConfig:
     """복합점수 계산 설정"""
     scorer_name: str
-    movement_weight: float = 0.3
-    position_weight: float = 0.2
-    interaction_weight: float = 0.1
-    temporal_consistency_weight: float = 0.2
-    persistence_weight: float = 0.2
+    movement_weight: float = 0.4
+    interaction_weight: float = 0.4
+    position_weight: float = 0.1
+    temporal_weight: float = 0.1
     quality_threshold: float = 0.3
     min_track_length: int = 10
     
@@ -304,22 +303,20 @@ class ScoringConfig:
         return {
             'scorer_name': self.scorer_name,
             'movement_weight': self.movement_weight,
-            'position_weight': self.position_weight,
             'interaction_weight': self.interaction_weight,
-            'temporal_consistency_weight': self.temporal_consistency_weight,
-            'persistence_weight': self.persistence_weight,
+            'position_weight': self.position_weight,
+            'temporal_weight': self.temporal_weight,
             'quality_threshold': self.quality_threshold,
             'min_track_length': self.min_track_length
         }
     
     def get_weights_as_list(self) -> List[float]:
-        """가중치를 리스트로 반환"""
+        """가중치를 리스트로 반환 [movement, interaction, position, temporal]"""
         return [
             self.movement_weight,
-            self.position_weight,
             self.interaction_weight,
-            self.temporal_consistency_weight,
-            self.persistence_weight
+            self.position_weight,
+            self.temporal_weight
         ]
 
 

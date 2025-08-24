@@ -1,4 +1,7 @@
-mode: inference.realtime
+# mode: inference.realtime
+# mode: inference.analysis
+# mode: inference.visualize
+mode: annotation.stage3
 
 
 annotation:
@@ -87,7 +90,8 @@ models:
       - 640
       - 640
       model_name: rtmo_onnx
-      model_path: /workspace/mmpose/checkpoints/end2end.onnx
+      model_path: /workspace/mmpose/checkpoints/end2end_l.onnx
+      # model_path: /workspace/mmpose/checkpoints/end2end_m.onnx
       nms_threshold: 0.45
       score_threshold: 0.3
       std: null
@@ -96,8 +100,10 @@ models:
       tunable_op_tuning_enable: true
 
     pth:
-      checkpoint_path: /workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth
-      config_file: /workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py
+      # checkpoint_path: /workspace/mmpose/checkpoints/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.pth
+      # config_file: /workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-m_16xb16-600e_body7-640x640.py
+      checkpoint_path: /workspace/mmpose/checkpoints/rtmo-l_16xb16-600e_body7-640x640-b37118ce_20231211.pth
+      config_file: /workspace/mmpose/configs/body_2d_keypoint/rtmo/body7/rtmo-l_16xb16-600e_body7-640x640.py
       device: cuda:0
       input_size:
       - 640
@@ -126,13 +132,11 @@ models:
   scoring:
     min_track_length: 10
     quality_threshold: 0.3
-    scorer_name: region_based
+    scorer_name: movement_based
     weights:
-      appearance: 0.05
+      movement: 0.4
       interaction: 0.4
-      movement: 0.3
-      position: 0.05
-      posture: 0.1
+      position: 0.1
       temporal: 0.1
 
   tracking:

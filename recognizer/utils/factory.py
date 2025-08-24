@@ -131,14 +131,13 @@ class ModuleRegistry:
                     # scorer_name은 직접 매핑
                     scoring_config['scorer_name'] = final_config.get('scorer_name', 'region_based')
                     
-                    # weights 딕셔너리에서 개별 가중치로 매핑
+                    # weights 딕셔너리에서 개별 가중치로 매핑 (4개 가중치만)
                     if 'weights' in final_config:
                         weights = final_config['weights']
-                        scoring_config['movement_weight'] = weights.get('movement', 0.3)
-                        scoring_config['position_weight'] = weights.get('position', 0.2)
-                        scoring_config['interaction_weight'] = weights.get('interaction', 0.1)
-                        scoring_config['temporal_consistency_weight'] = weights.get('temporal', 0.2)
-                        scoring_config['persistence_weight'] = weights.get('persistence', 0.2)
+                        scoring_config['movement_weight'] = weights.get('movement', 0.4)
+                        scoring_config['interaction_weight'] = weights.get('interaction', 0.4)
+                        scoring_config['position_weight'] = weights.get('position', 0.1)
+                        scoring_config['temporal_weight'] = weights.get('temporal', 0.1)
                     
                     # 직접 매핑되는 필드들
                     for key in ['quality_threshold', 'min_track_length']:

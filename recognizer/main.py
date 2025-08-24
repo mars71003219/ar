@@ -80,6 +80,13 @@ def register_modules():
             default_config={'distance_threshold': 100.0}
         )
         
+        # Movement-based Scorer (same as region_based but optimized for movement)
+        ModuleFactory.register_scorer(
+            name='movement_based',
+            scorer_class=RegionBasedScorer,
+            default_config={'distance_threshold': 100.0}
+        )
+        
         # STGCN Action Classifier
         from action_classification.stgcn.stgcn_classifier import STGCNActionClassifier
         ModuleFactory.register_classifier(
