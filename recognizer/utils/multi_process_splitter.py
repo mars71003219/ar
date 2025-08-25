@@ -5,12 +5,11 @@
 """
 
 import os
-import json
 import time
 import logging
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 import math
 import shutil
 import yaml
@@ -110,6 +109,10 @@ class ConfigGenerator:
             split_config = self.base_config.copy()
             split_config['annotation']['input'] = str(temp_video_dir)
             split_config['annotation']['output_dir'] = split_dir
+            
+            # 멀티 프로세스 비활성화 (subprocess에서는 단일 처리만)
+            if 'multi_process' in split_config['annotation']:
+                split_config['annotation']['multi_process']['enabled'] = False
             
             # 병렬 처리 비활성화 (순차 처리)
             if 'stage1' in split_config['annotation']:
