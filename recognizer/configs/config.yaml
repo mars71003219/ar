@@ -5,9 +5,15 @@ mode: annotation.stage3
 
 
 annotation:
-  input: /workspace/recognizer/test_data
+  input: /aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2001
   output_dir: output
   pipeline_mode: true
+
+  # 멀티 프로세스 설정
+  multi_process:
+    enabled: true                # 멀티 프로세스 활성화 여부
+    num_processes: 16              # 프로세스 수
+    gpu_assignments: [0, 1]       # GPU 할당 (프로세스별)
 
   stage1:
     enabled: true

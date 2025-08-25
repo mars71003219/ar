@@ -146,6 +146,14 @@ def main():
     parser.add_argument('--list-modes', action='store_true',
                        help='List all available modes')
     
+    # 멀티 프로세스 어노테이션 옵션
+    parser.add_argument('--multi-process', action='store_true',
+                       help='Run multi-process annotation')
+    parser.add_argument('--num-processes', type=int, default=4,
+                       help='Number of processes for multi-process annotation (default: 4)')
+    parser.add_argument('--gpus', type=str, default='0,1',
+                       help='GPU assignments for multi-process (comma-separated, e.g. 0,1)')
+    
     args = parser.parse_args()
     
     # 로깅 설정
@@ -168,6 +176,13 @@ def main():
             for mode_name, description in modes.items():
                 logger.info(f"  {mode_name}: {description}")
             return True
+        
+        # 멀티 프로세스 어노테이션 실행 (config 또는 command line args)
+        multi_process_config = config.get('annotation', {}).get('multi_process', {})
+        should_run_multi_process = args.multi_process or multi_process_config.get('enabled', False)
+        
+        if should_run_multi_process:
+            return run_multi_process_annotation(config, args)
         
         # 모듈 등록
         if not register_modules():
@@ -202,6 +217,74 @@ def main():
         logger.error(f"Execution failed: {e}")
         import traceback
         traceback.print_exc()
+        return False
+
+
+def run_multi_process_annotation(config, args):
+    """멀티 프로세스 어노테이션 실행"""
+    try:
+        from utils.multi_process_splitter import run_multi_process_annotation as run_mp
+        
+        # config에서 multi-process 설정 가져오기
+        multi_process_config = config.get('annotation', {}).get('multi_process', {})
+        
+        # config 우선, command line args는 fallback
+        if hasattr(args, 'num_processes') and args.num_processes != 4:
+            # command line에서 기본값이 아닌 값이 설정된 경우
+            num_processes = args.num_processes
+        else:
+            num_processes = multi_process_config.get('num_processes', 4)
+        
+        # GPU 할당 설정
+        if hasattr(args, 'gpus') and args.gpus != '0,1':
+            # command line에서 기본값이 아닌 값이 설정된 경우
+            gpu_assignments = [int(x.strip()) for x in args.gpus.split(',')]
+        else:
+            gpu_assignments = multi_process_config.get('gpu_assignments', [0, 1, 0, 1])
+        
+        # 프로세스 수만큼 GPU 할당 반복
+        if len(gpu_assignments) < num_processes:
+            gpu_assignments = (gpu_assignments * num_processes)[:num_processes]
+        
+        # 설정에서 입력/출력 경로 가져오기
+        input_dir = config.get('annotation', {}).get('input', '/aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000')
+        output_dir = config.get('annotation', {}).get('output_dir', 'output')
+        
+        # 절대 경로로 변환
+        if not Path(output_dir).is_absolute():
+            output_dir = str(Path.cwd() / output_dir)
+        
+        # 설정 파일 경로를 절대 경로로 변환
+        config_path = args.config
+        if not Path(config_path).is_absolute():
+            config_path = str(Path.cwd() / config_path)
+        
+        logger.info("=== Multi-Process Annotation Configuration ===")
+        logger.info(f"Input directory: {input_dir}")
+        logger.info(f"Output directory: {output_dir}")
+        logger.info(f"Config file: {config_path}")
+        logger.info(f"Number of processes: {num_processes}")
+        logger.info(f"GPU assignments: {gpu_assignments}")
+        logger.info(f"Config source: {'Config file' if multi_process_config.get('enabled', False) else 'Command line'}")
+        
+        # 멀티 프로세스 어노테이션 실행
+        success = run_mp(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            config_path=config_path,
+            num_processes=num_processes,
+            gpu_assignments=gpu_assignments
+        )
+        
+        if success:
+            logger.info("🎉 Multi-process annotation completed successfully!")
+        else:
+            logger.error("❌ Multi-process annotation failed!")
+        
+        return success
+        
+    except Exception as e:
+        logger.error(f"Multi-process annotation error: {e}")
         return False
 
 

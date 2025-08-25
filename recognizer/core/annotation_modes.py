@@ -7,7 +7,7 @@
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from pathlib import Path
 
 from .mode_manager import BaseMode
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class Stage1Mode(BaseMode):
-    """Stage 1 - 포즈 추정 결과 생성"""
+    """Stage 1 - 포즈 추정 결과 생성 (병렬 처리 지원)"""
     
     def _get_mode_config(self) -> Dict[str, Any]:
         return self.config.get('annotation', {}).get('stage1', {})
@@ -36,10 +36,6 @@ class Stage1Mode(BaseMode):
         
         # 출력 디렉토리 생성
         output_dir = path_manager.create_directories('stage1')
-        
-        from pipelines.separated import process_stage1_pose_extraction
-        import os
-        from pathlib import Path
         
         logger.info(f"Stage 1: Processing poses from {input_path}")
         logger.info(f"Output directory: {output_dir}")
@@ -68,6 +64,19 @@ class Stage1Mode(BaseMode):
         else:
             logger.error(f"Input path does not exist: {input_path}")
             return False
+        
+        total_videos = len(video_files)
+        video_paths = [str(vf) for vf in video_files]
+        
+        logger.info(f"Found {total_videos} video files to process")
+        
+        # 순차 처리 실행
+        logger.info(f"Using sequential processing for {total_videos} videos")
+        return self._execute_sequential(video_files, output_dir)
+    
+    def _execute_sequential(self, video_files: List[Path], output_dir: str) -> bool:
+        """순차 처리 실행 (기존 방식)"""
+        from pipelines.separated import process_stage1_pose_extraction
         
         processed_count = 0
         failed_count = 0
@@ -107,7 +116,7 @@ class Stage1Mode(BaseMode):
 
 
 class Stage2Mode(BaseMode):
-    """Stage 2 - 트래킹 및 정렬 결과 생성"""
+    """Stage 2 - 트래킹 및 정렬 결과 생성 (병렬 처리 지원)"""
     
     def _get_mode_config(self) -> Dict[str, Any]:
         return self.config.get('annotation', {}).get('stage2', {})
@@ -118,7 +127,6 @@ class Stage2Mode(BaseMode):
         from utils.annotation_path_manager import create_path_manager
         path_manager = create_path_manager(self.config)
         
-        from pipelines.separated import process_stage2_tracking_scoring
         from pathlib import Path
         
         # 경로 설정
@@ -133,6 +141,22 @@ class Stage2Mode(BaseMode):
         
         # PKL 파일 찾기
         pkl_files = list(Path(poses_dir).glob("*_poses.pkl"))
+        total_files = len(pkl_files)
+        pkl_paths = [str(pkl) for pkl in pkl_files]
+        
+        logger.info(f"Found {total_files} pkl files to process")
+        
+        if not pkl_files:
+            logger.error(f"No pkl files found in {poses_dir}")
+            return False
+        
+        # 순차 처리 실행
+        logger.info(f"Using sequential processing for {total_files} files")
+        return self._execute_sequential(pkl_files, output_dir)
+    
+    def _execute_sequential(self, pkl_files: List[Path], output_dir: str) -> bool:
+        """순차 처리 실행 (기존 방식)"""
+        from pipelines.separated import process_stage2_tracking_scoring
         
         processed_count = 0
         failed_count = 0
