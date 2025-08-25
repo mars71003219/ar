@@ -799,7 +799,7 @@ class RealtimeVisualizer:
         # 오버레이 정보 표시 영역 (좌측 상단)
         overlay_x = 10
         overlay_y = 90
-        line_height = int(25 * font_scale)
+        line_height = int(40 * font_scale)
         
         # 배경 박스 (단계별 FPS 포함하여 높이 증가)
         box_width = 320
@@ -1154,11 +1154,6 @@ class RealtimeVisualizer:
         summary_text = f"Total Violence Events: {total_events}"
         cv2.putText(frame, summary_text, (box_x, start_y + line_height * 2 + 20), 
                    font, 0.35, (180, 180, 180), 1)
-        
-        # 디버깅 정보 (임시)
-        debug_text = f"History: {len(self.event_history)} events"
-        cv2.putText(frame, debug_text, (box_x, start_y + line_height * 2 + 40), 
-                   font, 0.3, (100, 100, 100), 1)
         
         return frame
     

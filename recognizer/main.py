@@ -177,19 +177,20 @@ def main():
                 logger.info(f"  {mode_name}: {description}")
             return True
         
-        # 멀티 프로세스 어노테이션 실행 (config 또는 command line args)
-        multi_process_config = config.get('annotation', {}).get('multi_process', {})
-        should_run_multi_process = args.multi_process or multi_process_config.get('enabled', False)
+        # 모드 결정 (인자 우선, 그 다음 설정 파일)
+        mode = args.mode or config.get('mode', 'inference.analysis')
         
-        if should_run_multi_process:
-            return run_multi_process_annotation(config, args)
+        # 멀티 프로세스 어노테이션 실행 (annotation 모드에서만)
+        if mode.startswith('annotation.'):
+            multi_process_config = config.get('annotation', {}).get('multi_process', {})
+            should_run_multi_process = args.multi_process or multi_process_config.get('enabled', False)
+            
+            if should_run_multi_process:
+                return run_multi_process_annotation(config, args)
         
         # 모듈 등록
         if not register_modules():
             return False
-        
-        # 모드 결정 (인자 우선, 그 다음 설정 파일)
-        mode = args.mode or config.get('mode', 'inference.analysis')
         
         # 파이프라인 모드 자동 감지 (시각화 모드는 제외)
         if mode.startswith('annotation.') and mode not in ['annotation.pipeline', 'annotation.visualize']:
@@ -235,16 +236,20 @@ def run_multi_process_annotation(config, args):
         else:
             num_processes = multi_process_config.get('num_processes', 4)
         
-        # GPU 할당 설정
+        # GPU 할당 설정 - 라운드 로빈 방식
         if hasattr(args, 'gpus') and args.gpus != '0,1':
             # command line에서 기본값이 아닌 값이 설정된 경우
-            gpu_assignments = [int(x.strip()) for x in args.gpus.split(',')]
+            available_gpus = [int(x.strip()) for x in args.gpus.split(',')]
         else:
-            gpu_assignments = multi_process_config.get('gpu_assignments', [0, 1, 0, 1])
+            # config에서 GPU 목록 가져오기 (새로운 방식 우선)
+            if 'gpus' in multi_process_config:
+                available_gpus = multi_process_config['gpus']
+            else:
+                # 이전 방식 호환성 유지
+                available_gpus = multi_process_config.get('gpu_assignments', [0, 1])
         
-        # 프로세스 수만큼 GPU 할당 반복
-        if len(gpu_assignments) < num_processes:
-            gpu_assignments = (gpu_assignments * num_processes)[:num_processes]
+        # 라운드 로빈으로 GPU 할당
+        gpu_assignments = [available_gpus[i % len(available_gpus)] for i in range(num_processes)]
         
         # 설정에서 입력/출력 경로 가져오기
         input_dir = config.get('annotation', {}).get('input', '/aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000')
