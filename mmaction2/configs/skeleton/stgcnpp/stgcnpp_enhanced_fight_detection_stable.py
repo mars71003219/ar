@@ -35,9 +35,9 @@ model = dict(
 # ============================================================================
 dataset_type = 'PoseDataset'
 data_root = '/workspace/recognizer/test_data'
-ann_file_train = '/workspace/recognizer/output/annotation/stage3_dataset/train.pkl'
-ann_file_val = '/workspace/recognizer/output/annotation/stage3_dataset/val.pkl'
-ann_file_test = '/workspace/recognizer/output/annotation/stage3_dataset/test.pkl'
+ann_file_train = '/workspace/recognizer/output/RWF-2000/stage3_dataset/unknown_s0.2_n0.65_bytetrack_h0.3_l0.1_t0.2_split0.7-0.2-0.1/train.pkl'
+ann_file_val = '/workspace/recognizer/output/RWF-2000/stage3_dataset/unknown_s0.2_n0.65_bytetrack_h0.3_l0.1_t0.2_split0.7-0.2-0.1/val.pkl'
+ann_file_test = '/workspace/recognizer/output/RWF-2000/stage3_dataset/unknown_s0.2_n0.65_bytetrack_h0.3_l0.1_t0.2_split0.7-0.2-0.1/test.pkl'
 # dataset_type = 'PoseDataset'
 # data_root = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/UCF_Crime_test2'
 # ann_file_train = '/workspace/rtmo_gcn_pipeline/rtmo_pose_track/output/RWF-2000/RWF-2000_train_windows.pkl'
@@ -198,7 +198,7 @@ visualizer = dict(
 )
 
 load_from = '/workspace/mmaction2/checkpoints/stgcnpp_8xb16-bone-u100-80e_ntu60-xsub-keypoint-2d_20221228-cd11a691.pth'
-work_dir = '/workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-m_RWF2000plus_stable'
+work_dir = '/workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_RWF2000plus_stable'
 resume = False
 randomness = dict(seed=42, deterministic=False)
 env_cfg = dict(

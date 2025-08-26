@@ -90,6 +90,9 @@ class InferencePipeline(BasePipeline):
         self.classification_thread = None
         self.classification_running = False
         
+        # 윈도우 생성 추적 (비동기 처리로 인한 중복 생성 방지)
+        self.windows_created = 0  # 실제로 생성된 윈도우 개수
+        
         # 이벤트 관리자 초기화
         self.event_manager = None
         self._initialize_event_manager(config)
@@ -167,9 +170,19 @@ class InferencePipeline(BasePipeline):
         # 프레임 버퍼 초기화
         self.frame_buffer = []
         
+        # 트래커 상태 초기화 (중요: track ID 리셋)
+        if hasattr(self, 'tracker') and self.tracker:
+            if hasattr(self.tracker, 'reset'):
+                self.tracker.reset()
+                logging.info("Tracker state reset")
+            elif hasattr(self.tracker, 'clear_tracks'):
+                self.tracker.clear_tracks()
+                logging.info("Tracker tracks cleared")
+        
         # 윈도우 프로세서 초기화
         if hasattr(self, 'window_processor') and self.window_processor:
-            self.window_processor.reset()
+            if hasattr(self.window_processor, 'reset'):
+                self.window_processor.reset()
         
         # 분류 결과 초기화
         self.classification_results = []
@@ -177,6 +190,9 @@ class InferencePipeline(BasePipeline):
         # 포즈 결과 초기화
         self.frame_poses_results = []
         self.rtmo_poses_results = []
+        
+        # 윈도우 생성 카운터 초기화
+        self.windows_created = 0
         
         # 이벤트 관리자 리셋
         if self.event_manager:
@@ -190,7 +206,9 @@ class InferencePipeline(BasePipeline):
             'scoring_time': 0.0,
             'classification_time': 0.0,
             'visualization_time': 0.0,
-            'windows_classified': 0
+            'windows_classified': 0,
+            'total_alerts': 0,
+            'frames_skipped': 0
         }
         
         # 시간 측정 초기화
@@ -201,6 +219,15 @@ class InferencePipeline(BasePipeline):
             'classification': [],
             'visualization': []
         }
+        
+        # 분류 큐 초기화 (비동기 처리용)
+        while not self.classification_queue.empty():
+            try:
+                self.classification_queue.get_nowait()
+            except:
+                break
+        
+        logging.info("Pipeline state reset completed")
     
     def initialize_pipeline(self) -> bool:
         """파이프라인 모듈 초기화"""
@@ -930,30 +957,32 @@ class InferencePipeline(BasePipeline):
                     # 디버깅 로그
                     if frame_count % 20 == 0:  # 20프레임마다 로그
                         logging.info(f"Frame {frame_count}: buffer_size={len(self.frame_buffer)}, "
-                                   f"classification_count={len(self.classification_results)}")
+                                   f"windows_created={self.windows_created}, classification_count={len(self.classification_results)}")
                     
                     # 첫 번째 윈도우: 0-99 프레임 (100프레임에서 생성)
-                    if len(self.frame_buffer) >= window_size and len(self.classification_results) == 0:
+                    if len(self.frame_buffer) >= window_size and self.windows_created == 0:
                         logging.info(f"Creating first window at frame {frame_count} with {len(self.frame_buffer)} frames")
                         first_window_frames = self.frame_buffer[:window_size]  # 처음 100프레임 사용
+                        self.windows_created += 1
                         self._process_classification_window(first_window_frames, 1, visualizer)
                     
                     # 이후 윈도우들: stride(50) 간격으로만 생성 (140+, 190+, 240+...)
-                    elif frame_count >= window_size + stride * len(self.classification_results) - 10:  # 10프레임 일찍 시작
+                    elif frame_count >= window_size + stride * self.windows_created - 10:  # 10프레임 일찍 시작
                         # 윈도우 생성 시점: frame_count 기준으로 100 + 50*n - 10 (140+, 190+, 240+...)
-                        expected_frame_count = window_size + stride * len(self.classification_results)
-                        current_window_num = len(self.classification_results) + 1
+                        expected_frame_count = window_size + stride * self.windows_created
+                        current_window_num = self.windows_created + 1
                         
                         # 아직 해당 윈도우가 생성되지 않았고, 충분한 프레임이 있으면 생성
                         if len(self.frame_buffer) >= window_size:
                             logging.info(f"Creating window {current_window_num} at frame {frame_count} (expected around {expected_frame_count})")
                             recent_frames = self.frame_buffer[-window_size:]
+                            self.windows_created += 1
                             self._process_classification_window(recent_frames, current_window_num, visualizer)
                         else:
                             logging.warning(f"Not enough frames in buffer for window {current_window_num}: {len(self.frame_buffer)}")
                             
                         # 디버깅용 로그 (한 번만 출력)
-                        if frame_count == window_size + stride * len(self.classification_results) - 10:
+                        if frame_count == window_size + stride * (self.windows_created - 1) - 10:
                             logging.info(f"DEBUG: Window {current_window_num} creation attempt - frame_count={frame_count}, expected={expected_frame_count}, buffer={len(self.frame_buffer)}")
                 
                 buffer_time = time.time() - buffer_start
@@ -1003,7 +1032,7 @@ class InferencePipeline(BasePipeline):
                 window_results = []
                 for result in self.classification_results:
                     if isinstance(result, dict):
-                        # 기존 동기 결과 형태
+                        # 처리된 비동기 결과 형태 (display_id 포함)
                         if 'display_id' in result and 'predicted_class' in result:
                             window_results.append({
                                 'window_id': result['display_id'],
@@ -1013,6 +1042,19 @@ class InferencePipeline(BasePipeline):
                                     'probabilities': result.get('probabilities', [])
                                 }
                             })
+                        # 비동기 결과 형태 (처리되지 않은 경우)
+                        elif 'window_id' in result and 'result' in result:
+                            window_id = result['window_id']
+                            stgcn_result = result['result']
+                            if hasattr(stgcn_result, 'get_predicted_label'):
+                                window_results.append({
+                                    'window_id': window_id,
+                                    'classification': {
+                                        'predicted_class': stgcn_result.get_predicted_label(),
+                                        'confidence': stgcn_result.confidence,
+                                        'probabilities': stgcn_result.probabilities
+                                    }
+                                })
                         # 비동기 결과 형태는 _process_async_classification_results에서 처리됨
                 
                 if window_results:

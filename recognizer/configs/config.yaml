@@ -1,7 +1,7 @@
-# mode: inference.realtime
+mode: inference.realtime
 # mode: inference.analysis
 # mode: inference.visualize
-mode: annotation.stage3
+# mode: annotation.stage3
 
 
 annotation:
@@ -11,12 +11,12 @@ annotation:
 
   # 멀티 프로세스 설정
   multi_process:
-    enabled: true                # 멀티 프로세스 활성화 여부
+    enabled: false               # 멀티 프로세스 비활성화
     num_processes: 16             # 프로세스 수
     gpus: [0, 1]                 # 사용할 GPU 목록 (라운드 로빈 할당)
 
   stage1:
-    enabled: true
+    enabled: false
   stage2:
     enabled: true
   stage3:
@@ -38,8 +38,9 @@ inference:
     output_dir: output
 
   realtime:
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_77_1_0_0_0.mp4
-    output_path: output
+    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_77_1_0_0_0.mp4
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/hanbit 
+    output_path: /workspace/recognizer/output 
     save_output: true
     display_width: 640
     display_height: 480
@@ -174,17 +175,17 @@ performance:
 
 events:
   # 이벤트 발생 조건
-  alert_threshold: 0.7                    # 폭력 탐지 신뢰도 임계값
+  alert_threshold: 0.6                    # 폭력 탐지 신뢰도 임계값
   min_consecutive_detections: 3           # 연속 탐지 최소 횟수
   
   # 이벤트 해제 조건  
   normal_threshold: 0.5                   # 정상 상태 신뢰도 임계값
-  min_consecutive_normal: 5               # 연속 정상 최소 횟수
+  min_consecutive_normal: 3               # 연속 정상 최소 횟수
   
   # 시간 기반 조건
   min_event_duration: 2.0                 # 최소 이벤트 지속 시간 (초)
-  max_event_duration: 300.0               # 최대 이벤트 지속 시간 (초) 
-  cooldown_duration: 10.0                 # 이벤트 쿨다운 시간 (초)
+  max_event_duration: 10.0               # 최대 이벤트 지속 시간 (초) 
+  cooldown_duration: 5.0                 # 이벤트 쿨다운 시간 (초)
   
   # 알림 설정
   enable_ongoing_alerts: true             # 진행 중 알림 활성화

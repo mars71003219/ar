@@ -149,8 +149,8 @@ def main():
     # 멀티 프로세스 어노테이션 옵션
     parser.add_argument('--multi-process', action='store_true',
                        help='Run multi-process annotation')
-    parser.add_argument('--num-processes', type=int, default=4,
-                       help='Number of processes for multi-process annotation (default: 4)')
+    parser.add_argument('--num-processes', type=int, default=8,
+                       help='Number of processes for multi-process annotation (default: 8)')
     parser.add_argument('--gpus', type=str, default='0,1',
                        help='GPU assignments for multi-process (comma-separated, e.g. 0,1)')
     

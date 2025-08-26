@@ -226,22 +226,59 @@ class STGCNActionClassifier(BaseActionClassifier):
                 }
                 
                 with torch.no_grad():
-                    # 연속 실행으로 커널 최적화 완료
-                    for i in range(5):  # 5번 더 실행하여 안정화
+                    # 안전한 연속 실행으로 커널 최적화
+                    successful_runs = 0
+                    target_runs = 5
+                    
+                    for i in range(target_runs):
                         start_time = time.time()
                         try:
-                            result = inference_recognizer(self.recognizer, dummy_data)
+                            # 첫 번째 실행 후에는 다른 데이터로 테스트
+                            if i == 0:
+                                result = inference_recognizer(self.recognizer, dummy_data)
+                            else:
+                                # 약간 다른 dummy 데이터 생성 (랜덤 시드 변경)
+                                np.random.seed(42 + i)
+                                test_data = {
+                                    'keypoint': np.random.randn(4, 100, 17, 2).astype(np.float32),
+                                    'keypoint_score': np.random.rand(4, 100, 17).astype(np.float32),
+                                    'total_frames': 100,
+                                    'img_shape': (640, 640),
+                                    'original_shape': (640, 640),
+                                    'label': 0
+                                }
+                                result = inference_recognizer(self.recognizer, test_data)
+                            
                             warmup_time = time.time() - start_time
                             extended_warmup_times.append(warmup_time)
-                            logging.info(f"  Extended warmup {i+1}/5: {warmup_time*1000:.2f}ms")
+                            successful_runs += 1
+                            logging.info(f"  Extended warmup {i+1}/{target_runs}: {warmup_time*1000:.2f}ms - Success")
+                            
                         except Exception as e:
                             warmup_time = time.time() - start_time
                             extended_warmup_times.append(warmup_time)
-                            logging.warning(f"  Extended warmup {i+1}/5: {warmup_time*1000:.2f}ms (with error: {str(e)[:50]})")
+                            logging.warning(f"  Extended warmup {i+1}/{target_runs}: {warmup_time*1000:.2f}ms (with error: {str(e)})")
+                            
+                            # 에러가 발생한 경우 모델 상태 초기화 시도
+                            try:
+                                if hasattr(self.recognizer, 'backbone'):
+                                    if hasattr(self.recognizer.backbone, 'eval'):
+                                        self.recognizer.backbone.eval()
+                                if hasattr(self.recognizer, 'cls_head'):
+                                    if hasattr(self.recognizer.cls_head, 'eval'):
+                                        self.recognizer.cls_head.eval()
+                                # GPU 메모리 정리
+                                torch.cuda.empty_cache()
+                                torch.cuda.synchronize()
+                            except:
+                                pass
                 
-                # 성능 안정화 확인
-                recent_avg = sum(extended_warmup_times[-3:]) / 3
-                logging.info(f"GPU optimization completed! Stable performance: {recent_avg*1000:.2f}ms ({1.0/recent_avg:.1f} FPS)")
+                # 성능 안정화 확인 (성공한 실행만 고려)
+                if extended_warmup_times:
+                    recent_avg = sum(extended_warmup_times[-min(3, len(extended_warmup_times)):]) / min(3, len(extended_warmup_times))
+                    logging.info(f"GPU optimization completed! Successful runs: {successful_runs}/{target_runs}, Stable performance: {recent_avg*1000:.2f}ms ({1.0/recent_avg:.1f} FPS)")
+                else:
+                    logging.warning("GPU optimization failed - no successful runs")
                 
                 # 메모리 최종 정리
                 torch.cuda.empty_cache()

@@ -536,12 +536,30 @@ class Stage3Mode(BaseMode):
                 keypoint_array[:num_persons, t, :, :] = frame_kp[:num_persons]
                 score_array[:num_persons, t, :] = frame_sc[:num_persons]
             
-            # 파일명에서 라벨 추출 (예: F_로 시작하면 Fight(1), 아니면 NonFight(0))
-            filename = tracking_file.stem
-            if filename.startswith('F_') or 'fight' in filename.lower() or 'violence' in filename.lower():
-                label = 1  # Fight
+            # RWF-2000 데이터셋 원본 폴더 경로에서 라벨 추출
+            filename = tracking_file.stem.replace('_stage2_tracking', '')
+            
+            # Stage2에서 전달받은 original_label 사용 (우선순위)
+            label = 0  # 기본값: NonFight
+            if hasattr(data, 'stage_info') and data.stage_info:
+                original_label = data.stage_info.get('original_label')
+                if original_label is not None:
+                    label = original_label
+                    logger.info(f"Using original_label from stage_info: {filename} -> {label}")
+                else:
+                    logger.warning(f"No original_label found for {filename}, using filename fallback")
+                    # 파일명 기반 폴백 (원본 RWF-2000 구조 고려)
+                    if 'fight' in filename.lower() or filename.lower().startswith('f'):
+                        label = 1  # Fight
+                    else:
+                        label = 0  # NonFight
             else:
-                label = 0  # NonFight
+                logger.warning(f"No stage_info found for {filename}, using filename fallback")
+                # 파일명 기반 폴백
+                if 'fight' in filename.lower() or filename.lower().startswith('f'):
+                    label = 1  # Fight
+                else:
+                    label = 0  # NonFight
             
             # MMAction2 어노테이션 형식
             annotation = {

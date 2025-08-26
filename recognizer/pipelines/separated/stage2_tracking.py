@@ -54,8 +54,19 @@ def process_stage2_tracking_scoring(
     pkl_path = Path(pkl_file_path)
     video_name = pkl_path.stem.replace('_stage1_poses', '')
     
-    # Stage 1 결과 로드
+    # Stage 1 결과 로드 (원본 라벨 정보 포함)
+    stage1_data = None
+    with open(pkl_file_path, 'rb') as f:
+        stage1_data = pickle.load(f)
+    
     frame_poses_list = load_stage1_result(pkl_file_path)
+    
+    # Stage1에서 전달된 원본 라벨 정보 추출
+    original_label = None
+    original_path = None
+    if isinstance(stage1_data, VisualizationData) and stage1_data.stage_info:
+        original_label = stage1_data.stage_info.get('original_label')
+        original_path = stage1_data.stage_info.get('original_path')
     
     # 트래커 및 스코어링 모듈 생성
     tracker_name = tracking_config_dict.get('tracker_name', 'bytetrack')
@@ -84,7 +95,7 @@ def process_stage2_tracking_scoring(
     output_pkl_path = output_path / f"{video_name}_stage2_tracking.pkl"
     
     if save_visualization:
-        # 시각화용 데이터 생성
+        # 시각화용 데이터 생성 (원본 라벨 정보 보존)
         viz_data = VisualizationData(
             video_name=video_name,
             frame_data=scored_frames,
@@ -92,7 +103,9 @@ def process_stage2_tracking_scoring(
                 'stage': 'tracking_scoring',
                 'total_frames': len(scored_frames),
                 'tracking_config': tracking_config_dict,
-                'scoring_config': scoring_config_dict
+                'scoring_config': scoring_config_dict,
+                'original_path': original_path,  # Stage1에서 전달받은 원본 경로 보존
+                'original_label': original_label  # Stage1에서 전달받은 원본 라벨 보존
             },
             poses_with_tracking=scored_frames,
             tracking_info={
@@ -119,7 +132,9 @@ def process_stage2_tracking_scoring(
         metadata={
             'total_frames': len(scored_frames),
             'tracking_config': tracking_config_dict,
-            'scoring_config': scoring_config_dict
+            'scoring_config': scoring_config_dict,
+            'original_path': original_path,  # 메타데이터에도 원본 경로 보존
+            'original_label': original_label  # 메타데이터에도 원본 라벨 보존
         }
     )
 

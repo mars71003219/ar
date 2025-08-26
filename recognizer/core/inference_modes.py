@@ -138,18 +138,23 @@ class RealtimeMode(BaseMode):
         
         logger.info(f"Found {len(video_files)} video files")
         
+        # input 폴더의 마지막 폴더명 추출 (output 폴더명으로 사용)
+        folder_name = input_folder.name
+        output_base_dir = Path(output_dir) / folder_name
+        logger.info(f"Output will be saved to: {output_base_dir}")
+        
         success_count = 0
         for video_file in video_files:
             logger.info(f"Processing: {video_file.name}")
             
-            # 출력 경로 생성 (디렉토리 구조 보존)
+            # 출력 경로 생성 (input 폴더 마지막 폴더명 기반)
             if save_output:
                 # 상대 경로 계산
                 relative_path = video_file.relative_to(input_folder)
                 video_name = video_file.stem
                 
-                # 출력 경로 생성 (구조 보존)
-                output_subdir = Path(output_dir) / relative_path.parent
+                # 출력 경로 생성 (input 폴더 마지막 폴더명 기반)
+                output_subdir = output_base_dir / relative_path.parent
                 output_subdir.mkdir(parents=True, exist_ok=True)
                 output_path = output_subdir / f"{video_name}_overlay.mp4"
             else:
