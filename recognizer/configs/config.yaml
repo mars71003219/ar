@@ -1,5 +1,5 @@
-mode: inference.analysis
-# mode: inference.realtime
+# mode: inference.analysis
+mode: inference.realtime
 # mode: inference.visualize
 # mode: annotation.stage3
 # mode: annotation.visualize
@@ -37,18 +37,17 @@ annotation:
 
 inference:
   analysis:
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
+    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
     output_dir: output
     
     # 성능평가 설정
     enable_evaluation: true          # 성능평가 기능 활성화
-    # consecutive_frames 설정은 events.min_consecutive_detections 사용 (중복 제거)
-    # 멀티 프로세스 설정은 최상위에서 공통으로 사용
 
   realtime:
     # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_77_1_0_0_0.mp4
     # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/hanbit 
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
+    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
+    input: /aivanas/one
     output_path: /workspace/recognizer/output 
     save_output: true
     display_width: 640
