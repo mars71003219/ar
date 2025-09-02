@@ -298,21 +298,32 @@ class InferencePipeline(BasePipeline):
                     if mode_name in pose_estimation:
                         pose_config[mode_name] = pose_estimation[mode_name]
                 
-                # 트래킹 설정
+                # 트래킹 설정 - 모든 threshold 값들 포함
                 tracking = models.get('tracking', {})
                 tracking_config = {
                     'tracker_name': tracking.get('tracker_name', 'bytetrack'),
                     'track_thresh': tracking.get('track_thresh', 0.4),
+                    'track_high_thresh': tracking.get('track_high_thresh', 0.3),
+                    'track_low_thresh': tracking.get('track_low_thresh', 0.1),
                     'track_buffer': tracking.get('track_buffer', 50),
-                    'match_thresh': tracking.get('match_thresh', 0.4)
+                    'match_thresh': tracking.get('match_thresh', 0.4),
+                    'match_thresh_second': tracking.get('match_thresh_second', 0.4),
+                    'new_track_thresh': tracking.get('new_track_thresh', 0.5),
+                    'frame_rate': tracking.get('frame_rate', 30),
+                    'iou_weight': tracking.get('iou_weight', 0.7),
+                    'keypoint_weight': tracking.get('keypoint_weight', 0.3),
+                    'min_box_area': tracking.get('min_box_area', 100),
+                    'use_hybrid_matching': tracking.get('use_hybrid_matching', True),
+                    'mot20': tracking.get('mot20', False)
                 }
                 
-                # 스코어링 설정
+                # 스코어링 설정 - weights 포함
                 scoring = models.get('scoring', {})
                 scoring_config = {
                     'scorer_name': scoring.get('scorer_name', 'region_based'),
                     'quality_threshold': scoring.get('quality_threshold', 0.3),
                     'min_track_length': scoring.get('min_track_length', 10),
+                    'weights': scoring.get('weights', {}),
                     'img_width': 640,
                     'img_height': 640
                 }

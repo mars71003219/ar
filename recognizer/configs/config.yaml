@@ -1,22 +1,25 @@
-mode: inference.realtime
-# mode: inference.analysis
+mode: inference.analysis
+# mode: inference.realtime
 # mode: inference.visualize
 # mode: annotation.stage3
+# mode: annotation.visualize
 
+# 공통 멀티 프로세스 설정 (모든 모드에서 사용)
+multi_process:
+  enabled: true                     # 멀티 프로세스 활성화
+  num_processes: 6                  # 프로세스 수 (UBI_demo 6개 비디오용)
+  gpus: [0, 1]                     # 사용할 GPU 목록 (라운드 로빈 할당)
+  chunk_strategy: video_split       # 비디오 단위로 분할
 
 annotation:
   input: /aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000
   output_dir: output
   pipeline_mode: true
 
-  # 멀티 프로세스 설정
-  multi_process:
-    enabled: false               # 멀티 프로세스 비활성화
-    num_processes: 16             # 프로세스 수
-    gpus: [0, 1]                 # 사용할 GPU 목록 (라운드 로빈 할당)
+  # 멀티 프로세스 설정은 최상위에서 공통으로 사용
 
   stage1:
-    enabled: false
+    enabled: true
   stage2:
     enabled: true
   stage3:
@@ -28,24 +31,30 @@ annotation:
 
   visualize:
     stage: stage2
-    video_dir: /workspace/recognizer/test_data
-    results_dir: output/test_data/stage2_tracking/bytetrack_h0.3_l0.1_t0.2
-    save_mode: true
+    video_dir: /aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000
+    results_dir: /workspace/recognizer/output/RWF-2000/stage2_tracking/bytetrack_h0.3_l0.1_t0.2
+    save_mode: false
 
 inference:
   analysis:
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
     output_dir: output
+    
+    # 성능평가 설정
+    enable_evaluation: true          # 성능평가 기능 활성화
+    # consecutive_frames 설정은 events.min_consecutive_detections 사용 (중복 제거)
+    # 멀티 프로세스 설정은 최상위에서 공통으로 사용
 
   realtime:
     # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_77_1_0_0_0.mp4
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/hanbit 
+    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/hanbit 
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
     output_path: /workspace/recognizer/output 
     save_output: true
     display_width: 640
     display_height: 480
     # 오버레이 표시 모드 설정
-    overlay_mode: full  # full, skeleton_only, raw
+    overlay_mode: skeleton_only  # full, skeleton_only, raw
 
   visualize:
     input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4
@@ -56,7 +65,7 @@ inference:
 
 models:
   action_classification:
-    checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-m_RWF2000plus_stable/best_acc_top1_epoch_14.pth
+    checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_RWF2000plus_stable/best_acc_top1_epoch_30.pth
     class_names:
     - NonFight
     - Fight
@@ -175,12 +184,12 @@ performance:
 
 events:
   # 이벤트 발생 조건
-  alert_threshold: 0.6                    # 폭력 탐지 신뢰도 임계값
+  alert_threshold: 0.8                    # 폭력 탐지 신뢰도 임계값
   min_consecutive_detections: 3           # 연속 탐지 최소 횟수
   
   # 이벤트 해제 조건  
   normal_threshold: 0.5                   # 정상 상태 신뢰도 임계값
-  min_consecutive_normal: 3               # 연속 정상 최소 횟수
+  min_consecutive_normal: 2               # 연속 정상 최소 횟수
   
   # 시간 기반 조건
   min_event_duration: 2.0                 # 최소 이벤트 지속 시간 (초)

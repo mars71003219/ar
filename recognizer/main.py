@@ -180,13 +180,18 @@ def main():
         # 모드 결정 (인자 우선, 그 다음 설정 파일)
         mode = args.mode or config.get('mode', 'inference.analysis')
         
-        # 멀티 프로세스 어노테이션 실행 (annotation 모드에서만)
+        # 멀티 프로세스 처리 설정 (annotation 또는 evaluation 모드)
         if mode.startswith('annotation.'):
             multi_process_config = config.get('annotation', {}).get('multi_process', {})
             should_run_multi_process = args.multi_process or multi_process_config.get('enabled', False)
             
             if should_run_multi_process:
                 return run_multi_process_annotation(config, args)
+        elif mode == 'evaluation':
+            # evaluation 모드의 멀티프로세스 설정
+            if args.multi_process:
+                config['multi_process'] = True
+                config['num_processes'] = args.num_processes
         
         # 모듈 등록
         if not register_modules():

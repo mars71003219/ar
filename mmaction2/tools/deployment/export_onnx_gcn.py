@@ -22,9 +22,9 @@ def parse_args():
     parser.add_argument('config', help='config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
     parser.add_argument(
-        '--num_frames', type=int, default=150, help='number of input frames.')
+        '--num_frames', type=int, default=100, help='number of input frames.')
     parser.add_argument(
-        '--num_person', type=int, default=2, help='number of maximum person.')
+        '--num_person', type=int, default=4, help='number of maximum person.')
     parser.add_argument(
         '--num_joints',
         type=int,
@@ -36,7 +36,7 @@ def parse_args():
     parser.add_argument(
         '--output_file',
         type=str,
-        default='stgcn.onnx',
+        default='/workspace/mmaction2/checkpoints/stgcnpp.onnx',
         help='file name of the output onnx file')
     args = parser.parse_args()
     return args

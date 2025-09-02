@@ -13,19 +13,19 @@ model = dict(
         gcn_with_res=True,
         tcn_type='mstcn',
         graph_cfg=dict(layout='coco', mode='spatial'),
-        num_stages=4,  # 6 -> 4로 더 단순화 (학습 안정성 향상)
-        base_channels=64,  # 48 -> 64로 증가 (표현력 향상)
-        inflate_stages=[2],    # 단일 inflate로 단순화
-        down_stages=[2],       # 단일 down으로 단순화
+        num_stages=6,  # 8 -> 6으로 감소 (모델 단순화)
+        base_channels=48,
+        inflate_stages=[3, 5],  # num_stages에 맞춰 조정
+        down_stages=[3, 5],    # num_stages에 맞춰 조정
     ),
     cls_head=dict(
         type='GCNHead',
         num_classes=2,
-        in_channels=128, # base_channels 64, 1번 inflate -> 64*2 = 128 channels
-        dropout=0.3,     # 0.5 -> 0.3로 감소 (과적합 방지)
+        in_channels=192, # base_channels 48, 2번 inflate -> 48*2*2 = 192 channels
+        dropout=0.5,     # 0.6 -> 0.5로 감소
         loss_cls=dict(
             type='CrossEntropyLoss',
-            class_weight=[1.2, 1.0]  # NonFight:Fight = 45.4:54.6 분포에 맞춰 조정
+            class_weight=[1.0, 1.5]
         )
     )
 )
@@ -81,7 +81,7 @@ test_pipeline = [
 
 train_dataloader = dict(
     _delete_=True,
-    batch_size=32,  # 16 -> 32로 증가 (학습 안정성 향상)
+    batch_size=16,
     num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -95,7 +95,7 @@ train_dataloader = dict(
 
 val_dataloader = dict(
     _delete_=True,
-    batch_size=32,  # 16 -> 32로 증가 (검증 안정성 향상)
+    batch_size=16,
     num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=False),
@@ -118,37 +118,37 @@ optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(
         type='AdamW',
-        lr=0.0001,   # 0.00001 -> 0.0001로 10배 증가 (학습 가능 수준)
-        weight_decay=0.001,  # 0.005 -> 0.001로 감소
+        lr=0.00001,  # 0.0001 -> 0.00001로 대폭 감소
+        weight_decay=0.005,
         betas=(0.9, 0.999),
         eps=1e-8
     ),
-    clip_grad=dict(max_norm=2.0, norm_type=2)  # 1.0 -> 2.0으로 증가
+    clip_grad=dict(max_norm=1.0, norm_type=2)
 )
 
 param_scheduler = [
     dict(
         type='LinearLR',
-        start_factor=0.1,  # 0.01 -> 0.1로 증가 (더 높은 시작점)
+        start_factor=0.01,
         by_epoch=True,
         begin=0,
-        end=3,   # 5 -> 3으로 감소 (짧은 warmup)
+        end=5,  # 3 -> 5 에폭으로 증가 (Warmup 기간 연장)
         convert_to_iter_based=True
     ),
     dict(
-        type='MultiStepLR',  # CosineAnnealingLR -> MultiStepLR로 변경
+        type='CosineAnnealingLR',
         by_epoch=True,
-        begin=3,
-        milestones=[15, 25],  # step decay at epoch 15, 25
-        gamma=0.5
+        begin=5,
+        T_max=10, # 15 - 5 = 10
+        eta_min_ratio=0.001
     )
 ]
 
 train_cfg = dict(
     type='EpochBasedTrainLoop',
-    max_epochs=30,   # 15 -> 30으로 증가 (충분한 학습 시간)
+    max_epochs=15,
     val_begin=1,
-    val_interval=2   # 1 -> 2로 변경 (2에폭마다 검증)
+    val_interval=1
 )
 
 val_cfg = dict(type='ValLoop')
@@ -177,7 +177,7 @@ test_evaluator = val_evaluator
 default_hooks = dict(
     checkpoint=dict(
         type='CheckpointHook',
-        interval=10,  # 5 -> 10으로 변경 (체크포인트 간격 증가)
+        interval=5,
         save_best='auto',
         max_keep_ckpts=5
     ),
