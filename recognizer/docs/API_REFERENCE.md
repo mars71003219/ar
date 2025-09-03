@@ -1,292 +1,322 @@
-# 실시간 추론 시스템 API 레퍼런스
+# Recognizer API 레퍼런스
+
+**완전 모듈화된 비디오 분석 시스템 API 문서**
 
 ## 개요
 
-Violence Detection 실시간 추론 시스템의 모든 클래스, 메서드, 함수의 상세한 API 레퍼런스를 제공한다.
+Recognizer 시스템의 모든 클래스, 메서드, 함수에 대한 상세한 API 레퍼런스를 제공합니다. 이 문서는 최신 코드베이스(2025-09-03)를 기반으로 작성되었습니다.
 
 ---
 
-##  목차
+## 목차
 
-1. [파이프라인 API](#파이프라인-api)
-2. [입력 관리 API](#입력-관리-api)
+1. [Core API](#core-api)
+2. [모드 관리 API](#모드-관리-api)  
 3. [포즈 추정 API](#포즈-추정-api)
-4. [추적 API](#추적-api)
-5. [분류 API](#분류-api)
-6. [이벤트 관리 API](#이벤트-관리-api)
+4. [행동 분류 API](#행동-분류-api)
+5. [추적 API](#추적-api)
+6. [점수 계산 API](#점수-계산-api)
 7. [시각화 API](#시각화-api)
 8. [유틸리티 API](#유틸리티-api)
 9. [데이터 구조](#데이터-구조)
-10. [예외 처리](#예외-처리)
+10. [설정 구조](#설정-구조)
 
 ---
 
-## 파이프라인 API
+## Core API
 
-### InferencePipeline
+### ModeManager
+
+메인 모드 관리자 클래스로, 모든 실행 모드를 등록하고 실행합니다.
 
 #### 클래스 정의
 ```python
-class InferencePipeline(BasePipeline):
-    """실시간 추론 파이프라인 메인 클래스"""
+class ModeManager:
+    """통합 모드 관리자"""
 ```
 
 #### 생성자
 ```python
 def __init__(self, config: Dict[str, Any])
 ```
+
 **매개변수:**
-- `config` (Dict[str, Any]): 통합 설정 딕셔너리
-
-**반환값:** None
-
-**예외:**
-- `ConfigurationError`: 설정 오류 시
-- `ModuleInitializationError`: 모듈 초기화 실패 시
+- `config` (Dict[str, Any]): 전체 시스템 설정
 
 **사용 예시:**
 ```python
+from core import ModeManager
+
 config = load_config('config.yaml')
-pipeline = InferencePipeline(config)
+manager = ModeManager(config)
 ```
 
-#### 메서드
+#### 주요 메서드
 
-##### initialize_pipeline()
+##### execute()
 ```python
-def initialize_pipeline(self) -> bool
+def execute(self, mode_name: str) -> bool
 ```
-**설명:** 파이프라인의 모든 모듈을 초기화합니다.
+
+지정된 모드를 실행합니다.
+
+**매개변수:**
+- `mode_name` (str): 실행할 모드명 (예: 'inference.analysis')
 
 **반환값:** 
-- `bool`: 초기화 성공 여부
-
-**예외:**
-- `PoseEstimatorError`: 포즈 추정기 초기화 실패
-- `TrackerError`: 추적기 초기화 실패
-- `ClassifierError`: 분류기 초기화 실패
+- `bool`: 실행 성공 여부
 
 **사용 예시:**
 ```python
-if pipeline.initialize_pipeline():
-    print("Pipeline initialized successfully")
-else:
-    print("Pipeline initialization failed")
+success = manager.execute('inference.realtime')
 ```
 
-##### run_realtime_mode()
+##### list_modes()
 ```python
-def run_realtime_mode(self, input_source: str) -> bool
+def list_modes() -> Dict[str, str]
 ```
-**설명:** 실시간 모드로 파이프라인을 실행합니다.
 
-**매개변수:**
-- `input_source` (str): 입력 소스 (파일 경로, RTSP URL, 웹캠 인덱스)
+사용 가능한 모든 모드를 반환합니다.
+
+**반환값:**
+- `Dict[str, str]`: 모드명과 설명의 딕셔너리
+
+**사용 예시:**
+```python
+modes = manager.list_modes()
+for mode, description in modes.items():
+    print(f"{mode}: {description}")
+```
+
+### BaseMode
+
+모든 실행 모드의 추상 기본 클래스입니다.
+
+#### 클래스 정의
+```python
+class BaseMode(ABC):
+    """모든 모드의 기본 클래스"""
+```
+
+#### 추상 메서드
+
+##### execute()
+```python
+@abstractmethod
+def execute(self) -> bool
+```
+
+모드 실행 로직을 구현해야 합니다.
 
 **반환값:**
 - `bool`: 실행 성공 여부
 
-**예외:**
-- `InputSourceError`: 입력 소스 오류
-- `RuntimeError`: 실행 중 오류
-
-**사용 예시:**
-```python
-# 비디오 파일
-pipeline.run_realtime_mode("/path/to/video.mp4")
-
-# RTSP 스트림
-pipeline.run_realtime_mode("rtsp://192.168.1.100:554/stream")
-
-# 웹캠
-pipeline.run_realtime_mode("0")
-```
-
-##### process_frame()
-```python
-def process_frame(self, frame: np.ndarray, frame_idx: int) -> Tuple[FramePoses, Dict[str, Any]]
-```
-**설명:** 단일 프레임을 처리합니다.
-
-**매개변수:**
-- `frame` (np.ndarray): 입력 프레임 (H×W×3)
-- `frame_idx` (int): 프레임 인덱스
-
-**반환값:**
-- `Tuple[FramePoses, Dict[str, Any]]`: (처리된 포즈 데이터, 오버레이 정보)
-
-**예외:**
-- `FrameProcessingError`: 프레임 처리 실패
-
-##### get_performance_stats()
-```python
-def get_performance_stats(self) -> Dict[str, Any]
-```
-**설명:** 성능 통계를 반환합니다.
-
-**반환값:**
-```python
-{
-    'overall_fps': float,
-    'pose_estimation_fps': float,
-    'tracking_fps': float,
-    'scoring_fps': float,
-    'classification_fps': float,
-    'avg_processing_time': float,
-    'windows_classified': int,
-    'total_alerts': int,
-    'frames_skipped': int
-}
-```
-
 ---
 
-## 입력 관리 API
+## 모드 관리 API
 
-### RealtimeInputManager
+### Inference 모드
 
-#### 클래스 정의
+#### AnalysisMode
 ```python
-class RealtimeInputManager:
-    """실시간 입력 관리자"""
+class AnalysisMode(BaseMode):
+    """분석 모드 - 완전한 비디오 분석 및 결과 저장"""
 ```
 
-#### 생성자
+**기능:**
+- 전체 비디오 처리
+- JSON/PKL 파일 생성
+- 평가 모드 지원 (차트, 혼동행렬, 보고서)
+
+#### RealtimeMode
 ```python
-def __init__(self, 
-             input_source: Union[str, int],
-             buffer_size: int = 10,
-             target_fps: Optional[int] = None,
-             frame_skip: int = 0)
+class RealtimeMode(BaseMode):
+    """실시간 모드 - 라이브 비디오 스트림 처리"""
 ```
-**매개변수:**
-- `input_source` (Union[str, int]): 입력 소스
-- `buffer_size` (int): 프레임 버퍼 크기 (기본값: 10)
-- `target_fps` (Optional[int]): 목표 FPS (기본값: None)
-- `frame_skip` (int): 건너뛸 프레임 수 (기본값: 0)
 
-#### 메서드
+**기능:**
+- 실시간 디스플레이
+- 이벤트 감지 및 알림
+- 성능 모니터링
 
-##### start()
+#### VisualizeMode
 ```python
-def start(self) -> bool
+class VisualizeMode(BaseMode):
+    """시각화 모드 - PKL 데이터 기반 오버레이 생성"""
 ```
-**설명:** 입력 스트림을 시작합니다.
 
-**반환값:**
-- `bool`: 시작 성공 여부
+**기능:**
+- PKL 파일 기반 시각화
+- 고품질 오버레이 생성
 
-**예외:**
-- `InputSourceError`: 입력 소스 열기 실패
-- `CameraError`: 카메라 접근 실패
+### Annotation 모드
 
-##### get_frame()
+#### AnnotationPipelineMode
 ```python
-def get_frame(self) -> Optional[Tuple[np.ndarray, int]]
+class AnnotationPipelineMode(BaseMode):
+    """통합 어노테이션 파이프라인"""
 ```
-**설명:** 다음 프레임을 가져옵니다.
 
-**반환값:**
-- `Optional[Tuple[np.ndarray, int]]`: (프레임, 프레임 인덱스) 또는 None
+**기능:**
+- Stage 1-3 자동 연결
+- 최적화된 메모리 사용
 
-**예외:**
-- `FrameCaptureError`: 프레임 캡처 실패
-
-##### stop()
+#### Stage1Mode
 ```python
-def stop(self) -> None
+class Stage1Mode(BaseMode):
+    """Stage 1: 포즈 추정 결과 생성"""
 ```
-**설명:** 입력 스트림을 중지합니다.
 
-##### get_video_info()
+#### Stage2Mode  
 ```python
-def get_video_info(self) -> Dict[str, Any]
+class Stage2Mode(BaseMode):
+    """Stage 2: 윈도우 생성"""
 ```
-**설명:** 비디오 정보를 반환합니다.
 
-**반환값:**
+#### Stage3Mode
 ```python
-{
-    'width': int,
-    'height': int,
-    'fps': float,
-    'frame_count': int,
-    'duration': float,
-    'source_type': str
-}
+class Stage3Mode(BaseMode):
+    """Stage 3: 행동 분류"""
+```
+
+#### AnnotationVisualizeMode
+```python
+class AnnotationVisualizeMode(BaseMode):
+    """어노테이션 결과 시각화"""
 ```
 
 ---
 
 ## 포즈 추정 API
 
-### RTMOONNXEstimator
+### BasePoseEstimator
+
+모든 포즈 추정기의 추상 기본 클래스입니다.
 
 #### 클래스 정의
+```python
+class BasePoseEstimator(ABC):
+    """포즈 추정기 기본 클래스"""
+```
+
+#### 추상 메서드
+
+##### estimate_pose()
+```python
+@abstractmethod
+def estimate_pose(self, frame: np.ndarray) -> List[PersonPose]
+```
+
+프레임에서 포즈를 추정합니다.
+
+**매개변수:**
+- `frame` (np.ndarray): 입력 이미지 (H, W, 3)
+
+**반환값:**
+- `List[PersonPose]`: 탐지된 인물들의 포즈 리스트
+
+### RTMO 추정기들
+
+#### RTMOPoseEstimator
+```python
+class RTMOPoseEstimator(BasePoseEstimator):
+    """RTMO PyTorch 포즈 추정기"""
+```
+
+#### RTMOONNXEstimator
 ```python
 class RTMOONNXEstimator(BasePoseEstimator):
     """RTMO ONNX 포즈 추정기"""
 ```
 
+**특징:**
+- 빠른 추론 속도
+- 메모리 효율성
+
+#### RTMOTensorRTEstimator
+```python
+class RTMOTensorRTEstimator(BasePoseEstimator):
+    """RTMO TensorRT 포즈 추정기"""
+```
+
+**특징:**
+- 최고 성능
+- GPU 전용
+
+---
+
+## 행동 분류 API
+
+### BaseActionClassifier
+
+행동 분류기의 기본 클래스입니다.
+
+#### 클래스 정의
+```python
+class BaseActionClassifier(ABC):
+    """행동 분류기 기본 클래스"""
+```
+
 #### 생성자
 ```python
-def __init__(self, config: Dict[str, Any])
+def __init__(self, config: ActionClassificationConfig)
 ```
-**매개변수:**
-- `config` (Dict[str, Any]): 포즈 추정기 설정
 
-**설정 예시:**
+#### 주요 메서드
+
+##### initialize_model()
 ```python
-config = {
-    'model_path': '/path/to/rtmo.onnx',
-    'device': 'cuda:0',
-    'score_threshold': 0.3,
-    'input_size': [640, 640]
-}
+@abstractmethod
+def initialize_model(self) -> bool
 ```
 
-#### 메서드
+모델을 초기화합니다.
 
-##### estimate_poses()
+##### classify_single_window()
 ```python
-def estimate_poses(self, frame: np.ndarray) -> FramePoses
+@abstractmethod
+def classify_single_window(self, window_data: WindowAnnotation) -> ClassificationResult
 ```
-**설명:** 프레임에서 포즈를 추정합니다.
+
+단일 윈도우를 분류합니다.
 
 **매개변수:**
-- `frame` (np.ndarray): 입력 프레임 (H×W×3)
+- `window_data` (WindowAnnotation): 윈도우 포즈 데이터
 
 **반환값:**
-- `FramePoses`: 추정된 포즈 데이터
+- `ClassificationResult`: 분류 결과
 
-**예외:**
-- `InferenceError`: 추론 실패
-- `PreprocessingError`: 전처리 실패
-
-##### set_score_threshold()
+##### classify_multiple_windows()
 ```python
-def set_score_threshold(self, threshold: float) -> None
+def classify_multiple_windows(self, windows: List[WindowAnnotation]) -> List[ClassificationResult]
 ```
-**설명:** 점수 임계값을 설정합니다.
 
-**매개변수:**
-- `threshold` (float): 점수 임계값 (0.0-1.0)
+다중 윈도우를 배치로 분류합니다.
 
-##### get_model_info()
+### ST-GCN++ 분류기들
+
+#### STGCNActionClassifier
 ```python
-def get_model_info(self) -> Dict[str, Any]
+class STGCNActionClassifier(BaseActionClassifier):
+    """ST-GCN++ PyTorch 분류기"""
 ```
-**설명:** 모델 정보를 반환합니다.
 
-**반환값:**
+#### STGCNONNXClassifier  
 ```python
-{
-    'model_path': str,
-    'input_shape': List[int],
-    'output_shape': List[int],
-    'num_keypoints': int,
-    'device': str
-}
+class STGCNONNXClassifier(BaseActionClassifier):
+    """ST-GCN++ ONNX 분류기"""
+```
+
+**특징:**
+- Temperature scaling 자동 적용
+- Raw logits → 확률값 변환
+- PyTorch와 동등한 성능
+
+**Temperature Scaling:**
+```python
+temperature = 0.005  # 자동 조정
+scaled_scores = pred_scores * temperature
+probabilities = softmax(scaled_scores)
 ```
 
 ---
@@ -295,715 +325,297 @@ def get_model_info(self) -> Dict[str, Any]
 
 ### ByteTrackerWrapper
 
+ByteTracker 기반 객체 추적기입니다.
+
 #### 클래스 정의
 ```python
-class ByteTrackerWrapper(BaseTracker):
+class ByteTrackerWrapper:
     """ByteTracker 래퍼 클래스"""
 ```
 
-#### 생성자
-```python
-def __init__(self, config: Dict[str, Any])
-```
-**매개변수:**
-- `config` (Dict[str, Any]): 추적기 설정
+#### 주요 메서드
 
-**설정 예시:**
+##### update()
 ```python
-config = {
-    'track_thresh': 0.5,
-    'track_buffer': 30,
-    'match_thresh': 0.8,
-    'frame_rate': 30
-}
+def update(self, detections: List[Detection]) -> List[Track]
 ```
 
-#### 메서드
-
-##### track()
-```python
-def track(self, poses: FramePoses) -> FramePoses
-```
-**설명:** 포즈에 추적 ID를 할당합니다.
+추적을 업데이트합니다.
 
 **매개변수:**
-- `poses` (FramePoses): 입력 포즈 데이터
+- `detections` (List[Detection]): 현재 프레임의 탐지 결과
 
 **반환값:**
-- `FramePoses`: 추적 ID가 할당된 포즈 데이터
-
-**예외:**
-- `TrackingError`: 추적 실패
-
-##### reset()
-```python
-def reset(self) -> None
-```
-**설명:** 추적기를 초기화합니다.
-
-##### get_active_tracks()
-```python
-def get_active_tracks(self) -> List[int]
-```
-**설명:** 활성 추적 ID 목록을 반환합니다.
-
-**반환값:**
-- `List[int]`: 활성 추적 ID 목록
+- `List[Track]`: 업데이트된 추적 결과
 
 ---
 
-## 분류 API
+## 점수 계산 API
 
-### STGCNActionClassifier
+### RegionBasedScorer
 
-#### 클래스 정의
-```python
-class STGCNActionClassifier(BaseActionClassifier):
-    """ST-GCN++ 행동 분류기"""
-```
-
-#### 생성자
-```python
-def __init__(self, config: Dict[str, Any])
-```
-**매개변수:**
-- `config` (Dict[str, Any]): 분류기 설정
-
-**설정 예시:**
-```python
-config = {
-    'checkpoint_path': '/path/to/stgcn.pth',
-    'config_file': '/path/to/config.py',
-    'device': 'cuda:0',
-    'num_classes': 2,
-    'confidence_threshold': 0.4,
-    'window_size': 100
-}
-```
-
-#### 메서드
-
-##### classify_window()
-```python
-def classify_window(self, window_data: np.ndarray) -> ClassificationResult
-```
-**설명:** 윈도우 데이터를 분류합니다.
-
-**매개변수:**
-- `window_data` (np.ndarray): 윈도우 데이터 (T×N×V×C)
-
-**반환값:**
-- `ClassificationResult`: 분류 결과
-
-**예외:**
-- `ClassificationError`: 분류 실패
-- `InvalidWindowDataError`: 잘못된 윈도우 데이터
-
-##### set_confidence_threshold()
-```python
-def set_confidence_threshold(self, threshold: float) -> None
-```
-**설명:** 신뢰도 임계값을 설정합니다.
-
-**매개변수:**
-- `threshold` (float): 신뢰도 임계값 (0.0-1.0)
-
-##### get_class_names()
-```python
-def get_class_names(self) -> List[str]
-```
-**설명:** 클래스 이름 목록을 반환합니다.
-
-**반환값:**
-- `List[str]`: 클래스 이름 목록 (예: ['NonFight', 'Fight'])
-
-##### warmup()
-```python
-def warmup(self, num_runs: int = 1) -> None
-```
-**설명:** 모델을 워밍업합니다.
-
-**매개변수:**
-- `num_runs` (int): 워밍업 실행 횟수 (기본값: 1)
-
----
-
-## 이벤트 관리 API
-
-### EventManager
+영역 기반 상호작용 점수 계산기입니다.
 
 #### 클래스 정의
 ```python
-class EventManager:
-    """이벤트 관리 시스템"""
+class RegionBasedScorer:
+    """영역 기반 점수 계산기"""
 ```
 
-#### 생성자
+#### 주요 메서드
+
+##### calculate_scores()
 ```python
-def __init__(self, config: EventConfig)
-```
-**매개변수:**
-- `config` (EventConfig): 이벤트 설정
-
-#### 메서드
-
-##### process_classification_result()
-```python
-def process_classification_result(self, result: Dict[str, Any]) -> Optional[EventData]
-```
-**설명:** 분류 결과를 처리하여 이벤트를 생성합니다.
-
-**매개변수:**
-- `result` (Dict[str, Any]): 분류 결과
-
-**입력 형식:**
-```python
-result = {
-    'window_id': int,
-    'prediction': str,  # 'violence' or 'normal'
-    'confidence': float,
-    'timestamp': float,
-    'probabilities': List[float]
-}
+def calculate_scores(self, poses: List[PersonPose]) -> Dict[str, float]
 ```
 
-**반환값:**
-- `Optional[EventData]`: 생성된 이벤트 또는 None
-
-##### add_event_callback()
-```python
-def add_event_callback(self, event_type: EventType, callback: Callable[[EventData], None]) -> None
-```
-**설명:** 이벤트 콜백을 등록합니다.
-
-**매개변수:**
-- `event_type` (EventType): 이벤트 타입
-- `callback` (Callable): 콜백 함수
-
-**사용 예시:**
-```python
-def on_violence_start(event_data: EventData):
-    print(f"Violence detected: {event_data.confidence:.3f}")
-
-event_manager.add_event_callback(EventType.VIOLENCE_START, on_violence_start)
-```
-
-##### get_current_status()
-```python
-def get_current_status(self) -> Dict[str, Any]
-```
-**설명:** 현재 이벤트 상태를 반환합니다.
-
-**반환값:**
-```python
-{
-    'event_active': bool,
-    'consecutive_violence': int,
-    'consecutive_normal': int,
-    'current_event_duration': Optional[float],
-    'last_event_time': Optional[float]
-}
-```
-
-##### get_event_history()
-```python
-def get_event_history(self, limit: Optional[int] = None) -> List[EventData]
-```
-**설명:** 이벤트 히스토리를 반환합니다.
-
-**매개변수:**
-- `limit` (Optional[int]): 반환할 이벤트 수 제한
-
-**반환값:**
-- `List[EventData]`: 이벤트 히스토리
-
-### EventConfig
-
-#### 클래스 정의
-```python
-@dataclass
-class EventConfig:
-    """이벤트 관리 설정"""
-```
-
-#### 필드
-```python
-alert_threshold: float = 0.7              # 폭력 탐지 신뢰도 임계값
-min_consecutive_detections: int = 3       # 연속 탐지 최소 횟수
-normal_threshold: float = 0.5             # 정상 상태 신뢰도 임계값
-min_consecutive_normal: int = 5           # 연속 정상 최소 횟수
-min_event_duration: float = 2.0           # 최소 이벤트 지속 시간 (초)
-max_event_duration: float = 300.0         # 최대 이벤트 지속 시간 (초)
-cooldown_duration: float = 10.0           # 이벤트 쿨다운 시간 (초)
-enable_ongoing_alerts: bool = True        # 진행 중 알림 활성화
-ongoing_alert_interval: float = 30.0      # 진행 중 알림 간격 (초)
-save_event_log: bool = True              # 이벤트 로그 저장 여부
-event_log_format: str = "json"           # 로그 형식 (json/csv)
-event_log_path: str = "output/event_logs" # 로그 저장 경로
-```
-
-### EventLogger
-
-#### 클래스 정의
-```python
-class EventLogger:
-    """이벤트 로깅 시스템"""
-```
-
-#### 생성자
-```python
-def __init__(self, 
-             log_path: str = "output/event_logs",
-             log_format: str = "json",
-             enable_logging: bool = True)
-```
-
-#### 메서드
-
-##### log_event()
-```python
-def log_event(self, event_data: EventData) -> bool
-```
-**설명:** 이벤트를 로그에 기록합니다.
-
-**매개변수:**
-- `event_data` (EventData): 이벤트 데이터
-
-**반환값:**
-- `bool`: 로그 기록 성공 여부
-
-##### set_session()
-```python
-def set_session(self, session_id: Optional[str] = None) -> str
-```
-**설명:** 새로운 세션을 시작합니다.
-
-**매개변수:**
-- `session_id` (Optional[str]): 세션 ID (None이면 자동 생성)
-
-**반환값:**
-- `str`: 세션 ID
+포즈 기반으로 상호작용 점수를 계산합니다.
 
 ---
 
 ## 시각화 API
 
-### RealtimeVisualizer
+### InferenceVisualizer
+
+추론 결과 시각화 클래스입니다.
 
 #### 클래스 정의
 ```python
-class RealtimeVisualizer:
-    """실시간 시각화 클래스"""
+class InferenceVisualizer:
+    """추론 결과 시각화기"""
 ```
 
-#### 생성자
+#### 주요 메서드
+
+##### draw_poses()
 ```python
-def __init__(self, 
-             window_name: str = "Violence Detection",
-             display_width: int = 1280,
-             display_height: int = 720,
-             fps_limit: int = 30,
-             save_output: bool = False,
-             output_path: Optional[str] = None,
-             max_persons: int = 4,
-             processing_mode: str = "realtime",
-             confidence_threshold: float = 0.4)
+def draw_poses(self, frame: np.ndarray, poses: List[PersonPose]) -> np.ndarray
 ```
 
-#### 메서드
+프레임에 포즈를 그립니다.
 
-##### start_display()
+##### draw_classification_results()  
 ```python
-def start_display(self) -> None
+def draw_classification_results(self, frame: np.ndarray, 
+                               classification_results: List[Dict[str, Any]]) -> np.ndarray
 ```
-**설명:** 디스플레이 창을 시작합니다.
 
-##### show_frame()
+분류 결과를 시각화합니다.
+
+### PoseVisualizer
+
+포즈 전용 시각화 클래스입니다.
+
+#### 클래스 정의
 ```python
-def show_frame(self, 
-               frame: np.ndarray,
-               poses: Optional[FramePoses] = None,
-               classification: Optional[Dict[str, Any]] = None,
-               additional_info: Optional[Dict[str, Any]] = None,
-               overlay_data: Optional[Dict[str, Any]] = None) -> bool
+class PoseVisualizer:
+    """포즈 시각화기"""
 ```
-**설명:** 프레임을 화면에 표시합니다.
-
-**매개변수:**
-- `frame` (np.ndarray): 원본 프레임
-- `poses` (Optional[FramePoses]): 포즈 데이터
-- `classification` (Optional[Dict[str, Any]]): 분류 결과
-- `additional_info` (Optional[Dict[str, Any]]): 추가 정보
-- `overlay_data` (Optional[Dict[str, Any]]): 오버레이 데이터
-
-**반환값:**
-- `bool`: 계속 표시할지 여부
-
-##### update_event_history()
-```python
-def update_event_history(self, event_data: Dict[str, Any]) -> None
-```
-**설명:** 이벤트 히스토리를 업데이트합니다.
-
-**매개변수:**
-- `event_data` (Dict[str, Any]): 이벤트 데이터
-
-##### update_classification_history()
-```python
-def update_classification_history(self, classification: Dict[str, Any]) -> None
-```
-**설명:** 분류 결과 히스토리를 업데이트합니다.
-
-**매개변수:**
-- `classification` (Dict[str, Any]): 분류 결과
-
-##### stop_display()
-```python
-def stop_display(self) -> None
-```
-**설명:** 디스플레이 창을 종료합니다.
 
 ---
 
 ## 유틸리티 API
 
-### SlidingWindowProcessor
-
-#### 클래스 정의
-```python
-class SlidingWindowProcessor:
-    """슬라이딩 윈도우 프로세서"""
-```
-
-#### 생성자
-```python
-def __init__(self, 
-             window_size: int = 100,
-             window_stride: int = 50,
-             max_persons: int = 4,
-             coordinate_dimensions: int = 2)
-```
-
-#### 메서드
-
-##### add_frame_data()
-```python
-def add_frame_data(self, frame_poses: FramePoses) -> None
-```
-**설명:** 프레임 데이터를 윈도우에 추가합니다.
-
-**매개변수:**
-- `frame_poses` (FramePoses): 프레임 포즈 데이터
-
-##### is_ready()
-```python
-def is_ready(self) -> bool
-```
-**설명:** 윈도우가 분류 준비 상태인지 확인합니다.
-
-**반환값:**
-- `bool`: 준비 상태 여부
-
-##### get_window_data()
-```python
-def get_window_data(self) -> Tuple[np.ndarray, int]
-```
-**설명:** 윈도우 데이터를 반환합니다.
-
-**반환값:**
-- `Tuple[np.ndarray, int]`: (윈도우 데이터, 윈도우 ID)
-
-##### reset()
-```python
-def reset(self) -> None
-```
-**설명:** 윈도우 프로세서를 초기화합니다.
-
 ### ModuleFactory
+
+모든 모듈의 팩토리 클래스입니다.
 
 #### 클래스 정의
 ```python
 class ModuleFactory:
-    """모듈 팩토리 클래스"""
+    """모듈 팩토리"""
 ```
 
-#### 클래스 메서드
+#### 주요 메서드
 
 ##### register_pose_estimator()
 ```python
 @classmethod
-def register_pose_estimator(cls, 
-                           name: str, 
-                           estimator_class: Type[BasePoseEstimator],
-                           default_config: Dict[str, Any]) -> None
+def register_pose_estimator(cls, name: str, estimator_class: Type, 
+                           default_config: Dict[str, Any])
 ```
-**설명:** 포즈 추정기를 등록합니다.
+
+포즈 추정기를 등록합니다.
+
+##### register_classifier()
+```python
+@classmethod  
+def register_classifier(cls, name: str, classifier_class: Type,
+                       default_config: Dict[str, Any])
+```
+
+분류기를 등록합니다.
 
 ##### create_pose_estimator()
 ```python
 @classmethod
-def create_pose_estimator(cls, 
-                         name: str, 
-                         config: Dict[str, Any]) -> BasePoseEstimator
-```
-**설명:** 포즈 추정기를 생성합니다.
-
-##### register_tracker()
-```python
-@classmethod
-def register_tracker(cls, 
-                     name: str, 
-                     tracker_class: Type[BaseTracker],
-                     default_config: Dict[str, Any]) -> None
+def create_pose_estimator(cls, name: str, config: Dict[str, Any]) -> BasePoseEstimator
 ```
 
-##### create_tracker()
+포즈 추정기를 생성합니다.
+
+### WindowProcessor
+
+윈도우 처리 유틸리티입니다.
+
+#### SlidingWindowProcessor
 ```python
-@classmethod
-def create_tracker(cls, 
-                  name: str, 
-                  config: Dict[str, Any]) -> BaseTracker
+class SlidingWindowProcessor:
+    """슬라이딩 윈도우 처리기"""
 ```
 
-##### register_classifier()
+#### 주요 메서드
+
+##### add_frame()
 ```python
-@classmethod
-def register_classifier(cls, 
-                       name: str, 
-                       classifier_class: Type[BaseActionClassifier],
-                       default_config: Dict[str, Any]) -> None
+def add_frame(self, frame_poses: FramePoses) -> List[WindowAnnotation]
 ```
 
-##### create_classifier()
-```python
-@classmethod
-def create_classifier(cls, 
-                     name: str, 
-                     config: Dict[str, Any]) -> BaseActionClassifier
-```
+프레임을 추가하고 완성된 윈도우를 반환합니다.
 
 ---
 
 ## 데이터 구조
 
-### FramePoses
-
-#### 클래스 정의
-```python
-@dataclass
-class FramePoses:
-    """프레임 내 모든 포즈 데이터"""
-```
-
-#### 필드
-```python
-persons: List[PersonPose]
-frame_idx: int
-timestamp: float
-video_info: Dict[str, Any]
-```
-
-#### 메서드
-```python
-def get_valid_persons(self) -> List[PersonPose]:
-    """유효한 인체 포즈만 반환"""
-
-def to_dict(self) -> Dict[str, Any]:
-    """딕셔너리로 변환"""
-```
-
 ### PersonPose
-
-#### 클래스 정의
 ```python
 @dataclass
 class PersonPose:
-    """개별 인체 포즈 데이터"""
+    """개별 인물의 포즈 데이터"""
+    track_id: int
+    keypoints: np.ndarray      # shape: (17, 3) - [x, y, confidence]
+    bbox: Optional[np.ndarray]  # [x1, y1, x2, y2]
+    confidence: float
 ```
 
-#### 필드
+### FramePoses
 ```python
-keypoints: np.ndarray              # (17, 3) [x, y, confidence]
-bbox: Optional[np.ndarray]         # [x1, y1, x2, y2]
-track_id: Optional[int]            # 추적 ID
-score: float                       # 포즈 점수
-detection_confidence: float        # 탐지 신뢰도
+@dataclass
+class FramePoses:
+    """단일 프레임의 모든 포즈"""
+    frame_idx: int
+    timestamp: float
+    persons: List[PersonPose]
+    frame_shape: Tuple[int, int, int]  # (H, W, C)
 ```
 
-#### 메서드
+### WindowAnnotation
 ```python
-def get_keypoint(self, index: int) -> Tuple[float, float, float]:
-    """특정 키포인트 반환"""
-
-def get_bbox_center(self) -> Tuple[float, float]:
-    """바운딩 박스 중심점 반환"""
-
-def is_valid(self) -> bool:
-    """유효한 포즈인지 확인"""
+@dataclass
+class WindowAnnotation:
+    """윈도우 어노테이션 데이터"""
+    window_idx: int
+    window_id: str
+    keypoint: np.ndarray        # (M, T, V, C) - MMAction2 표준
+    keypoint_score: np.ndarray  # (M, T, V)
+    total_frames: int
+    label: Optional[int] = None
+    frame_data: Optional[List[FramePoses]] = None
 ```
 
 ### ClassificationResult
-
-#### 클래스 정의
 ```python
 @dataclass
 class ClassificationResult:
-    """분류 결과 데이터"""
+    """분류 결과"""
+    prediction: int             # 예측 클래스 (0: NonFight, 1: Fight)
+    confidence: float           # 신뢰도 (0.0-1.0)
+    probabilities: List[float]  # 클래스별 확률 [nonfight_prob, fight_prob]
+    model_name: str            # 사용된 모델명
+    metadata: Optional[Dict[str, Any]] = None
 ```
 
-#### 필드
-```python
-prediction: int                    # 예측 클래스 인덱스
-confidence: float                  # 신뢰도
-probabilities: List[float]         # 클래스별 확률
-processing_time: float             # 처리 시간
-window_id: int                     # 윈도우 ID
-timestamp: float                   # 타임스탬프
-```
-
-#### 메서드
-```python
-def get_predicted_class_name(self, class_names: List[str]) -> str:
-    """예측된 클래스 이름 반환"""
-
-def to_dict(self) -> Dict[str, Any]:
-    """딕셔너리로 변환"""
-```
-
-### EventData
-
-#### 클래스 정의
+### ActionClassificationConfig
 ```python
 @dataclass
-class EventData:
-    """이벤트 데이터"""
+class ActionClassificationConfig:
+    """행동 분류 설정"""
+    model_name: str
+    checkpoint_path: str
+    config_file: Optional[str] = None
+    device: str = 'cuda:0'
+    window_size: int = 100
+    confidence_threshold: float = 0.5
+    class_names: Optional[List[str]] = None
+    max_persons: int = 4
+    input_format: str = 'stgcn'
+    coordinate_dimensions: int = 3
+    expected_keypoint_count: int = 17
 ```
 
-#### 필드
-```python
-event_type: EventType
-timestamp: float
-window_id: int
-confidence: float
-duration: Optional[float] = None
-additional_info: Optional[Dict[str, Any]] = None
-```
+---
 
-#### 메서드
-```python
-def to_dict(self) -> Dict[str, Any]:
-    """딕셔너리로 변환"""
+## 설정 구조
 
-def to_json(self) -> str:
-    """JSON 문자열로 변환"""
-```
+### 전체 설정 구조
+```yaml
+models:
+  pose_estimation:
+    inference_mode: str        # 'pth', 'onnx', 'tensorrt'
+    model_name: str           # 'rtmo_s', 'rtmo_m', 'rtmo_l'  
+    device: str               # 'cuda:0', 'cpu'
+    score_threshold: float    # 0.0-1.0
+    
+  action_classification:
+    model_name: str           # 'stgcn', 'stgcn_onnx'
+    checkpoint_path: str      # 모델 파일 경로
+    window_size: int          # 윈도우 크기 (기본: 100)
+    confidence_threshold: float
+    max_persons: int
+    
+  tracking:
+    model_name: str           # 'bytetrack'
+    track_thresh: float
+    min_box_area: float
+    
+  scoring:
+    model_name: str           # 'region_based', 'movement_based'
+    distance_threshold: float
 
-### EventType
-
-#### 열거형 정의
-```python
-class EventType(Enum):
-    """이벤트 타입"""
-    VIOLENCE_START = "violence_start"
-    VIOLENCE_END = "violence_end"
-    VIOLENCE_ONGOING = "violence_ongoing"
-    NORMAL = "normal"
+inference:
+  analysis:
+    input: str               # 파일 또는 폴더 경로
+    output_dir: str
+    evaluation:
+      enabled: bool
+      ground_truth_dir: str
+      
+  realtime:
+    input: Union[int, str]   # 웹캠 번호 또는 파일 경로
+    display_window_size: List[int]
+    fps_limit: int
+    
+annotation:
+  input: str
+  output_dir: str
+  multi_process:
+    enabled: bool
+    num_processes: int
+    gpus: List[int]
 ```
 
 ---
 
 ## 예외 처리
 
-### 기본 예외
-
-#### ViolenceDetectionError
-```python
-class ViolenceDetectionError(Exception):
-    """기본 시스템 예외"""
-```
+### 커스텀 예외 클래스
 
 #### ConfigurationError
 ```python
-class ConfigurationError(ViolenceDetectionError):
-    """설정 관련 예외"""
+class ConfigurationError(Exception):
+    """설정 오류 예외"""
 ```
 
 #### ModuleInitializationError
 ```python
-class ModuleInitializationError(ViolenceDetectionError):
-    """모듈 초기화 예외"""
+class ModuleInitializationError(Exception):
+    """모듈 초기화 오류 예외"""
 ```
 
-### 입력 관련 예외
-
-#### InputSourceError
+#### InferenceError
 ```python
-class InputSourceError(ViolenceDetectionError):
-    """입력 소스 예외"""
-```
-
-#### FrameCaptureError
-```python
-class FrameCaptureError(ViolenceDetectionError):
-    """프레임 캡처 예외"""
-```
-
-### 처리 관련 예외
-
-#### PoseEstimationError
-```python
-class PoseEstimationError(ViolenceDetectionError):
-    """포즈 추정 예외"""
-```
-
-#### TrackingError
-```python
-class TrackingError(ViolenceDetectionError):
-    """추적 예외"""
-```
-
-#### ClassificationError
-```python
-class ClassificationError(ViolenceDetectionError):
-    """분류 예외"""
-```
-
-#### EventProcessingError
-```python
-class EventProcessingError(ViolenceDetectionError):
-    """이벤트 처리 예외"""
-```
-
-### 예외 처리 예시
-
-```python
-try:
-    pipeline = InferencePipeline(config)
-    pipeline.initialize_pipeline()
-    pipeline.run_realtime_mode(input_source)
-    
-except ConfigurationError as e:
-    logging.error(f"Configuration error: {e}")
-    
-except ModuleInitializationError as e:
-    logging.error(f"Module initialization failed: {e}")
-    
-except InputSourceError as e:
-    logging.error(f"Input source error: {e}")
-    
-except PoseEstimationError as e:
-    logging.warning(f"Pose estimation failed: {e}")
-    # 빈 포즈로 계속 진행
-    
-except ClassificationError as e:
-    logging.warning(f"Classification failed: {e}")
-    # 분류 없이 계속 진행
-    
-except ViolenceDetectionError as e:
-    logging.error(f"System error: {e}")
-    
-except Exception as e:
-    logging.critical(f"Unexpected error: {e}")
+class InferenceError(Exception):
+    """추론 오류 예외"""
 ```
 
 ---
@@ -1011,103 +623,73 @@ except Exception as e:
 ## 사용 예시
 
 ### 기본 사용법
-
 ```python
-from recognizer.pipelines.inference.pipeline import InferencePipeline
-from recognizer.utils.config_loader import load_config
-from recognizer.events.event_types import EventType
+from core import ModeManager
+from utils.config_loader import load_config
 
-# 1. 설정 로드
+# 설정 로드
 config = load_config('config.yaml')
 
-# 2. 파이프라인 초기화
-pipeline = InferencePipeline(config)
+# 모드 관리자 생성
+manager = ModeManager(config)
 
-# 3. 이벤트 콜백 등록
-def on_violence_detected(event_data):
-    print(f"Violence detected! Confidence: {event_data.confidence:.3f}")
-
-pipeline.event_manager.add_event_callback(
-    EventType.VIOLENCE_START, 
-    on_violence_detected
-)
-
-# 4. 파이프라인 실행
-try:
-    if pipeline.initialize_pipeline():
-        success = pipeline.run_realtime_mode("/path/to/video.mp4")
-        
-        if success:
-            # 성능 통계 출력
-            stats = pipeline.get_performance_stats()
-            print(f"Processing completed. Overall FPS: {stats['overall_fps']:.1f}")
-        else:
-            print("Processing failed")
-    else:
-        print("Pipeline initialization failed")
-        
-except Exception as e:
-    print(f"Error: {e}")
+# 실시간 모드 실행
+success = manager.execute('inference.realtime')
 ```
 
-### 고급 사용법
-
+### 커스텀 모델 등록
 ```python
-import numpy as np
-from recognizer.pipelines.inference.pipeline import InferencePipeline
-from recognizer.utils.realtime_input import RealtimeInputManager
-from recognizer.visualization.realtime_visualizer import RealtimeVisualizer
+from utils.factory import ModuleFactory
 
-# 커스텀 입력 및 시각화 설정
-input_manager = RealtimeInputManager(
-    input_source="rtsp://192.168.1.100:554/stream",
-    buffer_size=15,
-    target_fps=25,
-    frame_skip=1
+# 커스텀 분류기 등록
+ModuleFactory.register_classifier(
+    name='custom_classifier',
+    classifier_class=MyCustomClassifier,
+    default_config={'param1': 'value1'}
+)
+```
+
+### 직접 API 사용
+```python
+from action_classification.stgcn.stgcn_onnx_classifier import STGCNONNXClassifier
+from utils.data_structure import ActionClassificationConfig
+
+# 설정 생성
+config = ActionClassificationConfig(
+    model_name='stgcn_onnx',
+    checkpoint_path='/path/to/model.onnx',
+    window_size=100,
+    confidence_threshold=0.4
 )
 
-visualizer = RealtimeVisualizer(
-    window_name="Custom Violence Detection",
-    display_width=1920,
-    display_height=1080,
-    fps_limit=25,
-    confidence_threshold=0.5
-)
+# 분류기 생성 및 초기화
+classifier = STGCNONNXClassifier(config)
+classifier.initialize_model()
 
-# 파이프라인과 연동
-pipeline = InferencePipeline(config)
-pipeline.initialize_pipeline()
-
-# 수동 프레임 처리 루프
-input_manager.start()
-visualizer.start_display()
-
-try:
-    while True:
-        frame_data = input_manager.get_frame()
-        if frame_data is None:
-            break
-            
-        frame, frame_idx = frame_data
-        poses, overlay_data = pipeline.process_frame(frame, frame_idx)
-        
-        # 추가 정보 수집
-        additional_info = pipeline.get_performance_stats()
-        
-        # 시각화
-        should_continue = visualizer.show_frame(
-            frame=frame,
-            poses=poses,
-            additional_info=additional_info,
-            overlay_data=overlay_data
-        )
-        
-        if not should_continue:
-            break
-            
-finally:
-    input_manager.stop()
-    visualizer.stop_display()
+# 윈도우 분류
+result = classifier.classify_single_window(window_data)
+print(f"Classification: {result.prediction}, Confidence: {result.confidence}")
 ```
 
 ---
+
+## 성능 최적화
+
+### ONNX 모델 사용
+- **메모리 사용량**: PyTorch 대비 30-50% 감소
+- **추론 속도**: 2-3배 향상
+- **Temperature Scaling**: 자동 적용으로 정확한 확률값
+
+### 멀티프로세스 처리
+- **프로세스 수**: CPU 코어 수와 동일 권장
+- **GPU 분산**: 라운드 로빈 자동 할당
+- **메모리 효율성**: 프로세스별 독립 메모리
+
+### 실시간 처리 최적화
+- **FPS 제한**: 시스템 성능에 맞게 조정
+- **프레임 스킵**: 성능 향상을 위한 프레임 건너뛰기
+- **배치 처리**: 여러 윈도우 동시 처리
+
+---
+
+*이 API 레퍼런스는 최신 코드베이스(2025-09-03)를 기반으로 작성되었습니다.*

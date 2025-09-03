@@ -3,6 +3,9 @@
 ## 개요
 
 본 문서는 Violence Detection 실시간 추론 시스템의 UML 다이어그램을 제공한다. 클래스 다이어그램, 컴포넌트 다이어그램, 패키지 다이어그램을 통해 시스템의 구조적 관계를 시각화한다.
+
+**최신 업데이트**: 2025-09-03 기준, ONNX 모델 통합, Temperature Scaling, 멀티프로세스 지원 반영
+
 ---
 
 ## 목차
@@ -12,6 +15,7 @@
   - [목차](#목차)
   - [전체 시스템 클래스 다이어그램](#전체-시스템-클래스-다이어그램)
   - [파이프라인 클래스 다이어그램](#파이프라인-클래스-다이어그램)
+  - [ONNX 모델 통합 클래스 다이어그램](#onnx-모델-통합-클래스-다이어그램)
   - [이벤트 관리 클래스 다이어그램](#이벤트-관리-클래스-다이어그램)
   - [데이터 구조 클래스 다이어그램](#데이터-구조-클래스-다이어그램)
   - [컴포넌트 다이어그램](#컴포넌트-다이어그램)
@@ -41,9 +45,11 @@ classDiagram
         -List frame_buffer
         -Queue classification_queue
         -Thread classification_thread
+        -str mode
         +__init__(config)
         +initialize_pipeline() bool
         +run_realtime_mode(input_source) bool
+        +run_analysis_mode(input_source) bool
         +process_frame(frame, frame_idx) Tuple
         +get_performance_stats() Dict
         +_classification_worker() void
@@ -206,6 +212,7 @@ classDiagram
         +initialize_pipeline() bool
         +run_realtime_mode(input_source) bool
         +run_analysis_mode(input_source) bool
+        +run_visualize_mode(pkl_path, video_path) bool
         +process_frame(frame, frame_idx) Tuple
         +get_performance_stats() Dict
         +get_stage_fps() Dict
@@ -251,9 +258,99 @@ classDiagram
         +reset() void
     }
 
+    class BatchAnalysisProcessor {
+        -Dict config
+        -InferencePipeline pipeline
+        -bool save_results
+        +__init__(config)
+        +process_file(input_path, output_dir) Dict
+        +process_folder(input_dir, output_dir) Dict
+        -_save_results(results, output_path) bool
+        -_generate_csv_report(results, output_path) bool
+    }
+
     InferencePipeline --|> BasePipeline
     InferencePipeline --> ModuleFactory
     InferencePipeline --> PerformanceTracker
+    BatchAnalysisProcessor --> InferencePipeline
+```
+
+---
+
+## ONNX 모델 통합 클래스 다이어그램
+
+```mermaid
+classDiagram
+    class ONNXInferenceBase {
+        <<abstract>>
+        #str model_path
+        #str device
+        #dict onnx_providers
+        #object onnx_session
+        +__init__(config)
+        +_load_onnx_model() void
+        +_get_providers(device) List
+        +_create_session(model_path, providers) object
+        +warmup() void*
+    }
+
+    class RTMOONNXEstimator {
+        -tuple input_size
+        -float score_threshold
+        -str input_name
+        -str output_name
+        -dict onnx_config
+        +__init__(config)
+        +estimate_poses(frame) FramePoses
+        +warmup() void
+        -_preprocess(frame) ndarray
+        -_postprocess(outputs) List
+        -_onnx_inference(input_data) List
+        -_apply_nms(detections) List
+    }
+
+    class STGCNONNXClassifier {
+        -int window_size
+        -int max_persons
+        -float temperature
+        -str input_format
+        -List class_names
+        +__init__(config)
+        +classify_window(window_data) ClassificationResult
+        +warmup() void
+        -_preprocess_window(window_data) ndarray
+        -_apply_temperature_scaling(raw_scores) ndarray
+        -_postprocess_result(probabilities, window_id) ClassificationResult
+    }
+
+    class STGCNActionClassifier {
+        -str model_path
+        -object model
+        -str device
+        -int window_size
+        -List class_names
+        +__init__(config)
+        +classify_window(window_data) ClassificationResult
+        +warmup() void
+        -_load_pytorch_model() void
+        -_preprocess_window(window_data) Tensor
+        -_pytorch_inference(input_data) Tensor
+        -_postprocess_output(output) ClassificationResult
+    }
+
+    class TemperatureScaling {
+        <<utility>>
+        +apply_scaling(raw_scores, temperature) ndarray
+        +find_optimal_temperature(logits, labels) float
+        +validate_probabilities(probabilities) bool
+        +calibrate_model(model, validation_data) float
+    }
+
+    ONNXInferenceBase <|-- RTMOONNXEstimator
+    ONNXInferenceBase <|-- STGCNONNXClassifier
+    BaseActionClassifier <|-- STGCNONNXClassifier
+    BaseActionClassifier <|-- STGCNActionClassifier
+    STGCNONNXClassifier --> TemperatureScaling
 ```
 
 ---
@@ -280,6 +377,7 @@ classDiagram
         +__init__(event_type, timestamp, window_id, confidence, duration, additional_info)
         +to_dict() Dict
         +to_json() str
+        +to_csv_row() str
         +__str__() str
     }
 
@@ -299,6 +397,7 @@ classDiagram
         +__init__(...)
         +validate() bool
         +to_dict() Dict
+        +from_dict(data) EventConfig
     }
 
     class EventManager {
@@ -334,6 +433,7 @@ classDiagram
         -bool enable_logging
         -Optional current_session_id
         -Optional log_file_path
+        -object csv_writer
         +__init__(log_path, log_format, enable_logging)
         +log_event(event_data) bool
         +set_session(session_id) str
@@ -343,12 +443,22 @@ classDiagram
         -_write_json_event(event_data) bool
         -_write_csv_event(event_data) bool
         -_ensure_log_directory() void
+        -_initialize_csv_writer() void
+    }
+
+    class EventCallback {
+        <<interface>>
+        +on_violence_start(event_data) void
+        +on_violence_end(event_data) void
+        +on_violence_ongoing(event_data) void
+        +on_normal_state(event_data) void
     }
 
     EventManager --> EventConfig
     EventManager --> EventData
     EventManager --> EventLogger
     EventManager --> EventType
+    EventManager --> EventCallback
     EventData --> EventType
     EventLogger --> EventData
 ```
@@ -365,12 +475,14 @@ classDiagram
         +Optional track_id
         +float score
         +float detection_confidence
-        +__init__(keypoints, bbox, track_id, score, detection_confidence)
+        +Dict metadata
+        +__init__(keypoints, bbox, track_id, score, detection_confidence, metadata)
         +get_keypoint(index) Tuple
         +get_bbox_center() Tuple
         +is_valid() bool
         +to_dict() Dict
         +from_dict(data) PersonPose
+        +to_mmaction_format() Dict
         +__str__() str
     }
 
@@ -379,13 +491,16 @@ classDiagram
         +int frame_idx
         +float timestamp
         +Dict video_info
-        +__init__(persons, frame_idx, timestamp, video_info)
+        +Dict metadata
+        +__init__(persons, frame_idx, timestamp, video_info, metadata)
         +get_valid_persons() List
         +get_person_by_track_id(track_id) Optional
         +add_person(person) void
         +remove_person(track_id) bool
         +to_dict() Dict
         +from_dict(data) FramePoses
+        +to_numpy_array() ndarray
+        +to_mmaction_format() Dict
         +__len__() int
         +__iter__() Iterator
     }
@@ -397,11 +512,15 @@ classDiagram
         +float processing_time
         +int window_id
         +float timestamp
-        +__init__(prediction, confidence, probabilities, processing_time, window_id, timestamp)
+        +str model_version
+        +Dict metadata
+        +__init__(prediction, confidence, probabilities, processing_time, window_id, timestamp, model_version, metadata)
         +get_predicted_class_name(class_names) str
         +get_max_probability() float
+        +is_valid_probability_range() bool
         +to_dict() Dict
         +from_dict(data) ClassificationResult
+        +to_csv_row() str
         +__str__() str
     }
 
@@ -413,17 +532,38 @@ classDiagram
         +Optional label
         +Optional confidence
         +Dict metadata
-        +__init__(window_id, start_frame, end_frame, poses_sequence, label, confidence, metadata)
+        +str annotation_format
+        +__init__(window_id, start_frame, end_frame, poses_sequence, label, confidence, metadata, annotation_format)
         +get_window_length() int
         +get_frame_at_index(index) Optional
         +add_frame(frame_poses) void
         +to_numpy() ndarray
         +to_dict() Dict
         +from_dict(data) WindowAnnotation
+        +to_mmaction_format() Dict
+        +validate_structure() bool
+    }
+
+    class EvaluationResult {
+        +float accuracy
+        +float precision
+        +float recall
+        +float f1_score
+        +ndarray confusion_matrix
+        +List per_class_metrics
+        +Dict metadata
+        +str model_version
+        +__init__(accuracy, precision, recall, f1_score, confusion_matrix, per_class_metrics, metadata, model_version)
+        +to_dict() Dict
+        +generate_report() str
+        +save_charts(output_dir) void
+        +compare_with(other_result) Dict
     }
 
     FramePoses --> PersonPose
     WindowAnnotation --> FramePoses
+    ClassificationResult --> WindowAnnotation
+    EvaluationResult --> ClassificationResult
 ```
 
 ---
@@ -442,16 +582,19 @@ graph TB
     subgraph ProcessingLayer ["Processing Layer"]
         B[InferencePipeline]
         B1[RTMO_PoseEstimator]
-        B2[ByteTracker]
-        B3[RegionBasedScorer]
-        B4[SlidingWindowProcessor]
-        B5[STGCN_Classifier]
+        B2[RTMO_ONNX_Estimator]
+        B3[ByteTracker]
+        B4[RegionBasedScorer]
+        B5[SlidingWindowProcessor]
+        B6[STGCN_Classifier]
+        B7[STGCN_ONNX_Classifier]
     end
 
     subgraph EventLayer ["Event Management Layer"]
         C[EventManager]
         C1[EventLogger]
         C2[EventConfig]
+        C3[EventCallback]
     end
 
     subgraph VisualizationLayer ["Visualization Layer"]
@@ -464,6 +607,7 @@ graph TB
         E[ModuleFactory]
         E1[PerformanceTracker]
         E2[ConfigLoader]
+        E3[BatchAnalysisProcessor]
     end
 
     subgraph DataLayer ["Data Layer"]
@@ -471,6 +615,14 @@ graph TB
         F1[PersonPose]
         F2[ClassificationResult]
         F3[EventData]
+        F4[WindowAnnotation]
+        F5[EvaluationResult]
+    end
+
+    subgraph ONNXLayer ["ONNX Optimization Layer"]
+        G[ONNXInferenceBase]
+        G1[TemperatureScaling]
+        G2[ONNXOptimizer]
     end
 
     A -->|Frame_Stream| B
@@ -482,6 +634,7 @@ graph TB
     E -->|Module_Creation| B
     E1 -->|Performance_Monitoring| B
     E2 -->|Configuration| B
+    E3 -->|Batch_Processing| B
 
     B -->|Data_Processing| F
     C -->|Event_Creation| F3
@@ -496,13 +649,23 @@ graph TB
     B3 --> B
     B4 --> B
     B5 --> B
+    B6 --> B
+    B7 --> B
 
     C2 --> C
+    C3 --> C
     D1 --> D
     D2 --> D
 
     F1 --> F
     F2 --> F
+    F4 --> F
+    F5 --> F
+
+    G --> B2
+    G --> B7
+    G1 --> B7
+    G2 --> G
 ```
 
 ---
@@ -512,12 +675,20 @@ graph TB
 ```mermaid
 graph TB
     subgraph recognizer_package ["recognizer"]
+        subgraph core_package ["core"]
+            C1[inference_modes_py]
+            C2[mode_manager_py]
+        end
+        
         subgraph pipelines_package ["pipelines"]
             subgraph inference_package ["inference"]
                 P1[pipeline_py]
             end
+            subgraph analysis_package ["analysis"]
+                P2[batch_processor_py]
+            end
             subgraph base_package ["base"]
-                P2[base_pipeline_py]
+                P3[base_pipeline_py]
             end
         end
 
@@ -528,6 +699,7 @@ graph TB
                 PE3[rtmo_tensorrt_estimator_py]
             end
             PE4[base_py]
+            PE5[onnx_inference_base_py]
         end
 
         subgraph tracking_package ["tracking"]
@@ -540,14 +712,17 @@ graph TB
         subgraph action_classification_package ["action_classification"]
             subgraph stgcn_package ["stgcn"]
                 AC1[stgcn_classifier_py]
+                AC2[stgcn_onnx_classifier_py]
             end
-            AC2[base_py]
+            AC3[base_py]
+            AC4[temperature_scaling_py]
         end
 
         subgraph events_package ["events"]
             E1[event_manager_py]
             E2[event_types_py]
             E3[event_logger_py]
+            E4[event_callback_py]
         end
 
         subgraph visualization_package ["visualization"]
@@ -561,12 +736,27 @@ graph TB
             U3[factory_py]
             U4[config_loader_py]
             U5[data_structure_py]
+            U6[multi_process_splitter_py]
+        end
+
+        subgraph evaluation_package ["evaluation"]
+            EV1[evaluator_py]
+            EV2[metrics_py]
+            EV3[report_generator_py]
+        end
+
+        subgraph tools_package ["tools"]
+            TO1[onnx_optimizer_py]
+            TO2[model_converter_py]
         end
     end
 
+    C1 --> P1
     P1 --> PE1
+    P1 --> PE2
     P1 --> T1
     P1 --> AC1
+    P1 --> AC2
     P1 --> E1
     P1 --> V1
     P1 --> U1
@@ -575,13 +765,17 @@ graph TB
 
     PE1 --> PE4
     PE2 --> PE4
+    PE2 --> PE5
     PE3 --> PE4
 
     T1 --> T2
-    AC1 --> AC2
+    AC1 --> AC3
+    AC2 --> AC3
+    AC2 --> AC4
 
     E1 --> E2
     E1 --> E3
+    E1 --> E4
 
     V1 --> V2
     V1 --> U5
@@ -589,6 +783,12 @@ graph TB
     U1 --> U5
     U2 --> U5
     U3 --> U5
+
+    EV1 --> EV2
+    EV1 --> EV3
+
+    TO1 --> PE2
+    TO1 --> AC2
 ```
 
 ---
@@ -609,6 +809,13 @@ classDiagram
         +estimate_poses(frame) FramePoses
         +set_score_threshold(threshold) void
         +get_model_info() Dict
+    }
+
+    class ONNXInferenceBase {
+        <<abstract>>
+        +_load_onnx_model() void
+        +_get_providers(device) List
+        +warmup() void*
     }
 
     class BaseTracker {
@@ -636,6 +843,7 @@ classDiagram
     class InferencePipeline {
         +run_realtime_mode(input_source) bool
         +run_analysis_mode(input_source) bool
+        +run_visualize_mode(pkl_path, video_path) bool
     }
 
     class RTMOPoseEstimator {
@@ -675,13 +883,23 @@ classDiagram
         -_postprocess_output(output) ClassificationResult
     }
 
+    class STGCNONNXClassifier {
+        +classify_window(window_data) ClassificationResult
+        -_preprocess_window(window_data) ndarray
+        -_apply_temperature_scaling(raw_scores) ndarray
+        -_postprocess_result(probabilities, window_id) ClassificationResult
+    }
+
     BasePipeline <|-- InferencePipeline
     BasePoseEstimator <|-- RTMOPoseEstimator
     BasePoseEstimator <|-- RTMOONNXEstimator
     BasePoseEstimator <|-- RTMOTensorRTEstimator
+    ONNXInferenceBase <|-- RTMOONNXEstimator
+    ONNXInferenceBase <|-- STGCNONNXClassifier
     BaseTracker <|-- ByteTrackerWrapper
     BaseScorer <|-- RegionBasedScorer
     BaseActionClassifier <|-- STGCNActionClassifier
+    BaseActionClassifier <|-- STGCNONNXClassifier
 ```
 
 ---
@@ -732,12 +950,28 @@ classDiagram
         +close_session() void
     }
 
+    class IONNXOptimizer {
+        <<interface>>
+        +optimize_model(model_path, target_device) Dict
+        +benchmark_configurations(configs) List
+        +apply_temperature_scaling(model_config) Dict
+    }
+
+    class IEvaluator {
+        <<interface>>
+        +evaluate_model(model, test_data) EvaluationResult
+        +generate_confusion_matrix(predictions, labels) ndarray
+        +calculate_metrics(predictions, labels) Dict
+    }
+
     IPoseEstimator <|.. RTMOONNXEstimator
     ITracker <|.. ByteTrackerWrapper
-    IActionClassifier <|.. STGCNActionClassifier
+    IActionClassifier <|.. STGCNONNXClassifier
     IEventManager <|.. EventManager
     IVisualizer <|.. RealtimeVisualizer
     ILogger <|.. EventLogger
+    IONNXOptimizer <|.. ONNXOptimizer
+    IEvaluator <|.. ModelEvaluator
 ```
 
 ---
@@ -759,20 +993,26 @@ graph LR
     I --> J[ClassificationQueue_put]
   
     K[classification_worker] --> L[ClassificationQueue_get]
-    L --> M[STGCNActionClassifier_classify_window]
-    M --> N[EventManager_process_classification_result]
-    N --> O[EventLogger_log_event]
-    N --> P[EventManager_trigger_callbacks]
+    L --> M[STGCNONNXClassifier_classify_window]
+    M --> N[TemperatureScaling_apply_scaling]
+    N --> O[EventManager_process_classification_result]
+    O --> P[EventLogger_log_event]
+    O --> Q[EventManager_trigger_callbacks]
   
-    C --> Q[RealtimeVisualizer_show_frame]
-    Q --> R[RealtimeVisualizer_draw_event_history]
-    Q --> S[RealtimeVisualizer_draw_classification_results]
+    C --> R[RealtimeVisualizer_show_frame]
+    R --> S[RealtimeVisualizer_draw_event_history]
+    R --> T[RealtimeVisualizer_draw_classification_results]
+
+    U[ONNXOptimizer_optimize_model] --> V[RTMOONNXEstimator_benchmark]
+    U --> W[STGCNONNXClassifier_find_optimal_temperature]
+    W --> X[TemperatureScaling_calibrate_model]
   
     style A fill:#e1f5fe
     style C fill:#f3e5f5
     style M fill:#fff3e0
     style N fill:#e8f5e8
-    style Q fill:#fce4ec
+    style O fill:#fce4ec
+    style U fill:#f1f8e9
 ```
 
 ---
@@ -786,12 +1026,15 @@ classDiagram
         +int frame_idx
         +float timestamp
         +Dict metadata
+        +str source_type
     }
 
     class PoseData {
         +List persons
         +DataFrame frame_info
         +float processing_time
+        +str model_version
+        +Dict onnx_metrics
     }
 
     class TrackingData {
@@ -799,12 +1042,14 @@ classDiagram
         +List active_tracks
         +List lost_tracks
         +List new_tracks
+        +Dict tracking_stats
     }
 
     class ScoredData {
         +List scored_persons
         +Dict quality_metrics
         +int filtered_count
+        +float avg_confidence
     }
 
     class WindowData {
@@ -813,12 +1058,23 @@ classDiagram
         +int start_frame
         +int end_frame
         +int persons_count
+        +str data_format
     }
 
     class ResultData {
         +ClassificationResult classification
         +Optional event_data
         +Dict performance_stats
+        +bool temperature_applied
+        +float onnx_inference_time
+    }
+
+    class EvaluationData {
+        +List results
+        +ndarray confusion_matrix
+        +Dict metrics
+        +str model_comparison
+        +Dict temperature_analysis
     }
 
     DataFrame --> PoseData
@@ -826,6 +1082,7 @@ classDiagram
     TrackingData --> ScoredData
     ScoredData --> WindowData
     WindowData --> ResultData
+    ResultData --> EvaluationData
 ```
 
 ---
@@ -837,8 +1094,10 @@ classDiagram
 1. **Strategy Pattern**: 각 모듈(포즈 추정, 추적, 분류)은 교체 가능한 전략으로 구현
 2. **Factory Pattern**: ModuleFactory를 통한 모듈 생성 및 관리
 3. **Observer Pattern**: EventManager의 콜백 시스템
-4. **Template Method**: BasePipeline의 추상 메서드 구조
+4. **Template Method**: BasePipeline의 추상 메서드 구조  
 5. **Singleton Pattern**: ModuleFactory의 전역 인스턴스 관리
+6. **Adapter Pattern**: ONNX 모델과 PyTorch 모델 간의 통합 인터페이스
+7. **Chain of Responsibility**: 이벤트 처리 체인 (detection → validation → logging)
 
 ### 핵심 아키텍처 특징
 
@@ -847,13 +1106,28 @@ classDiagram
 3. **비동기 처리**: 분류 작업의 별도 스레드 처리
 4. **이벤트 기반**: 결과 처리를 위한 이벤트 시스템
 5. **데이터 중심**: 명확한 데이터 구조와 변환 흐름
+6. **ONNX 최적화**: 성능 향상을 위한 ONNX 런타임 통합
+7. **Temperature Scaling**: ONNX 모델 출력 정규화 및 보정
+8. **멀티프로세스 지원**: 대규모 배치 처리를 위한 병렬 실행
+9. **Docker 호환성**: 컨테이너 환경에서 안정적 실행
 
 ### 확장 포인트
 
-1. **새로운 포즈 추정기**: BasePoseEstimator 상속
-2. **새로운 분류기**: BaseActionClassifier 상속
-3. **새로운 이벤트 타입**: EventType 열거형 확장
+1. **새로운 포즈 추정기**: BasePoseEstimator 상속 또는 ONNXInferenceBase 상속
+2. **새로운 분류기**: BaseActionClassifier 상속, ONNX 지원 시 ONNXInferenceBase 상속
+3. **새로운 이벤트 타입**: EventType 열거형 확장 및 EventCallback 구현
 4. **새로운 시각화**: IVisualizer 인터페이스 구현
 5. **새로운 로거**: ILogger 인터페이스 구현
+6. **ONNX 최적화 확장**: IONNXOptimizer 인터페이스로 새로운 최적화 전략 추가
+7. **평가 메트릭 확장**: IEvaluator 인터페이스로 새로운 평가 방법 추가
+8. **Temperature Scaling 전략**: TemperatureScaling 클래스 확장으로 새로운 보정 방법 추가
 
+### 최신 기능 통합 (2025-09-03)
 
+1. **ONNX 런타임 지원**: RTMOONNXEstimator, STGCNONNXClassifier
+2. **Temperature Scaling**: 정확한 확률값 출력을 위한 후처리
+3. **성능 최적화**: GPU별 자동 최적화 및 벤치마킹
+4. **평가 시스템**: 모델 성능 비교 및 분석 도구
+5. **멀티프로세스**: annotation 스타일 병렬 처리 지원
+6. **Docker 통합**: 컨테이너 환경에서 MMCV 호환성 보장
+7. **종합 로깅**: JSON/CSV 형식으로 상세한 이벤트 및 성능 기록

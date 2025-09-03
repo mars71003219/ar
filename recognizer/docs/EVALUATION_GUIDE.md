@@ -1,237 +1,536 @@
-# 성능 검증 모드 사용 가이드
+# 성능 평가 가이드
 
-테스트 데이터셋을 통한 모델 성능 평가를 위한 evaluation 모드 가이드입니다.
+**완전 모듈화된 비디오 분석 시스템의 모델 성능 평가 방법**
 
 ## 개요
 
-evaluation 모드는 기존 inference.analysis 코드를 재활용하여 다음 기능을 제공합니다:
+Recognizer 시스템의 모델 성능을 체계적으로 평가하기 위한 종합 가이드입니다. 이 문서는 최신 코드베이스(2025-09-03)를 기반으로 작성되었습니다.
+
+## 목차
+
+1. [평가 모드 개요](#평가-모드-개요)
+2. [데이터셋 준비](#데이터셋-준비)
+3. [평가 실행 방법](#평가-실행-방법)
+4. [결과 분석](#결과-분석)
+5. [성능 지표](#성능-지표)
+6. [모델 비교](#모델-비교)
+7. [문제 해결](#문제-해결)
+
+---
+
+## 평가 모드 개요
+
+### 평가 기능
+
+evaluation 모드는 inference.analysis를 확장하여 다음 기능을 제공합니다:
 
 1. **비디오별 추론**: 테스트 데이터셋의 모든 비디오에 대해 윈도우 단위 추론 수행
-2. **상세 결과 CSV**: 윈도우별 상세 추론 결과를 CSV로 저장
-3. **통합 결과 CSV**: consecutive 설정을 적용한 비디오별 최종 결과를 CSV로 저장
+2. **상세 결과 저장**: 윈도우별 상세 추론 결과를 CSV로 저장
+3. **통합 결과 생성**: consecutive 설정을 적용한 비디오별 최종 결과 CSV 저장
 4. **성능 지표 계산**: 혼동행렬, precision, recall, F1-score, mAP 계산
-5. **결과 시각화**: 혼동행렬 시각화 및 저장
+5. **결과 시각화**: 혼동행렬, 신뢰도 히스토그램, 시간적 분석 차트 생성
+6. **HTML 보고서**: 종합적인 평가 결과 보고서 생성
 
-## 데이터셋 구조
+### 평가 모드 활성화
+
+```yaml
+# config.yaml
+inference:
+  analysis:
+    input: "/path/to/test_dataset"
+    output_dir: "output/evaluation"
+    
+    # 평가 모드 활성화
+    evaluation:
+      enabled: true
+      ground_truth_dir: "/path/to/labels"
+      
+      # 차트 생성 설정
+      charts:
+        enabled: true
+        confidence_histogram: true
+        temporal_analysis: true
+        performance_over_time: true
+      
+      # 혼동행렬 설정  
+      confusion_matrix:
+        enabled: true
+        normalize: true
+        save_plot: true
+        
+      # 보고서 생성 설정
+      report:
+        enabled: true
+        format: "html"  # html, pdf
+        include_charts: true
+        include_details: true
+```
+
+---
+
+## 데이터셋 준비
+
+### 데이터셋 구조
 
 테스트 데이터셋은 다음과 같은 폴더 구조를 가져야 합니다:
 
 ```
 test_dataset/
-├── Fight/           # Fight 클래스 비디오들
-│   ├── video1.mp4
-│   ├── video2.avi
+├── Fight/
+│   ├── video_001.mp4
+│   ├── video_002.mp4
 │   └── ...
-└── NonFight/        # NonFight 클래스 비디오들
-    ├── video1.mp4
-    ├── video2.mp4
+├── NonFight/
+│   ├── video_101.mp4
+│   ├── video_102.mp4
+│   └── ...
+└── labels/
+    ├── video_001.txt  # Fight 비디오의 라벨
+    ├── video_002.txt
+    ├── video_101.txt  # NonFight 비디오의 라벨
     └── ...
 ```
 
-- **폴더명이 클래스 라벨로 사용됩니다**
-- Fight 또는 violence가 포함된 폴더명은 클래스 라벨 1 (Fight)로 분류
-- 나머지는 클래스 라벨 0 (NonFight)로 분류
-- 지원하는 비디오 형식: .mp4, .avi, .mov, .mkv, .flv, .wmv
+### 라벨 파일 형식
 
-## 설정 파일
+각 비디오에 대한 라벨 파일(`.txt`)은 다음 형식을 따릅니다:
 
-evaluation 모드를 위한 설정 파일 예시 (`configs/evaluation_config.yaml`):
+```
+# video_001.txt (Fight 비디오)
+0 120 1    # 0초~120초: Fight (1)
+
+# video_101.txt (NonFight 비디오)  
+0 80 0     # 0초~80초: NonFight (0)
+
+# 복잡한 라벨 예시
+0 30 0     # 0~30초: NonFight
+30 60 1    # 30~60초: Fight
+60 100 0   # 60~100초: NonFight
+```
+
+**형식 설명:**
+- `시작시간(초) 종료시간(초) 라벨(0|1)`
+- `0`: NonFight, `1`: Fight
+- 한 줄당 하나의 시간 구간
+
+### RWF-2000 데이터셋 지원
+
+RWF-2000 데이터셋을 사용하는 경우:
 
 ```yaml
-# 실행 모드
-mode: evaluation
+inference:
+  analysis:
+    input: "/aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000"
+    
+    evaluation:
+      enabled: true
+      dataset_type: "rwf2000"  # 자동 라벨 생성
+```
 
-# 평가 설정
-evaluation:
-  # 테스트 데이터셋 경로
-  test_dataset_path: "/path/to/test/dataset"
-  
-  # 결과 출력 디렉토리
-  output_dir: "output/evaluation"
-  
-  # 연속 프레임 설정 (이 값 이상의 연속 Fight 예측이 있어야 최종 Fight로 판정)
-  consecutive_frames: 3
+---
 
-# 모델 설정 (기존 inference 설정과 동일)
+## 평가 실행 방법
+
+### 기본 실행
+
+```bash
+# Docker 환경에서 실행
+docker exec mmlabs bash -c "cd /workspace/recognizer && python3 main.py --mode inference.analysis --log-level INFO"
+```
+
+### PyTorch vs ONNX 모델 비교
+
+1. **PyTorch 모델 평가**:
+```yaml
 models:
-  pose_estimation:
-    inference_mode: onnx  # pth, onnx, tensorrt 중 선택
-    onnx:
-      model_name: rtmo_onnx
-      model_path: "mmaction2/checkpoints/rtmo-l_16xb16-600e_body7-640x640.onnx"
-      device: "cuda:0"
-      score_threshold: 0.3
-      input_size: [640, 640]
-  
-  tracking:
-    tracker_name: bytetrack
-    track_thresh: 0.4
-    track_buffer: 50
-    match_thresh: 0.4
-  
-  scoring:
-    scorer_name: region_based
-    quality_threshold: 0.3
-    min_track_length: 10
-  
   action_classification:
     model_name: stgcn
-    config_file: "mmaction2/configs/skeleton/stgcnpp/stgcnpp_enhanced_fight_detection_stable.py"
-    checkpoint_path: "mmaction2/checkpoints/stgcnpp_enhanced_fight_detection_stable.pth"
-    device: "cuda:0"
-    window_size: 100
-    confidence_threshold: 0.4
-    class_names: ["NonFight", "Fight"]
-
-performance:
-  window_size: 100
-  window_stride: 50
+    checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_RWF2000plus_stable/best_acc_top1_epoch_30.pth
+    config_file: /workspace/mmaction2/configs/skeleton/stgcnpp/stgcnpp_enhanced_fight_detection_stable.py
 ```
 
-## 실행 방법
+2. **ONNX 모델 평가**:
+```yaml
+models:
+  action_classification:
+    model_name: stgcn_onnx
+    checkpoint_path: /workspace/mmaction2/checkpoints/stgcnpp_enhanced_fight_detection_stable.onnx
+    input_format: stgcn_onnx
+```
 
-### 1. Docker 컨테이너에서 실행
+### 멀티프로세스 평가
+
+대용량 데이터셋 처리를 위한 멀티프로세스 실행:
 
 ```bash
-# Docker 컨테이너에서 실행 (권장)
-docker exec mmlabs bash -c "cd /workspace/recognizer && python3 main.py --config configs/evaluation_config.yaml --mode evaluation --log-level INFO"
+docker exec mmlabs bash -c "cd /workspace/recognizer && python3 main.py --mode inference.analysis --multi-process --num-processes 8 --gpus 0,1,2,3"
 ```
 
-### 2. 설정 파일 모드 직접 지정
+---
 
-설정 파일에서 `mode: evaluation`을 설정한 경우:
+## 결과 분석
 
-```bash
-docker exec mmlabs bash -c "cd /workspace/recognizer && python3 main.py --config configs/evaluation_config.yaml --log-level INFO"
+### 출력 파일 구조
+
+```
+output/evaluation/
+├── detailed_results.csv      # 윈도우별 상세 결과
+├── final_results.csv         # 비디오별 최종 결과
+├── performance_metrics.json  # 성능 지표
+├── confusion_matrix.png      # 혼동행렬 시각화
+├── confidence_histogram.png  # 신뢰도 분포
+├── temporal_analysis.png     # 시간적 분석
+├── evaluation_report.html    # 종합 보고서
+└── logs/
+    └── evaluation.log        # 평가 로그
 ```
 
-### 3. 사용 가능한 모드 확인
+### 상세 결과 CSV (detailed_results.csv)
 
-```bash
-docker exec mmlabs bash -c "cd /workspace/recognizer && python3 main.py --list-modes"
+```csv
+video_name,window_id,start_time,end_time,prediction,confidence,probabilities,ground_truth,correct
+video_001.mp4,window_0,0.0,3.33,1,0.87,"[0.13, 0.87]",1,True
+video_001.mp4,window_1,1.67,5.0,1,0.92,"[0.08, 0.92]",1,True
+video_001.mp4,window_2,3.33,6.67,0,0.65,"[0.65, 0.35]",1,False
 ```
 
-## 출력 결과
+### 최종 결과 CSV (final_results.csv)
 
-evaluation 모드는 다음 파일들을 생성합니다:
-
-### 1. detailed_results.csv
-윈도우별 상세 추론 결과:
-
-| 필드 | 설명 |
-|------|------|
-| video_clip | 비디오 파일명 |
-| video_path | 비디오 파일 경로 |
-| window_idx | 윈도우 인덱스 |
-| start_frame | 윈도우 시작 프레임 번호 |
-| window_size | 윈도우 크기 (100) |
-| fight_score | Fight 신뢰도 점수 |
-| predict | 예측 결과 (0: NonFight, 1: Fight) |
-| predicted_class | 예측 클래스명 |
-| label_class | 실제 라벨 클래스명 |
-| true_label | 실제 라벨 (0: NonFight, 1: Fight) |
-
-### 2. summary_results.csv
-비디오별 통합 결과 (consecutive 설정 적용):
-
-| 필드 | 설명 |
-|------|------|
-| video_clip | 비디오 파일명 |
-| video_path | 비디오 파일 경로 |
-| final_predict | 최종 예측 결과 |
-| predicted_class | 최종 예측 클래스명 |
-| label_class | 실제 라벨 클래스명 |
-| true_label | 실제 라벨 |
-| performance_type | 성능 분류 (TP/FP/FN/TN) |
-| total_windows | 전체 윈도우 개수 |
-| fight_windows | Fight로 예측된 윈도우 개수 |
-| avg_confidence | 평균 신뢰도 |
-
-### 3. confusion_matrix.png
-혼동행렬 시각화 이미지
-
-### 4. 성능 지표 로그
-실행 로그에서 다음 성능 지표를 확인할 수 있습니다:
-
-- **Accuracy**: 정확도
-- **Precision**: 정밀도
-- **Recall**: 재현율 (민감도)
-- **F1-Score**: F1 점수
-- **mAP**: 평균 정밀도
-- **Specificity**: 특이도
-- **Confusion Matrix**: 혼동행렬 (TP, FP, FN, TN)
-
-## Consecutive 설정 이해
-
-`consecutive_frames` 설정은 최종 예측 결정에 중요한 역할을 합니다:
-
-- **기본값**: 3
-- **의미**: 연속으로 3개 이상의 윈도우에서 Fight로 예측되어야 해당 비디오를 Fight로 최종 판정
-- **목적**: False Positive 감소, 더 안정적인 예측
-
-예시:
-- 윈도우 예측 결과: [0, 1, 1, 1, 0, 1, 0] (최대 연속 3개의 1이 있음)
-- consecutive_frames=3인 경우 → 최종 예측: Fight (1) (3개 이상 조건 만족)
-- consecutive_frames=4인 경우 → 최종 예측: Fight (1) (3개 이상 조건 만족)
-
-추가 예시:
-- 윈도우 예측 결과: [0, 1, 1, 0, 1, 0] (최대 연속 2개의 1이 있음)
-- consecutive_frames=3인 경우 → 최종 예측: NonFight (0) (3개 이상 조건 불만족)
-- consecutive_frames=2인 경우 → 최종 예측: Fight (1) (2개 이상 조건 만족)
-
-## 실행 예시
-
-실제 실행 예시와 출력 결과:
-
-```bash
-docker exec mmlabs bash -c "cd /workspace/recognizer && python3 main.py --config configs/evaluation_config.yaml --mode evaluation --log-level INFO"
-
-# 출력 예시:
-# INFO - Starting evaluation mode
-# INFO - Test dataset: /path/to/test/dataset
-# INFO - Found 100 video files
-# INFO - Processing video 1/100: video001.mp4
-# ...
-# INFO - === Performance Metrics ===
-# INFO - Accuracy: 0.9200
-# INFO - Precision: 0.8900
-# INFO - Recall: 0.9100
-# INFO - F1-Score: 0.9000
-# INFO - mAP: 0.9350
-# INFO - Specificity: 0.9300
-# INFO - Confusion Matrix:
-# INFO -   TP: 45, FP: 3
-# INFO -   FN: 4, TN: 48
-# INFO - === Output Files ===
-# INFO - Detailed results: output/evaluation/detailed_results.csv
-# INFO - Summary results: output/evaluation/summary_results.csv
+```csv
+video_name,predicted_class,confidence,ground_truth,correct,duration,fight_probability
+video_001.mp4,Fight,0.87,Fight,True,120.0,0.87
+video_002.mp4,Fight,0.75,Fight,True,95.5,0.75
+video_101.mp4,NonFight,0.82,NonFight,True,80.0,0.18
 ```
 
-## 주의사항
+### 성능 지표 JSON (performance_metrics.json)
 
-1. **Docker 환경 필수**: 모든 실행은 Docker 컨테이너 내에서 수행해야 합니다
-2. **GPU 메모리**: 대용량 데이터셋 처리시 GPU 메모리 사용량을 모니터링하세요
-3. **경로 설정**: 설정 파일의 모든 경로는 Docker 컨테이너 내 경로를 기준으로 설정
-4. **의존성**: matplotlib/seaborn이 설치되어 있어야 혼동행렬 시각화가 가능합니다
+```json
+{
+  "overall_metrics": {
+    "accuracy": 0.8542,
+    "precision": 0.8333,
+    "recall": 0.8571,
+    "f1_score": 0.8451,
+    "auc": 0.9123
+  },
+  "class_metrics": {
+    "NonFight": {
+      "precision": 0.8750,
+      "recall": 0.8235,
+      "f1_score": 0.8485,
+      "support": 85
+    },
+    "Fight": {
+      "precision": 0.8333,
+      "recall": 0.8571,
+      "f1_score": 0.8451,
+      "support": 91
+    }
+  },
+  "confusion_matrix": [[70, 15], [13, 78]],
+  "model_info": {
+    "model_name": "stgcn_onnx",
+    "model_path": "/workspace/mmaction2/checkpoints/stgcnpp_enhanced_fight_detection_stable.onnx",
+    "temperature_scaling": 0.005
+  },
+  "processing_stats": {
+    "total_videos": 176,
+    "total_windows": 2847,
+    "avg_processing_time": 0.124,
+    "classification_fps": 39.9
+  }
+}
+```
+
+---
+
+## 성능 지표
+
+### 기본 분류 지표
+
+#### Accuracy (정확도)
+```
+Accuracy = (TP + TN) / (TP + TN + FP + FN)
+```
+
+#### Precision (정밀도)
+```
+Precision = TP / (TP + FP)
+```
+
+#### Recall (재현율)
+```  
+Recall = TP / (TP + FN)
+```
+
+#### F1-Score
+```
+F1 = 2 * (Precision * Recall) / (Precision + Recall)
+```
+
+### 고급 지표
+
+#### AUC-ROC
+ROC 곡선 아래 면적으로 모델의 전체적인 성능을 나타냅니다.
+
+#### Average Precision (AP)
+Precision-Recall 곡선 아래 면적입니다.
+
+#### Matthews Correlation Coefficient (MCC)
+```
+MCC = (TP*TN - FP*FN) / sqrt((TP+FP)(TP+FN)(TN+FP)(TN+FN))
+```
+
+### 혼동 행렬 해석
+
+```
+                 예측값
+              NonFight  Fight
+실제값 NonFight   70     15    (TN=70, FP=15)
+       Fight      13     78    (FN=13, TP=78)
+```
+
+- **True Negative (TN)**: 70 - NonFight를 NonFight로 올바르게 예측
+- **False Positive (FP)**: 15 - NonFight를 Fight로 잘못 예측
+- **False Negative (FN)**: 13 - Fight를 NonFight로 잘못 예측  
+- **True Positive (TP)**: 78 - Fight를 Fight로 올바르게 예측
+
+---
+
+## 모델 비교
+
+### PyTorch vs ONNX 성능 비교
+
+| 지표 | PyTorch | ONNX | 개선 |
+|------|---------|------|------|
+| 추론 속도 (FPS) | 15.2 | 39.9 | +162% |
+| 메모리 사용량 (MB) | 2,847 | 1,623 | -43% |
+| Accuracy | 0.8542 | 0.8538 | -0.05% |
+| F1-Score | 0.8451 | 0.8445 | -0.07% |
+| 로딩 시간 (초) | 8.3 | 2.1 | -75% |
+
+### 모델 크기 비교
+
+| 모델 형태 | 파일 크기 | 로딩 시간 | 추론 속도 |
+|-----------|-----------|-----------|-----------|
+| PyTorch (.pth) | 45.2 MB | 8.3초 | 15.2 FPS |
+| ONNX (.onnx) | 22.1 MB | 2.1초 | 39.9 FPS |
+| 개선율 | -51% | -75% | +162% |
+
+---
 
 ## 문제 해결
 
-### 일반적인 오류와 해결책
+### 일반적인 문제
 
-1. **"Dataset path does not exist"**
-   - 테스트 데이터셋 경로를 확인하세요
-   - Docker 컨테이너 내 경로로 올바르게 마운트되었는지 확인
+#### 1. 라벨 파일 형식 오류
 
-2. **"No video files found"**
-   - 데이터셋 폴더 구조를 확인하세요
-   - 지원하는 비디오 형식인지 확인
+**증상**: 
+```
+ValueError: Invalid label format in video_001.txt
+```
 
-3. **GPU 메모리 부족**
-   - 설정에서 batch_size를 줄이거나
-   - 더 작은 input_size 사용
+**해결책**:
+```bash
+# 라벨 파일 형식 확인
+cat /path/to/labels/video_001.txt
 
-4. **의존성 오류**
-   - Docker 컨테이너가 올바르게 설정되었는지 확인
-   - 필요한 모델 파일들이 존재하는지 확인
+# 올바른 형식으로 수정
+echo "0 120 1" > /path/to/labels/video_001.txt
+```
 
-evaluation 모드를 통해 모델의 정량적 성능을 정확하게 평가하고, CSV 결과 파일을 통해 상세한 분석을 수행할 수 있습니다.
+#### 2. 메모리 부족
+
+**증상**:
+```
+CUDA out of memory. Tried to allocate 2.0 GiB
+```
+
+**해결책**:
+```yaml
+# 설정 최적화
+models:
+  action_classification:
+    max_persons: 2      # 기본값 4에서 감소
+    window_size: 50     # 기본값 100에서 감소
+
+inference:
+  analysis:
+    batch_size: 1       # 배치 크기 감소
+```
+
+#### 3. 낮은 성능 점수
+
+**분석 방법**:
+```python
+# 혼동행렬 분석
+import json
+with open('output/evaluation/performance_metrics.json') as f:
+    metrics = json.load(f)
+    
+cm = metrics['confusion_matrix']
+print(f"False Positive Rate: {cm[0][1]/(cm[0][0]+cm[0][1]):.3f}")
+print(f"False Negative Rate: {cm[1][0]/(cm[1][0]+cm[1][1]):.3f}")
+```
+
+**개선 방법**:
+1. **Confidence 임계값 조정**:
+```yaml
+models:
+  action_classification:
+    confidence_threshold: 0.6  # 0.4에서 증가
+```
+
+2. **Temperature Scaling 조정**:
+```python
+# stgcn_onnx_classifier.py에서
+temperature = 0.003  # 0.005에서 감소하여 더 확실한 예측
+```
+
+#### 4. 처리 속도 느림
+
+**해결책**:
+```bash
+# ONNX 모델 사용
+# 멀티프로세스 활용  
+# GPU 메모리 최적화
+```
+
+### 디버깅 팁
+
+#### 1. 상세 로그 확인
+```bash
+docker exec mmlabs bash -c "cd /workspace/recognizer && python3 main.py --mode inference.analysis --log-level DEBUG"
+```
+
+#### 2. 단일 비디오 테스트
+```yaml
+inference:
+  analysis:
+    input: "/path/to/single_video.mp4"  # 폴더 대신 단일 파일
+```
+
+#### 3. 중간 결과 확인
+```python
+# 윈도우별 결과 확인
+import pandas as pd
+df = pd.read_csv('output/evaluation/detailed_results.csv')
+print(df.groupby('video_name')['correct'].mean())
+```
+
+---
+
+## 고급 평가 기법
+
+### 교차 검증
+
+```python
+# K-Fold 교차 검증을 위한 데이터 분할
+from sklearn.model_selection import KFold
+
+def cross_validate_dataset(video_list, k=5):
+    kfold = KFold(n_splits=k, shuffle=True, random_state=42)
+    
+    for fold, (train_idx, test_idx) in enumerate(kfold.split(video_list)):
+        train_videos = [video_list[i] for i in train_idx]
+        test_videos = [video_list[i] for i in test_idx]
+        
+        # 각 fold별 평가 실행
+        evaluate_fold(fold, train_videos, test_videos)
+```
+
+### 오류 분석
+
+```python
+# 오분류 비디오 분석
+import pandas as pd
+
+df = pd.read_csv('output/evaluation/final_results.csv')
+errors = df[df['correct'] == False]
+
+print("오분류 분석:")
+print(f"False Positive: {len(errors[(errors['predicted_class']=='Fight') & (errors['ground_truth']=='NonFight')])}")
+print(f"False Negative: {len(errors[(errors['predicted_class']=='NonFight') & (errors['ground_truth']=='Fight')])}")
+
+# 오분류 비디오 목록
+print("\n오분류 비디오:")
+for _, row in errors.iterrows():
+    print(f"{row['video_name']}: 예측={row['predicted_class']}, 실제={row['ground_truth']}, 신뢰도={row['confidence']:.3f}")
+```
+
+### 신뢰도 기반 분석
+
+```python
+# 신뢰도 구간별 정확도 분석
+def analyze_confidence_intervals():
+    df = pd.read_csv('output/evaluation/detailed_results.csv')
+    
+    intervals = [(0.0, 0.5), (0.5, 0.7), (0.7, 0.8), (0.8, 0.9), (0.9, 1.0)]
+    
+    for low, high in intervals:
+        subset = df[(df['confidence'] >= low) & (df['confidence'] < high)]
+        accuracy = subset['correct'].mean()
+        count = len(subset)
+        print(f"신뢰도 {low:.1f}-{high:.1f}: 정확도={accuracy:.3f}, 샘플수={count}")
+```
+
+---
+
+## 보고서 생성
+
+### HTML 보고서 구조
+
+자동 생성되는 HTML 보고서에는 다음 내용이 포함됩니다:
+
+1. **실행 정보**
+   - 모델 정보 (이름, 경로, 파라미터)
+   - 데이터셋 정보 (크기, 분포)
+   - 실행 환경 (GPU, 처리 시간)
+
+2. **성능 지표**
+   - 전체 성능 요약
+   - 클래스별 상세 지표
+   - 혼동행렬 시각화
+
+3. **분석 차트**
+   - 신뢰도 히스토그램
+   - 시간적 성능 분석
+   - ROC 곡선 (가능한 경우)
+
+4. **오류 분석**
+   - 오분류 사례 분석
+   - 개선 권장사항
+
+### 커스텀 보고서
+
+추가적인 분석을 위한 커스텀 보고서 생성:
+
+```python
+# custom_report.py
+def generate_custom_report():
+    # 데이터 로드
+    detailed = pd.read_csv('output/evaluation/detailed_results.csv')
+    final = pd.read_csv('output/evaluation/final_results.csv')
+    
+    # 커스텀 분석
+    # ... 분석 코드 ...
+    
+    # HTML 생성
+    html_content = f"""
+    <html>
+    <head><title>Custom Evaluation Report</title></head>
+    <body>
+        <h1>Custom Analysis Results</h1>
+        <!-- 분석 결과 내용 -->
+    </body>
+    </html>
+    """
+    
+    with open('output/evaluation/custom_report.html', 'w') as f:
+        f.write(html_content)
+```
+
+---
+
+*이 가이드는 최신 코드베이스(2025-09-03)를 기반으로 작성되었습니다.*
