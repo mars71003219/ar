@@ -53,8 +53,9 @@ def initialize_factory():
         factory.register_scorer('movement_based', RegionBasedScorer)
         
         # 행동 분류 모듈
-        from .action_classification.stgcn import STGCNActionClassifier
+        from .action_classification.stgcn import STGCNActionClassifier, STGCNONNXClassifier
         factory.register_classifier('stgcn', STGCNActionClassifier)
+        factory.register_classifier('stgcn_onnx', STGCNONNXClassifier)
         
         print("Recognizer factory initialized with all default modules")
         

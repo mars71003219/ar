@@ -95,6 +95,14 @@ def register_modules():
             default_config={'num_classes': 2, 'device': 'cuda:0'}
         )
         
+        # STGCN ONNX Action Classifier
+        from action_classification.stgcn.stgcn_onnx_classifier import STGCNONNXClassifier
+        ModuleFactory.register_classifier(
+            name='stgcn_onnx',
+            classifier_class=STGCNONNXClassifier,
+            default_config={'num_classes': 2, 'device': 'cuda:0'}
+        )
+        
         # Window Processor
         from utils.window_processor import SlidingWindowProcessor
         ModuleFactory.register_window_processor(

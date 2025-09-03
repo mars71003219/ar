@@ -5,6 +5,7 @@ ST-GCN++ 기반 행동 분류 모듈
 """
 
 from .stgcn_classifier import STGCNActionClassifier
+from .stgcn_onnx_classifier import STGCNONNXClassifier
 from .data_utils import (
     apply_temporal_padding,
     convert_to_stgcn_format, 
@@ -16,6 +17,7 @@ from .data_utils import (
 
 __all__ = [
     'STGCNActionClassifier',
+    'STGCNONNXClassifier',
     'apply_temporal_padding',
     'convert_to_stgcn_format',
     'convert_poses_to_stgcn_format', 
