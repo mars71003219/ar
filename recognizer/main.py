@@ -95,6 +95,14 @@ def register_modules():
             default_config={'num_classes': 2, 'device': 'cuda:0'}
         )
         
+        # STGCN ONNX Action Classifier
+        from action_classification.stgcn.stgcn_onnx_classifier import STGCNONNXClassifier
+        ModuleFactory.register_classifier(
+            name='stgcn_onnx',
+            classifier_class=STGCNONNXClassifier,
+            default_config={'num_classes': 2, 'device': 'cuda:0'}
+        )
+        
         # Window Processor
         from utils.window_processor import SlidingWindowProcessor
         ModuleFactory.register_window_processor(
@@ -149,8 +157,8 @@ def main():
     # 멀티 프로세스 어노테이션 옵션
     parser.add_argument('--multi-process', action='store_true',
                        help='Run multi-process annotation')
-    parser.add_argument('--num-processes', type=int, default=4,
-                       help='Number of processes for multi-process annotation (default: 4)')
+    parser.add_argument('--num-processes', type=int, default=8,
+                       help='Number of processes for multi-process annotation (default: 8)')
     parser.add_argument('--gpus', type=str, default='0,1',
                        help='GPU assignments for multi-process (comma-separated, e.g. 0,1)')
     
@@ -180,13 +188,18 @@ def main():
         # 모드 결정 (인자 우선, 그 다음 설정 파일)
         mode = args.mode or config.get('mode', 'inference.analysis')
         
-        # 멀티 프로세스 어노테이션 실행 (annotation 모드에서만)
+        # 멀티 프로세스 처리 설정 (annotation 또는 evaluation 모드)
         if mode.startswith('annotation.'):
             multi_process_config = config.get('annotation', {}).get('multi_process', {})
             should_run_multi_process = args.multi_process or multi_process_config.get('enabled', False)
             
             if should_run_multi_process:
                 return run_multi_process_annotation(config, args)
+        elif mode == 'evaluation':
+            # evaluation 모드의 멀티프로세스 설정
+            if args.multi_process:
+                config['multi_process'] = True
+                config['num_processes'] = args.num_processes
         
         # 모듈 등록
         if not register_modules():

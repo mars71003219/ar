@@ -95,9 +95,14 @@ class ConfigGenerator:
             temp_video_dir = Path(split_dir) / "videos"
             temp_video_dir.mkdir(exist_ok=True)
             
-            # 비디오 파일 심볼릭 링크 생성 (복사 대신)
+            # 비디오 파일 심볼릭 링크 생성 (원본 폴더 구조 보존)
             for video in videos:
-                link_path = temp_video_dir / video.name
+                # 원본 폴더명 보존 (fight, normal 등)
+                original_parent = video.parent.name
+                target_subdir = temp_video_dir / original_parent
+                target_subdir.mkdir(exist_ok=True)
+                
+                link_path = target_subdir / video.name
                 if not link_path.exists():
                     try:
                         os.symlink(str(video.absolute()), str(link_path))
@@ -401,6 +406,279 @@ def run_multi_process_annotation(
     """멀티 프로세스 어노테이션 실행"""
     
     manager = MultiProcessAnnotationManager(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        config_path=config_path,
+        num_processes=num_processes,
+        gpu_assignments=gpu_assignments
+    )
+    
+    return manager.run_full_pipeline()
+
+
+class MultiProcessInferenceAnalysisManager:
+    """멀티 프로세스 inference.analysis 관리자"""
+    
+    def __init__(
+        self,
+        input_dir: str,
+        output_dir: str,
+        config_path: str,
+        num_processes: int = 4,
+        gpu_assignments: List[int] = None
+    ):
+        self.input_dir = input_dir
+        self.config_path = config_path
+        self.num_processes = num_processes
+        self.gpu_assignments = gpu_assignments or [i % 2 for i in range(num_processes)]
+        
+        # 출력 디렉토리를 입력 폴더명으로 설정
+        input_folder_name = Path(input_dir).name
+        self.output_dir = str(Path(output_dir) / input_folder_name)
+        
+        # 컴포넌트 초기화
+        self.splitter = VideoDataSplitter(input_dir, num_processes)
+        self.config_generator = InferenceAnalysisConfigGenerator(config_path)
+        self.runner = MultiProcessRunner()
+        self.merger = InferenceResultMerger(self.output_dir)
+    
+    def run_full_pipeline(self) -> bool:
+        """전체 파이프라인 실행"""
+        start_time = time.time()
+        
+        try:
+            logger.info(f"Starting multi-process inference analysis with {self.num_processes} processes")
+            logger.info(f"Input: {self.input_dir}")
+            logger.info(f"Output: {self.output_dir}")
+            logger.info(f"GPU assignments: {self.gpu_assignments}")
+            
+            # 1. 비디오 분할
+            logger.info("=== Step 1: Splitting videos ===")
+            video_splits = self.splitter.split_videos()
+            if not video_splits:
+                logger.error("No videos to process")
+                return False
+            
+            # 2. 임시 디렉토리 생성 (상위 디렉토리에)
+            temp_base = Path(self.output_dir).parent / "temp_splits"
+            split_dirs = self.splitter.create_split_directories(str(temp_base))
+            
+            # 3. 분할별 설정 파일 생성
+            logger.info("=== Step 2: Creating split configurations ===")
+            config_paths = self.config_generator.create_split_configs(video_splits, split_dirs)
+            
+            # 4. 멀티 프로세스 실행
+            logger.info("=== Step 3: Running split processes ===")
+            processes = self.runner.run_split_processes(config_paths, self.gpu_assignments)
+            
+            # 5. 프로세스 모니터링
+            logger.info("=== Step 4: Monitoring processes ===")
+            results = self.runner.monitor_processes(processes)
+            
+            # 6. 결과 통합
+            logger.info("=== Step 5: Merging results ===")
+            success_count = sum(1 for code in results.values() if code == 0)
+            logger.info(f"Completed processes: {success_count}/{len(processes)}")
+            
+            # inference.analysis 결과 통합
+            self.merger.merge_inference_results(split_dirs)
+            
+            # 7. 정리
+            logger.info("=== Step 6: Cleanup ===")
+            self.merger.cleanup_split_dirs(split_dirs)
+            
+            total_time = time.time() - start_time
+            logger.info(f"Multi-process inference analysis completed in {total_time:.2f}s")
+            logger.info(f"Success rate: {success_count}/{len(processes)}")
+            
+            return success_count == len(processes)
+            
+        except Exception as e:
+            logger.error(f"Multi-process inference analysis failed: {e}")
+            return False
+
+
+class InferenceAnalysisConfigGenerator:
+    """inference.analysis용 설정 파일 생성기"""
+    
+    def __init__(self, base_config_path: str):
+        self.base_config_path = base_config_path
+        with open(base_config_path, 'r', encoding='utf-8') as f:
+            self.base_config = yaml.safe_load(f)
+    
+    def create_split_configs(
+        self, 
+        video_splits: List[List[Path]], 
+        split_dirs: List[str]
+    ) -> List[str]:
+        """분할별 설정 파일 생성"""
+        config_paths = []
+        
+        for i, (videos, split_dir) in enumerate(zip(video_splits, split_dirs)):
+            # 임시 비디오 디렉토리 생성
+            temp_video_dir = Path(split_dir) / "videos"
+            temp_video_dir.mkdir(exist_ok=True)
+            
+            # 비디오 파일 심볼릭 링크 생성 (원본 폴더 구조 보존)
+            for video in videos:
+                # 원본 폴더명 보존 (fight, normal 등)
+                original_parent = video.parent.name
+                target_subdir = temp_video_dir / original_parent
+                target_subdir.mkdir(exist_ok=True)
+                
+                link_path = target_subdir / video.name
+                if not link_path.exists():
+                    try:
+                        os.symlink(str(video.absolute()), str(link_path))
+                    except:
+                        # 심볼릭 링크 실패시 복사
+                        shutil.copy2(str(video), str(link_path))
+            
+            # 분할별 설정 생성
+            split_config = self.base_config.copy()
+            
+            # inference.analysis 모드로 설정
+            split_config['mode'] = 'inference.analysis'
+            split_config['inference']['analysis']['input'] = str(temp_video_dir)
+            split_config['inference']['analysis']['output_dir'] = split_dir
+            
+            # 멀티 프로세스 비활성화 (subprocess에서는 단일 처리만)
+            split_config['multi_process']['enabled'] = False
+            
+            # 성능평가는 마지막에만 (첫 번째 프로세스에서만 실행)
+            split_config['inference']['analysis']['enable_evaluation'] = (i == 0)
+            
+            # 설정 파일 저장
+            config_path = Path(split_dir) / f"config_split_{i}.yaml"
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.safe_dump(split_config, f, allow_unicode=True)
+            
+            config_paths.append(str(config_path))
+            logger.info(f"Created config for split {i}: {len(videos)} videos -> {config_path}")
+        
+        return config_paths
+
+
+class InferenceResultMerger:
+    """inference.analysis 결과 통합기"""
+    
+    def __init__(self, final_output_dir: str):
+        self.final_output_dir = Path(final_output_dir)
+        self.final_output_dir.mkdir(parents=True, exist_ok=True)
+    
+    def merge_inference_results(self, split_dirs: List[str]) -> bool:
+        """inference.analysis 결과 통합 (JSON + PKL 파일)"""
+        try:
+            merged_count = 0
+            pkl_merged_count = 0
+            
+            for split_dir in split_dirs:
+                split_path = Path(split_dir)
+                
+                # JSON 결과 파일들 찾기
+                json_files = list(split_path.rglob("**/*_results.json"))
+                
+                for json_file in json_files:
+                    try:
+                        # 상대 경로 계산하되 videos/ 부분을 제거
+                        rel_path = json_file.relative_to(split_path)
+                        
+                        # videos/ 경로를 제거하고 재구성
+                        path_parts = list(rel_path.parts)
+                        if path_parts and path_parts[0] == 'videos':
+                            # videos/F_20_1_1_0_0/F_20_1_1_0_0_results.json -> F_20_1_1_0_0/F_20_1_1_0_0_results.json
+                            new_rel_path = Path(*path_parts[1:])
+                        else:
+                            new_rel_path = rel_path
+                        
+                        final_path = self.final_output_dir / new_rel_path
+                        
+                        # 디렉토리 생성
+                        final_path.parent.mkdir(parents=True, exist_ok=True)
+                        
+                        # 파일 이동 (또는 복사)
+                        shutil.move(str(json_file), str(final_path))
+                        merged_count += 1
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to merge {json_file}: {e}")
+                
+                # PKL 파일들 찾기 및 통합 (analysis 모드이므로 필수)
+                pkl_files = list(split_path.rglob("**/*.pkl"))
+                
+                for pkl_file in pkl_files:
+                    try:
+                        # 상대 경로 계산하되 videos/ 부분을 제거
+                        rel_path = pkl_file.relative_to(split_path)
+                        
+                        # videos/ 경로를 제거하고 재구성
+                        path_parts = list(rel_path.parts)
+                        if path_parts and path_parts[0] == 'videos':
+                            new_rel_path = Path(*path_parts[1:])
+                        else:
+                            new_rel_path = rel_path
+                        
+                        final_path = self.final_output_dir / new_rel_path
+                        
+                        # 디렉토리 생성
+                        final_path.parent.mkdir(parents=True, exist_ok=True)
+                        
+                        # 파일 이동 (또는 복사)
+                        shutil.move(str(pkl_file), str(final_path))
+                        pkl_merged_count += 1
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to merge {pkl_file}: {e}")
+                
+                # evaluation 결과가 있으면 통합
+                eval_dir = split_path / "evaluation"
+                if eval_dir.exists():
+                    final_eval_dir = self.final_output_dir / "evaluation"
+                    if final_eval_dir.exists():
+                        shutil.rmtree(str(final_eval_dir))
+                    shutil.move(str(eval_dir), str(final_eval_dir))
+                    logger.info("Merged evaluation results")
+            
+            logger.info(f"Merged {merged_count} inference result files")
+            logger.info(f"Merged {pkl_merged_count} PKL files")
+            return merged_count > 0
+            
+        except Exception as e:
+            logger.error(f"Error merging inference results: {e}")
+            return False
+    
+    def cleanup_split_dirs(self, split_dirs: List[str]):
+        """분할 디렉토리 완전 정리"""
+        # temp_splits 폴더 전체 삭제
+        if split_dirs:
+            temp_base = Path(split_dirs[0]).parent
+            try:
+                if temp_base.name == "temp_splits":
+                    shutil.rmtree(str(temp_base))
+                    logger.info(f"Cleaned up temp_splits directory: {temp_base}")
+                    return
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temp_splits: {e}")
+        
+        # 개별 분할 디렉토리 삭제
+        for split_dir in split_dirs:
+            try:
+                shutil.rmtree(split_dir)
+                logger.info(f"Cleaned up split directory: {split_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup {split_dir}: {e}")
+
+
+def run_multi_process_inference_analysis(
+    input_dir: str,
+    output_dir: str,
+    config_path: str,
+    num_processes: int = 4,
+    gpu_assignments: List[int] = None
+) -> bool:
+    """멀티 프로세스 inference.analysis 실행"""
+    
+    manager = MultiProcessInferenceAnalysisManager(
         input_dir=input_dir,
         output_dir=output_dir,
         config_path=config_path,

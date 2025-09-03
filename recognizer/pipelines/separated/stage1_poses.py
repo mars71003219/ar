@@ -62,14 +62,24 @@ def process_stage1_pose_extraction(
     pkl_path = output_path / f"{video_name}_stage1_poses.pkl"
     
     if save_visualization:
-        # 시각화용 데이터 생성
+        # 원본 경로에서 라벨 정보 추출 (RWF-2000 구조)
+        original_path_str = str(video_path)
+        original_label = None
+        if '/Fight/' in original_path_str:
+            original_label = 1  # Fight
+        elif '/NonFight/' in original_path_str:
+            original_label = 0  # NonFight
+        
+        # 시각화용 데이터 생성 (원본 경로 정보 포함)
         viz_data = VisualizationData(
             video_name=video_name,
             frame_data=frame_poses_list,
             stage_info={
                 'stage': 'pose_estimation',
                 'total_frames': len(frame_poses_list),
-                'config': pose_config_dict
+                'config': pose_config_dict,
+                'original_path': original_path_str,  # 원본 경로 보존
+                'original_label': original_label    # 원본 라벨 보존
             },
             poses_only=frame_poses_list
         )

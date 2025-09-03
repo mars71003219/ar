@@ -478,9 +478,20 @@ class RealtimeVisualizer:
         if overlay_data.get('show_keypoints', True) and scaled_poses and scaled_poses.persons:
             vis_frame = self.draw_keypoints_and_tracking(vis_frame, scaled_poses, overlay_data.get('show_tracking_ids', True))
         
-        # 2. 분류 결과 표시 (조건부)
-        if overlay_data.get('show_classification', False) and overlay_data.get('window_results', []):
-            vis_frame = self.draw_realtime_classification(vis_frame, overlay_data['window_results'])
+        # 2. 분류 결과 표시 - 실시간 모드에서는 항상 표시
+        if self.processing_mode == "realtime":
+            if overlay_data and overlay_data.get('window_results', []):
+                # window_results가 있으면 realtime_classification 사용
+                vis_frame = self.draw_realtime_classification(vis_frame, overlay_data['window_results'])
+            else:
+                # window_results가 없으면 classification_history 사용 (항상 표시)
+                vis_frame = self.draw_classification_results(vis_frame)
+        elif overlay_data and overlay_data.get('show_classification', False):
+            # 분석 모드에서는 조건부 표시
+            if overlay_data.get('window_results', []):
+                vis_frame = self.draw_realtime_classification(vis_frame, overlay_data['window_results'])
+            else:
+                vis_frame = self.draw_classification_results(vis_frame)
         
         # 3. 추가 정보 (프레임 번호, FPS 등)
         if additional_info:

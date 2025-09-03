@@ -49,7 +49,7 @@ class STGCNONNXClassifier(BaseActionClassifier):
         
         # ONNX 추론 베이스 클래스
         self.onnx_inferencer = ONNXInferenceBase(
-            model_path=self.checkpoint_path,
+            model_path=self.model_path,
             device=self.device
         )
         
@@ -241,13 +241,16 @@ class STGCNONNXClassifier(BaseActionClassifier):
             
             logging.info(f"Processing ONNX result for window {window_id}: raw_scores={pred_scores}")
             
-            # Softmax 적용하여 확률로 변환
-            exp_scores = np.exp(pred_scores - np.max(pred_scores))  # 수치 안정성을 위해 최대값 빼기
+            # ONNX 모델이 raw logits을 출력하므로 temperature scaling과 softmax를 적용하여 확률로 변환
+            # Temperature scaling으로 극값 문제 완화
+            temperature = 0.005  # logits 스케일링 (더 작은 값으로 조정)
+            scaled_scores = pred_scores * temperature
+            exp_scores = np.exp(scaled_scores - np.max(scaled_scores))  # 수치 안정성을 위해 최대값 빼기
             probabilities = exp_scores / np.sum(exp_scores)
             
             logging.info(f"Probabilities after softmax for window {window_id}: {probabilities}")
             
-            # 클래스 예측
+            # 클래스 예측 (0-1 범위의 확률 기준)
             if len(probabilities) >= 2:
                 fight_prob = float(probabilities[1])
                 nonfight_prob = float(probabilities[0])

@@ -1,19 +1,22 @@
-# mode: inference.realtime
 # mode: inference.analysis
+mode: inference.realtime
 # mode: inference.visualize
-mode: annotation.stage3
+# mode: annotation.stage3
+# mode: annotation.visualize
 
+# 공통 멀티 프로세스 설정 (모든 모드에서 사용)
+multi_process:
+  enabled: true                     # 멀티 프로세스 활성화
+  num_processes: 6                  # 프로세스 수 (UBI_demo 6개 비디오용)
+  gpus: [0, 1]                     # 사용할 GPU 목록 (라운드 로빈 할당)
+  chunk_strategy: video_split       # 비디오 단위로 분할
 
 annotation:
   input: /aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000
   output_dir: output
   pipeline_mode: true
 
-  # 멀티 프로세스 설정
-  multi_process:
-    enabled: true                # 멀티 프로세스 활성화 여부
-    num_processes: 16             # 프로세스 수
-    gpus: [0, 1]                 # 사용할 GPU 목록 (라운드 로빈 할당)
+  # 멀티 프로세스 설정은 최상위에서 공통으로 사용
 
   stage1:
     enabled: true
@@ -28,23 +31,29 @@ annotation:
 
   visualize:
     stage: stage2
-    video_dir: /workspace/recognizer/test_data
-    results_dir: output/test_data/stage2_tracking/bytetrack_h0.3_l0.1_t0.2
-    save_mode: true
+    video_dir: /aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000
+    results_dir: /workspace/recognizer/output/RWF-2000/stage2_tracking/bytetrack_h0.3_l0.1_t0.2
+    save_mode: false
 
 inference:
   analysis:
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4
+    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
     output_dir: output
+    
+    # 성능평가 설정
+    enable_evaluation: true          # 성능평가 기능 활성화
 
   realtime:
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_77_1_0_0_0.mp4
-    output_path: output
+    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_77_1_0_0_0.mp4
+    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/hanbit 
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
+    # input: /aivanas/one
+    output_path: /workspace/recognizer/output 
     save_output: true
     display_width: 640
     display_height: 480
     # 오버레이 표시 모드 설정
-    overlay_mode: full  # full, skeleton_only, raw
+    overlay_mode: full # full, skeleton_only, raw
 
   visualize:
     input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4
@@ -55,7 +64,7 @@ inference:
 
 models:
   action_classification:
-    checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-m_RWF2000plus_stable/best_acc_top1_epoch_14.pth
+    checkpoint_path: /workspace/mmaction2/checkpoints/stgcnpp_enhanced_fight_detection_stable.onnx
     class_names:
     - NonFight
     - Fight
@@ -64,9 +73,9 @@ models:
     coordinate_dimensions: 2
     device: cuda:0
     expected_keypoint_count: 17
-    input_format: stgcn
+    input_format: stgcn_onnx
     max_persons: 4
-    model_name: stgcn
+    model_name: stgcn_onnx
     num_classes: 2
     window_size: 100
 
@@ -89,7 +98,7 @@ models:
       execution_mode: ORT_SEQUENTIAL
       gpu_mem_limit_gb: 8
       graph_optimization_level: ORT_ENABLE_ALL
-      keypoint_threshold: 0.3
+      keypoint_threshold: 0.2
       max_detections: 100
       mean: null
       model_input_size:
@@ -98,8 +107,8 @@ models:
       model_name: rtmo_onnx
       model_path: /workspace/mmpose/checkpoints/end2end_l.onnx
       # model_path: /workspace/mmpose/checkpoints/end2end_m.onnx
-      nms_threshold: 0.45
-      score_threshold: 0.3
+      nms_threshold: 0.2
+      score_threshold: 0.2
       std: null
       to_openpose: false
       tunable_op_enable: true
@@ -174,17 +183,17 @@ performance:
 
 events:
   # 이벤트 발생 조건
-  alert_threshold: 0.7                    # 폭력 탐지 신뢰도 임계값
+  alert_threshold: 0.8                    # 폭력 탐지 신뢰도 임계값
   min_consecutive_detections: 3           # 연속 탐지 최소 횟수
   
   # 이벤트 해제 조건  
   normal_threshold: 0.5                   # 정상 상태 신뢰도 임계값
-  min_consecutive_normal: 5               # 연속 정상 최소 횟수
+  min_consecutive_normal: 2               # 연속 정상 최소 횟수
   
   # 시간 기반 조건
   min_event_duration: 2.0                 # 최소 이벤트 지속 시간 (초)
-  max_event_duration: 300.0               # 최대 이벤트 지속 시간 (초) 
-  cooldown_duration: 10.0                 # 이벤트 쿨다운 시간 (초)
+  max_event_duration: 10.0               # 최대 이벤트 지속 시간 (초) 
+  cooldown_duration: 5.0                 # 이벤트 쿨다운 시간 (초)
   
   # 알림 설정
   enable_ongoing_alerts: true             # 진행 중 알림 활성화

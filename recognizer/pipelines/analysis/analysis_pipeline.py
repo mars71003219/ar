@@ -45,9 +45,8 @@ class AnalysisPipeline(BasePipeline):
             
         logger.info(f"Analysis mode - folder processing: {input_dir}")
         
-        # 입력 경로의 전체 구조를 출력 디렉토리에 보존
-        input_folder_name = input_path.name
-        base_output_dir = Path(output_dir) / input_folder_name
+        # 출력 디렉토리 사용 (이미 inference_modes.py에서 input_folder_name이 추가됨)
+        base_output_dir = Path(output_dir)
         base_output_dir.mkdir(parents=True, exist_ok=True)
         
         logger.info(f"Base output directory: {base_output_dir}")

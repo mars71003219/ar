@@ -34,6 +34,7 @@ class ModeManager:
         self._modes['annotation.pipeline'] = AnnotationPipelineMode
         self._modes['annotation.visualize'] = AnnotationVisualizeMode
         
+        
         logger.info(f"Registered {len(self._modes)} modes")
     
     def execute(self, mode_name: str) -> bool:
@@ -69,7 +70,8 @@ class ModeManager:
             'annotation.stage2': 'Stage 2 - 트래킹 및 정렬 결과 생성',
             'annotation.stage3': 'Stage 3 - 통합 데이터셋 생성',
             'annotation.pipeline': 'Stage 1-3 연속 실행 (파이프라인 모드)',
-            'annotation.visualize': '어노테이션 시각화 모드'
+            'annotation.visualize': '어노테이션 시각화 모드',
+            
         }
 
 
