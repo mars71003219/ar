@@ -168,12 +168,20 @@ class ModuleRegistry:
                         'expected_keypoint_count': 'expected_keypoint_count',
                         'coordinate_dimensions': 'coordinate_dimensions',
                         'coordinate_format': 'coordinate_format',
-                        'max_persons': 'max_persons'
+                        'max_persons': 'max_persons',
+                        'person_filtering': 'person_filtering',
+                        'temperature': 'temperature'
                     }
                     
                     for old_key, new_key in field_mapping.items():
                         if old_key in final_config:
                             classifier_config[new_key] = final_config[old_key]
+                            if old_key == 'person_filtering':
+                                print(f"=== FACTORY DEBUG: Transferring person_filtering: {final_config[old_key]} ===")
+                    
+                    # 디버깅을 위해 person_filtering 값 확인
+                    print(f"=== FACTORY DEBUG: final_config keys: {list(final_config.keys())} ===")
+                    print(f"=== FACTORY DEBUG: classifier_config: {classifier_config} ===")
                     
                     config_obj = ActionClassificationConfig(**classifier_config)
                 else:

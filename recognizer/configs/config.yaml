@@ -46,8 +46,8 @@ inference:
   realtime:
     # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_77_1_0_0_0.mp4
     # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/hanbit 
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
-    # input: /aivanas/one
+    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
+    input: /aivanas/gaon_falldown_dataset/select/video_23.mp4
     output_path: /workspace/recognizer/output 
     save_output: true
     display_width: 640
@@ -78,6 +78,16 @@ models:
     model_name: stgcn_onnx
     num_classes: 2
     window_size: 100
+    
+    # Temperature Scaling 설정 (ONNX 모델 전용)
+    temperature: 0.005
+    
+    # 인원수 기반 필터링 설정
+    person_filtering:
+      enable_filtering: true            # 필터링 활성화
+      min_persons_for_interaction: 2    # 상호작용 행동 분류에 필요한 최소 인원수
+      proximity_multiplier: 4.5         # 객체 너비의 배수 (근접 범위 계산용)
+      log_filtering_stats: true         # 필터링 통계 로깅 활성화
 
   pose_estimation:
     inference_mode: onnx 

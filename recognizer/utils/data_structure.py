@@ -386,6 +386,12 @@ class ActionClassificationConfig:
     coordinate_format: str = 'xy'
     max_persons: int = 2
     
+    # 인원수 기반 필터링 설정
+    person_filtering: Optional[Dict[str, Any]] = None
+    
+    # Temperature Scaling 설정 (ONNX 모델용)
+    temperature: float = 1.0
+    
     # 멀티 GPU 관련 설정
     gpu_allocation_strategy: str = 'round_robin'
     use_data_parallel: bool = False

@@ -14,10 +14,12 @@ try:
     from action_classification.base import BaseActionClassifier
     from utils.data_structure import WindowAnnotation, ClassificationResult, ActionClassificationConfig
     from utils.onnx_base import ONNXInferenceBase
+    from utils.person_filtering import PersonProximityFilter
 except ImportError:
     from ..base import BaseActionClassifier
     from ...utils.data_structure import WindowAnnotation, ClassificationResult, ActionClassificationConfig
     from ...utils.onnx_base import ONNXInferenceBase
+    from ...utils.person_filtering import PersonProximityFilter
 
 # data_utils 모듈 사용
 try:
@@ -32,6 +34,7 @@ class STGCNONNXClassifier(BaseActionClassifier):
     """STGCN ONNX 행동 분류기"""
     
     def __init__(self, config: ActionClassificationConfig):
+        print("*** CONSTRUCTOR CALLED - UPDATED VERSION ***")
         """
         Args:
             config: STGCN ONNX 분류 설정
@@ -59,6 +62,21 @@ class STGCNONNXClassifier(BaseActionClassifier):
         # 워밍업 관련
         self.is_warmed_up = False
         self.warmup_runs = 3
+        
+        # 인원수 필터링 초기화 (생성자에서 즉시)
+        self.proximity_filter = None
+        logging.warning("=== DEBUG: About to initialize filter in constructor ===")
+        try:
+            self.proximity_filter = PersonProximityFilter(
+                min_persons_for_interaction=2,
+                proximity_multiplier=4.5,
+                enable_filtering=True
+            )
+            logging.warning("=== DEBUG: Filter initialized in constructor successfully ===")
+        except Exception as e:
+            logging.error(f"=== DEBUG: Constructor filter init failed: {str(e)} ===")
+            import traceback
+            logging.error(f"=== DEBUG: Traceback: {traceback.format_exc()} ===")
     
     def initialize_model(self) -> bool:
         """STGCN ONNX 모델 초기화"""
@@ -74,6 +92,9 @@ class STGCNONNXClassifier(BaseActionClassifier):
             # 모델 워밍업
             logging.info("Starting STGCN ONNX model warmup...")
             self._warmup_model()
+            
+            # 인원수 필터링 초기화
+            self._initialize_proximity_filter()
             
             self.is_initialized = True
             logging.info("STGCN ONNX classifier initialized successfully")
@@ -106,6 +127,64 @@ class STGCNONNXClassifier(BaseActionClassifier):
             logging.warning(f"Model warmup failed: {str(e)}")
             self.is_warmed_up = False
     
+    def _initialize_proximity_filter(self):
+        """인원수 필터링 초기화"""
+        try:
+            # config에서 설정 읽기
+            logging.warning(f"=== DEBUG: Config type: {type(self.config)} ===")
+            logging.warning(f"=== DEBUG: Config has person_filtering: {hasattr(self.config, 'person_filtering')} ===")
+            
+            filter_config = getattr(self.config, 'person_filtering', {})
+            logging.warning(f"=== DEBUG: Filter config: {filter_config} ===")
+            
+            if isinstance(filter_config, dict):
+                enable_filtering = filter_config.get('enable_filtering', True)
+                min_persons = filter_config.get('min_persons_for_interaction', 2)
+                proximity_multiplier = filter_config.get('proximity_multiplier', 4.5)
+                logging.warning(f"=== DEBUG: Using dict config - enable: {enable_filtering}, min: {min_persons} ===")
+            else:
+                # 기본값 사용
+                enable_filtering = True
+                min_persons = 2
+                proximity_multiplier = 4.5
+                logging.warning("=== DEBUG: Using default values ===")
+            
+            self.proximity_filter = PersonProximityFilter(
+                min_persons_for_interaction=min_persons,
+                proximity_multiplier=proximity_multiplier,
+                enable_filtering=enable_filtering
+            )
+            
+            logging.warning(f"=== DEBUG: PersonProximityFilter created successfully ===")
+            logging.info(f"PersonProximityFilter initialized:")
+            logging.info(f"  - Enable filtering: {enable_filtering}")
+            logging.info(f"  - Min persons: {min_persons}")
+            logging.info(f"  - Proximity multiplier: {proximity_multiplier}")
+            
+        except Exception as e:
+            logging.error(f"=== DEBUG: Exception during filter init: {str(e)} ===")
+            import traceback
+            logging.error(f"=== DEBUG: Traceback: {traceback.format_exc()} ===")
+            # 기본 설정으로 폴백
+            self.proximity_filter = PersonProximityFilter(
+                min_persons_for_interaction=2,
+                proximity_multiplier=4.5,
+                enable_filtering=True
+            )
+            logging.warning("=== DEBUG: PersonProximityFilter initialized with fallback default settings ===")
+    
+    def update_filter_config(self, min_persons: int = 2, proximity_multiplier: float = 4.5, enable: bool = True):
+        """필터링 설정 업데이트"""
+        if self.proximity_filter:
+            self.proximity_filter.update_config(
+                min_persons_for_interaction=min_persons,
+                proximity_multiplier=proximity_multiplier,
+                enable_filtering=enable
+            )
+            logging.info(f"Proximity filter updated: min_persons={min_persons}, multiplier={proximity_multiplier}, enabled={enable}")
+        else:
+            logging.warning("Proximity filter not initialized, cannot update config")
+    
     def classify_window(self, window_data: WindowAnnotation) -> ClassificationResult:
         """단일 윈도우 분류 - 파이프라인 호환용"""
         logging.info(f"STGCN ONNX classify_window called for window {window_data.window_idx}")
@@ -125,16 +204,26 @@ class STGCNONNXClassifier(BaseActionClassifier):
             raise RuntimeError("Failed to initialize STGCN ONNX model")
         
         try:
-            # 1. 윈도우 데이터 전처리
+            # 1. 인원수 필터링 적용 (전처리 전)
+            filter_start = time.time()
+            filtered_window_data = self._apply_proximity_filtering(window_data)
+            filter_time = time.time() - filter_start
+            
+            # 필터링 후 분류 건너뛰기 여부 확인
+            if filtered_window_data is None:
+                logging.info(f"Skipping classification for window {self.window_counter} due to proximity filtering")
+                return self._create_skip_result(self.window_counter, "Insufficient persons after proximity filtering")
+            
+            # 2. 윈도우 데이터 전처리
             preprocess_start = time.time()
-            preprocessed_data = self.preprocess_window_data(window_data)
+            preprocessed_data = self.preprocess_window_data(filtered_window_data)
             preprocess_time = time.time() - preprocess_start
             
             if preprocessed_data is None:
                 logging.warning(f"Preprocessing failed for STGCN ONNX window {self.window_counter}")
                 return self._create_error_result(self.window_counter, "Preprocessing failed")
             
-            # 2. STGCN ONNX 입력 형태로 변환
+            # 3. STGCN ONNX 입력 형태로 변환
             prepare_start = time.time()
             stgcn_input = self._prepare_stgcn_onnx_input(preprocessed_data)
             prepare_time = time.time() - prepare_start
@@ -159,6 +248,7 @@ class STGCNONNXClassifier(BaseActionClassifier):
             
             # 성능 로깅
             logging.info(f"STGCN ONNX Window {self.window_counter} Performance:")
+            logging.info(f"  - Filtering: {filter_time*1000:.2f}ms")
             logging.info(f"  - Preprocess: {preprocess_time*1000:.2f}ms")
             logging.info(f"  - Input prep: {prepare_time*1000:.2f}ms")
             logging.info(f"  - ONNX inference: {inference_time*1000:.2f}ms")
@@ -298,14 +388,128 @@ class STGCNONNXClassifier(BaseActionClassifier):
         results = []
         
         # 개별 처리 (ONNX는 일반적으로 단일 입력 처리에 최적화)
+        # classify_window 메서드를 사용하여 필터링 로직 적용
         for window in windows:
-            result = self.classify_single_window(window)
+            result = self.classify_window(window)  # classify_single_window 대신 classify_window 사용
             results.append(result)
         
         # 통계 업데이트
         self.update_statistics(results)
         
         return results
+    
+    def _apply_proximity_filtering(self, window_data: WindowAnnotation) -> Optional[WindowAnnotation]:
+        """
+        윈도우 데이터에 인원수 기반 필터링 적용
+        
+        Args:
+            window_data: 필터링할 윈도우 데이터
+            
+        Returns:
+            필터링된 윈도우 데이터, 또는 분류를 건너뛸 경우 None
+        """
+        if not self.proximity_filter:
+            return window_data
+        
+        if not self.proximity_filter.enable_filtering:
+            return window_data
+        
+        try:
+            frames = getattr(window_data, 'frame_data', None)
+            if not frames:
+                # keypoint 데이터가 있으면 인원수 체크 수행
+                if hasattr(window_data, 'keypoint') and window_data.keypoint is not None:
+                    # keypoint shape: [M, T, V, C] - M은 최대 인원수
+                    keypoint_shape = window_data.keypoint.shape
+                    max_persons = keypoint_shape[0] if len(keypoint_shape) > 0 else 0
+                    
+                    # 실제 non-zero 인원수 계산 (keypoint 값이 0이 아닌 사람 수)
+                    actual_persons = 0
+                    if len(keypoint_shape) >= 3:  # [M, T, V, C]
+                        # 각 person별로 non-zero keypoint가 있는지 확인
+                        for person_idx in range(max_persons):
+                            person_data = window_data.keypoint[person_idx]  # [T, V, C]
+                            if np.any(person_data != 0):  # person에 실제 데이터가 있으면
+                                actual_persons += 1
+                    
+                    # 최소 인원수 요구사항 확인
+                    if actual_persons < self.proximity_filter.min_persons_for_interaction:
+                        logging.info(f"Person filtering: {actual_persons} persons < {self.proximity_filter.min_persons_for_interaction} required")
+                        return None  # 필터링으로 건너뛰기
+                    else:
+                        logging.debug(f"Person filtering passed: {actual_persons} >= {self.proximity_filter.min_persons_for_interaction} required")
+                        return window_data  # 필터링 통과
+                
+                return window_data
+            
+            # 필터링 적용
+            filtered_frames = self.proximity_filter.filter_window_frames(frames)
+            
+            # 분류를 건너뛸지 확인
+            should_skip = self.proximity_filter.should_skip_classification(filtered_frames)
+            
+            if should_skip:
+                # 필터링 통계 로깅
+                filter_stats = self.proximity_filter.get_filter_stats()
+                
+                logging.info(f"Proximity filtering stats:")
+                logging.info(f"  - Isolated persons filtered: {filter_stats['isolated_persons_filtered']}")
+                logging.info(f"  - Total persons processed: {filter_stats['total_persons_processed']}")
+                logging.info(f"  - Isolation rate: {filter_stats['isolation_rate']:.2%}")
+                
+                return None
+            
+            # 필터링된 윈도우 데이터 생성
+            filtered_window = WindowAnnotation(
+                window_idx=window_data.window_idx,
+                start_frame=window_data.start_frame,
+                end_frame=window_data.end_frame,
+                frame_data=filtered_frames
+            )
+            
+            # 다른 속성들 복사
+            if hasattr(window_data, 'keypoint'):
+                filtered_window.keypoint = window_data.keypoint
+            if hasattr(window_data, 'person_rankings'):
+                filtered_window.person_rankings = window_data.person_rankings
+            if hasattr(window_data, 'metadata'):
+                filtered_window.metadata = window_data.metadata
+                
+            return filtered_window
+            
+        except Exception as e:
+            logging.warning(f"Error during proximity filtering: {str(e)}")
+            # 필터링 실패 시 원본 데이터 반환
+            return window_data
+    
+    def _create_skip_result(self, window_id: int, reason: str) -> ClassificationResult:
+        """
+        분류 건너뛰기 결과 생성
+        
+        Args:
+            window_id: 윈도우 ID
+            reason: 건너뛰기 이유
+            
+        Returns:
+            NonFight 분류 결과
+        """
+        result = ClassificationResult(
+            prediction=0,  # NonFight
+            confidence=1.0,  # 필터링으로 인한 확실한 NonFight
+            probabilities=[1.0, 0.0],  # [NonFight_prob, Fight_prob]
+            model_name='stgcn_onnx'
+        )
+        
+        # 메타데이터 추가
+        if not hasattr(result, 'metadata'):
+            result.metadata = {}
+        result.metadata = {
+            'display_id': window_id, 
+            'skip_reason': reason,
+            'filtered': True
+        }
+        
+        return result
     
     def _create_error_result(self, window_id: int, error_msg: str) -> ClassificationResult:
         """에러 결과 생성"""
