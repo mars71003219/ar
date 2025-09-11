@@ -309,6 +309,41 @@ class Stage3Mode(BaseMode):
                 # frame_dir 수집
                 all_frame_dirs.extend([ann['frame_dir'] for ann in annotations])
         
+        # 클래스 이름 동적 결정 (실제 데이터에서 사용된 라벨 기반)
+        class_distribution = {}
+        for annotation in all_annotations:
+            label = annotation['label']
+            class_distribution[label] = class_distribution.get(label, 0) + 1
+        
+        # 클래스 이름 매핑 (라벨 값에 따라)
+        detected_class_names = []
+        if 0 in class_distribution:
+            # 입력 경로에서 클래스 이름 추론
+            input_path_lower = str(self.config.get('annotation', {}).get('input', '')).lower()
+            if 'falldown' in input_path_lower:
+                normal_class = 'normal'  # falldown 데이터셋의 경우
+            else:
+                normal_class = 'NonFight'  # RWF-2000의 경우
+            detected_class_names.append(normal_class)
+        
+        if 1 in class_distribution:
+            # 입력 경로에서 클래스 이름 추론
+            input_path_lower = str(self.config.get('annotation', {}).get('input', '')).lower()
+            if 'falldown' in input_path_lower:
+                violence_class = 'falldown'  # falldown 데이터셋의 경우
+            else:
+                violence_class = 'Fight'  # RWF-2000의 경우
+            detected_class_names.append(violence_class)
+        
+        # 기본값 설정 (라벨이 없는 경우)
+        if not detected_class_names:
+            detected_class_names = ['NonFight', 'Fight']
+        elif len(detected_class_names) == 1:
+            if 0 in class_distribution:
+                detected_class_names.append('Fight')  # 기본 positive 클래스
+            else:
+                detected_class_names.insert(0, 'NonFight')  # 기본 negative 클래스
+        
         # 메타데이터 저장
         metadata = {
             'total_annotations': total_count,
@@ -318,8 +353,9 @@ class Stage3Mode(BaseMode):
             'split_ratios': split_ratios,
             'failed_files': failed_files,
             'dataset_info': {
-                'num_classes': 2,
-                'class_names': ['NonFight', 'Fight'],
+                'num_classes': len(detected_class_names),
+                'class_names': detected_class_names,
+                'class_distribution': class_distribution,
                 'keypoint_format': 'coco17',
                 'coordinate_dimensions': 2,
                 'max_persons': 4

@@ -434,12 +434,13 @@ class InferencePipeline(BasePipeline):
                 except:
                     pass
                 
-                self.classification_thread.join(timeout=2.0)
+                self.classification_thread.join(timeout=5.0)
                 
                 if self.classification_thread.is_alive():
-                    logging.warning("Classification thread did not stop gracefully")
+                    logging.warning("Classification thread did not stop gracefully, may need manual intervention")
+                    # 스레드는 daemon=True로 설정되어 있어 프로그램 종료시 함께 종료됨
                 else:
-                    logging.info("Classification worker thread stopped")
+                    logging.info("Classification worker thread stopped successfully")
             
         except Exception as e:
             logging.error(f"Error stopping classification thread: {e}")

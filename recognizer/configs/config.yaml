@@ -1,7 +1,7 @@
 # mode: inference.analysis
-mode: inference.realtime
+# mode: inference.realtime
 # mode: inference.visualize
-# mode: annotation.stage3
+mode: annotation.stage3
 # mode: annotation.visualize
 
 # 공통 멀티 프로세스 설정 (모든 모드에서 사용)
@@ -12,7 +12,7 @@ multi_process:
   chunk_strategy: video_split       # 비디오 단위로 분할
 
 annotation:
-  input: /aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000
+  input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
   output_dir: output
   pipeline_mode: true
 
@@ -46,8 +46,7 @@ inference:
   realtime:
     # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_77_1_0_0_0.mp4
     # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/hanbit 
-    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
-    input: /aivanas/one
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
     output_path: /workspace/recognizer/output 
     save_output: true
     display_width: 640

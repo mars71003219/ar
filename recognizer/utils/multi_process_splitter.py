@@ -116,14 +116,19 @@ class ConfigGenerator:
             split_config['annotation']['output_dir'] = split_dir
             
             # 멀티 프로세스 비활성화 (subprocess에서는 단일 처리만)
-            if 'multi_process' in split_config['annotation']:
+            if 'multi_process' in split_config:
+                split_config['multi_process']['enabled'] = False
+            
+            # annotation 하위의 멀티프로세스 설정도 비활성화 (호환성)
+            if 'annotation' in split_config and 'multi_process' in split_config['annotation']:
                 split_config['annotation']['multi_process']['enabled'] = False
             
             # 병렬 처리 비활성화 (순차 처리)
-            if 'stage1' in split_config['annotation']:
-                split_config['annotation']['stage1']['enable_parallel'] = False
-            if 'stage2' in split_config['annotation']:
-                split_config['annotation']['stage2']['enable_parallel'] = False
+            if 'annotation' in split_config:
+                if 'stage1' in split_config['annotation']:
+                    split_config['annotation']['stage1']['enable_parallel'] = False
+                if 'stage2' in split_config['annotation']:
+                    split_config['annotation']['stage2']['enable_parallel'] = False
             
             # 설정 파일 저장
             config_path = Path(split_dir) / f"config_split_{i}.yaml"
@@ -182,12 +187,14 @@ class MultiProcessRunner:
         return processes
     
     def monitor_processes(self, processes: List[subprocess.Popen]) -> Dict[int, int]:
-        """프로세스 병렬 모니터링"""
+        """프로세스 병렬 모니터링 - 안전한 종료 보장"""
         import threading
         import queue
+        import signal
         
         results = {}
         result_queue = queue.Queue()
+        monitor_threads = []
         
         def monitor_single_process(i, process):
             """단일 프로세스 모니터링 스레드"""
@@ -195,8 +202,12 @@ class MultiProcessRunner:
                 logger.info(f"Monitoring split {i} (PID: {process.pid})")
                 
                 # 실시간 출력 모니터링
-                for line in process.stdout:
-                    logger.info(f"Split {i}: {line.strip()}")
+                try:
+                    for line in process.stdout:
+                        if line:  # 빈 라인 제외
+                            logger.info(f"Split {i}: {line.strip()}")
+                except Exception as e:
+                    logger.warning(f"Output monitoring error for split {i}: {e}")
                 
                 # 프로세스 완료 대기
                 return_code = process.wait()
@@ -211,23 +222,82 @@ class MultiProcessRunner:
             except Exception as e:
                 logger.error(f"Error monitoring split {i}: {e}")
                 result_queue.put((i, -1))
+            finally:
+                # 프로세스 정리
+                try:
+                    if process.poll() is None:  # 아직 실행 중이면
+                        process.terminate()
+                        process.wait(timeout=5)
+                except Exception:
+                    pass
         
-        # 각 프로세스별로 모니터링 스레드 시작
-        monitor_threads = []
-        for i, process in enumerate(processes):
-            thread = threading.Thread(target=monitor_single_process, args=(i, process))
-            thread.daemon = True
-            thread.start()
-            monitor_threads.append(thread)
+        def cleanup_handler(signum, frame):
+            """시그널 핸들러 - 모든 프로세스 정리"""
+            logger.warning(f"Received signal {signum}, cleaning up processes...")
+            for i, process in enumerate(processes):
+                if process.poll() is None:
+                    try:
+                        logger.info(f"Terminating split {i} (PID: {process.pid})")
+                        process.terminate()
+                        process.wait(timeout=3)
+                    except Exception as e:
+                        logger.error(f"Error terminating split {i}: {e}")
+                        try:
+                            process.kill()
+                        except Exception:
+                            pass
         
-        # 모든 결과 수집
-        for _ in range(len(processes)):
-            i, return_code = result_queue.get()
-            results[i] = return_code
+        # 시그널 핸들러 등록
+        original_sigint_handler = signal.signal(signal.SIGINT, cleanup_handler)
+        original_sigterm_handler = signal.signal(signal.SIGTERM, cleanup_handler)
         
-        # 모든 스레드 완료 대기
-        for thread in monitor_threads:
-            thread.join()
+        try:
+            # 각 프로세스별로 모니터링 스레드 시작
+            for i, process in enumerate(processes):
+                thread = threading.Thread(target=monitor_single_process, args=(i, process))
+                thread.daemon = True
+                thread.start()
+                monitor_threads.append(thread)
+            
+            # 모든 결과 수집 (타임아웃 포함)
+            collected_results = 0
+            timeout_per_result = 300  # 각 결과당 5분 타임아웃
+            
+            while collected_results < len(processes):
+                try:
+                    i, return_code = result_queue.get(timeout=timeout_per_result)
+                    results[i] = return_code
+                    collected_results += 1
+                    logger.info(f"Collected result for split {i}: return_code={return_code}")
+                except queue.Empty:
+                    logger.error("Timeout waiting for process results")
+                    break
+            
+            # 남은 프로세스들 강제 종료
+            for i, process in enumerate(processes):
+                if i not in results and process.poll() is None:
+                    logger.warning(f"Force terminating split {i}")
+                    try:
+                        process.terminate()
+                        process.wait(timeout=5)
+                        results[i] = -1
+                    except Exception:
+                        try:
+                            process.kill()
+                            results[i] = -1
+                        except Exception:
+                            pass
+            
+            # 모든 스레드 완료 대기 (타임아웃 포함)
+            for thread in monitor_threads:
+                thread.join(timeout=10)
+                if thread.is_alive():
+                    logger.warning("Monitor thread did not terminate gracefully")
+        
+        finally:
+            # 시그널 핸들러 복원
+            signal.signal(signal.SIGINT, original_sigint_handler)
+            signal.signal(signal.SIGTERM, original_sigterm_handler)
         
         return results
 
@@ -240,7 +310,7 @@ class ResultMerger:
         self.final_output_dir.mkdir(parents=True, exist_ok=True)
     
     def merge_stage_results(self, split_dirs: List[str], stage: str) -> bool:
-        """스테이지별 결과 통합"""
+        """스테이지별 결과 통합 - 중복 파일 처리 개선"""
         try:
             # 최종 출력 디렉토리 구조 생성
             stage_patterns = {
@@ -251,6 +321,7 @@ class ResultMerger:
             
             pattern = stage_patterns.get(stage, f'**/{stage}**/*.pkl')
             merged_count = 0
+            duplicate_count = 0
             
             for split_dir in split_dirs:
                 split_path = Path(split_dir)
@@ -273,15 +344,31 @@ class ResultMerger:
                         
                         final_path = self.final_output_dir / new_rel_path
                         
+                        # 중복 파일 처리
+                        if final_path.exists():
+                            duplicate_count += 1
+                            logger.warning(f"Duplicate file found, skipping: {final_path}")
+                            continue
+                        
                         # 디렉토리 생성
                         final_path.parent.mkdir(parents=True, exist_ok=True)
                         
-                        # 파일 이동 (또는 복사)
-                        shutil.move(str(result_file), str(final_path))
-                        merged_count += 1
+                        # 파일 이동 (안전한 이동)
+                        try:
+                            shutil.move(str(result_file), str(final_path))
+                            merged_count += 1
+                        except Exception as move_error:
+                            # 이동 실패시 복사 시도
+                            logger.warning(f"Move failed, trying copy: {move_error}")
+                            shutil.copy2(str(result_file), str(final_path))
+                            os.remove(str(result_file))  # 원본 파일 삭제
+                            merged_count += 1
                         
                     except Exception as e:
                         logger.warning(f"Failed to merge {result_file}: {e}")
+            
+            if duplicate_count > 0:
+                logger.warning(f"Found {duplicate_count} duplicate files for {stage}")
             
             logger.info(f"Merged {merged_count} files for {stage}")
             return merged_count > 0
