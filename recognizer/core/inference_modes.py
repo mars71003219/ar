@@ -775,14 +775,24 @@ class RealtimeMode(BaseMode):
         if not self._validate_config(['input']):
             return False
         
-        from pipelines.inference.pipeline import InferencePipeline
         from pathlib import Path
         
-        # 파이프라인 초기화
-        pipeline = InferencePipeline(self.config)
-        if not pipeline.initialize_pipeline():
-            logger.error("Failed to initialize pipeline")
-            return False
+        # 듀얼 서비스 설정 확인
+        dual_config = self.config.get('dual_service', {})
+        if dual_config.get('enabled', False):
+            logger.info("Dual service is enabled, creating DualServicePipeline")
+            from pipelines.dual_service import create_dual_service_pipeline
+            pipeline = create_dual_service_pipeline(self.config)
+            if not pipeline:
+                logger.error("Failed to create dual service pipeline")
+                return False
+        else:
+            logger.info("Single service mode, creating InferencePipeline")
+            from pipelines.inference.pipeline import InferencePipeline
+            pipeline = InferencePipeline(self.config)
+            if not pipeline.initialize_pipeline():
+                logger.error("Failed to initialize pipeline")
+                return False
         
         input_source = self.mode_config.get('input')
         save_output = self.mode_config.get('save_output', False)

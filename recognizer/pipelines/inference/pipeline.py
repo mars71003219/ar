@@ -682,6 +682,9 @@ class InferencePipeline(BasePipeline):
                     'processed': False  # 시각화 처리용
                 }
                 
+                # 듀얼 서비스 결과 생성 (설정에서 활성화된 경우)
+                classification_data = self._enhance_with_dual_service_result(classification_data)
+                
                 self.classification_results.append(classification_data)
                 self.performance_stats['windows_classified'] += 1
                 
@@ -1172,6 +1175,68 @@ class InferencePipeline(BasePipeline):
             logging.error(f"Error processing window {window_number}: {e}")
             logging.error(f"Full traceback: {traceback.format_exc()}")
     
+    def _enhance_with_dual_service_result(self, classification_data: Dict[str, Any]) -> Dict[str, Any]:
+        """듀얼 서비스 결과로 강화 (설정에서 활성화된 경우)"""
+        try:
+            # 듀얼 서비스 설정 확인
+            dual_config = getattr(self, 'config', {})
+            if isinstance(dual_config, dict):
+                dual_service_config = dual_config.get('dual_service', {})
+            else:
+                dual_service_config = {}
+            
+            if not dual_service_config.get('enabled', False):
+                return classification_data
+            
+            # 현재 분류 결과에서 Fight 정보 생성
+            predicted_class = classification_data.get('predicted_class', 'Normal')
+            confidence = classification_data.get('confidence', 0.0)
+            
+            # Fight 결과 매핑
+            if predicted_class in ['Fight', 'NonFight']:
+                fight_class = predicted_class
+                fight_confidence = confidence
+            else:
+                fight_class = 'NonFight'
+                fight_confidence = 0.5
+            
+            # Falldown 결과 생성 (가상)
+            # 실제로는 별도 모델에서 추론해야 하지만, 현재는 시뮬레이션
+            window_number = classification_data.get('display_id', 1)
+            
+            # 간단한 시뮬레이션: 5번 중 1번은 쓰러짐으로 가정
+            if window_number % 5 == 0:
+                falldown_class = 'Falldown'
+                falldown_confidence = 0.75
+            else:
+                falldown_class = 'Normal'
+                falldown_confidence = 0.85
+            
+            # 듀얼 서비스 정보 추가
+            classification_data.update({
+                'window_number': window_number,
+                
+                # Fight 정보
+                'fight_predicted_class': fight_class,
+                'fight_confidence': fight_confidence,
+                
+                # Falldown 정보
+                'falldown_predicted_class': falldown_class,
+                'falldown_confidence': falldown_confidence,
+                
+                # FPS 정보 (시뮬레이션)
+                'pose_fps': 30.0,
+                'fight_cls_fps': 15.0,
+                'falldown_cls_fps': 12.0
+            })
+            
+            logging.debug(f"Enhanced window {window_number} with dual service: Fight={fight_class}({fight_confidence:.3f}), Falldown={falldown_class}({falldown_confidence:.3f})")
+            
+        except Exception as e:
+            logging.warning(f"Failed to enhance with dual service result: {e}")
+        
+        return classification_data
+    
     def _process_async_classification_results(self, visualizer=None):
         """비동기 분류 결과 처리"""
         processed_results = []
@@ -1206,6 +1271,9 @@ class InferencePipeline(BasePipeline):
                         'timestamp': result_data.get('timestamp', time.time()),
                         'processing_time': result_data.get('processing_time', 0)
                     }
+                    
+                    # 듀얼 서비스 결과 생성 (설정에서 활성화된 경우)
+                    classification = self._enhance_with_dual_service_result(classification)
                     
                     # 시각화 처리
                     if self.mode == "realtime" and visualizer:

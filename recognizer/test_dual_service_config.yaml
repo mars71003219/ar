@@ -1,0 +1,73 @@
+# 듀얼 서비스 테스트 설정
+mode: inference.realtime
+
+inference:
+  realtime:
+    input: "/workspace/recognizer/test_video.mp4"  # 테스트용 비디오 경로
+    save_output: true
+    output_path: "test_dual_output"
+    display_width: 1280
+    display_height: 720
+
+# 파이프라인 설정
+pipeline:
+  pose_estimator:
+    name: "rtmo"
+    score_threshold: 0.3
+    device: "cuda:0"
+  
+  tracker:
+    name: "bytetrack"
+    track_thresh: 0.5
+  
+  # 듀얼 서비스를 위한 두 개의 scorer/classifier
+  scorer:
+    fight:
+      name: "region_based"
+      distance_threshold: 100.0
+    falldown:
+      name: "falldown_scorer"
+      distance_threshold: 100.0
+  
+  classifier:
+    fight:
+      name: "stgcn"
+      config_file: "/workspace/mmaction2/configs/skeleton/stgcnpp/stgcnpp_enhanced_fight_detection_stable.py"
+      model_path: "/workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_fight_aihub_stable/best_acc_top1_epoch_2.pth"
+      device: "cuda:0"
+      window_size: 100
+      max_persons: 2
+    falldown:
+      name: "stgcn"
+      config_file: "/workspace/mmaction2/configs/skeleton/stgcnpp/stgcnpp_enhanced_falldown_detection_stable.py"
+      model_path: "/workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth"
+      device: "cuda:0"
+      window_size: 100
+      max_persons: 2
+  
+  window_processor:
+    name: "sliding_window"
+    window_size: 100
+    window_stride: 50
+
+# 파일 처리 설정
+files:
+  video_extensions: ['.mp4', '.avi', '.mov', '.mkv']
+  
+# 윈도우 설정  
+windows:
+  window_size: 100
+  window_stride: 50
+
+# 스코어링 가중치
+scoring:
+  weights:
+    movement: 0.3
+    position: 0.2
+    interaction: 0.2
+    temporal_consistency: 0.15
+    persistence: 0.15
+
+# 이벤트 감지 설정
+events:
+  min_consecutive_detections: 3

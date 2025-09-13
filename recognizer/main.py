@@ -87,6 +87,14 @@ def register_modules():
             default_config={'distance_threshold': 100.0}
         )
         
+        # Falldown Scorer (쓰러짐 전용 점수 계산기)
+        from scoring.region_based.falldown_scorer import FalldownScorer
+        ModuleFactory.register_scorer(
+            name='falldown_scorer',
+            scorer_class=FalldownScorer,
+            default_config={'distance_threshold': 100.0}
+        )
+        
         # STGCN Action Classifier
         from action_classification.stgcn.stgcn_classifier import STGCNActionClassifier
         ModuleFactory.register_classifier(
@@ -94,6 +102,7 @@ def register_modules():
             classifier_class=STGCNActionClassifier,
             default_config={'num_classes': 2, 'device': 'cuda:0'}
         )
+        
         
         # Window Processor
         from utils.window_processor import SlidingWindowProcessor
