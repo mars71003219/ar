@@ -1,44 +1,30 @@
 # mode: inference.analysis
-mode: inference.realtime
 # mode: inference.visualize
+# mode: inference.realtime
 # mode: annotation.stage3
 # mode: annotation.visualize
 
 # 듀얼 서비스 설정
 dual_service:
   enabled: true                          # 듀얼 서비스 활성화
-  # enabled: false                          # 듀얼 서비스 활성화
+  # enabled: false                           # 단일 서비스 모드
   services:
     - fight                              # Fight 탐지 서비스
-    - falldown                           # Falldown 탐지 서비스
-  
-  # 서비스별 우선순위 (높은 숫자가 높은 우선순위)
-  priority:
-    fight: 1
-    falldown: 2                          # 쓰러짐이 더 긴급
-  
-  # UI 표시 설정
-  ui:
-    show_individual_scores: true         # 개별 점수 표시
-    show_combined_status: true           # 통합 상태 표시
-    fps_display: true                    # FPS 정보 표시
-
-# 공통 멀티 프로세스 설정 (모든 모드에서 사용)
-multi_process:
-  enabled: true                     # 멀티 프로세스 활성화
-  num_processes: 6                  # 프로세스 수 (UBI_demo 6개 비디오용)
-  gpus: [0, 1]                     # 사용할 GPU 목록 (라운드 로빈 할당)
-  chunk_strategy: video_split       # 비디오 단위로 분할
+    - falldown                             # Falldown 탐지 서비스
 
 annotation:
   input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
   output_dir: output
   pipeline_mode: true
 
-  # 멀티 프로세스 설정은 최상위에서 공통으로 사용
-
   stage1:
     enabled: true
+    # Stage1 전용 멀티 프로세스 설정
+    multi_process:
+      enabled: true                     # Stage1 멀티프로세스 활성화
+      num_processes: 6                  # 프로세스 수
+      gpus: [0, 1]                      # 사용할 GPU 목록 (라운드 로빈 할당)
+      chunk_strategy: video_split       # 비디오 단위로 분할
   stage2:
     enabled: true
   stage3:
@@ -50,22 +36,26 @@ annotation:
 
   visualize:
     stage: stage2
-    video_dir: /aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000
-    results_dir: /workspace/recognizer/output/RWF-2000/stage2_tracking/bytetrack_h0.3_l0.1_t0.2
+    video_dir: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
+    results_dir: /workspace/recognizer/output/falldown_aihub/stage2_tracking/bytetrack_h0.4_l0.1_t0.2
     save_mode: false
 
 inference:
   analysis:
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo/fight/F_20_1_1_0_0.mp4
     output_dir: output
-    
+
     # 성능평가 설정
     enable_evaluation: true          # 성능평가 기능 활성화
 
+    # Inference Analysis 전용 멀티 프로세스 설정
+    multi_process:
+      enabled: true                  # Inference Analysis 멀티프로세스 활성화
+      num_processes: 4               # 프로세스 수
+      gpus: [0, 1]                   # 사용할 GPU 목록 (라운드 로빈 할당)
+      chunk_strategy: video_split    # 비디오 단위로 분할
+
   realtime:
-    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_77_1_0_0_0.mp4
-    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/hanbit 
-    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo/fight/F_6_1_2_0_0.mp4
     input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
     # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
     output_path: /workspace/recognizer/output 
@@ -76,9 +66,9 @@ inference:
     overlay_mode: skeleton_only  # full, skeleton_only, raw
 
   visualize:
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4
-    results_dir: /workspace/recognizer/output/N_9_0_0_1_0
-    save_dir: /workspace/recognizer/output/N_9_0_0_1_0
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo/fight/F_20_1_1_0_0.mp4
+    results_dir: /workspace/recognizer/output/UBI_demo/F_20_1_1_0_0
+    save_dir: /workspace/recognizer/output/UBI_demo/F_20_1_1_0_0
     save_mode: true
 
 
@@ -101,7 +91,7 @@ models:
     num_classes: 2
     window_size: 100
 
-  # Falldown 탐지 모델 (새로 추가)
+  # Falldown 탐지 모델
   falldown_classification:
     checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
     class_names:
@@ -118,23 +108,7 @@ models:
     num_classes: 2
     window_size: 100
 
-  # 기존 호환성을 위한 action_classification (fight 모델과 동일)
-  action_classification:
-    checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_RWF2000plus_stable/best_acc_top1_epoch_30.pth
-    class_names:
-    - NonFight
-    - Fight
-    confidence_threshold: 0.4
-    config_file: /workspace/mmaction2/configs/skeleton/stgcnpp/stgcnpp_enhanced_fight_detection_stable.py
-    coordinate_dimensions: 2
-    device: cuda:0
-    expected_keypoint_count: 17
-    input_format: stgcn
-    max_persons: 4
-    model_name: stgcn
-    num_classes: 2
-    window_size: 100
-
+# 포즈 추정 탐지 모델
   pose_estimation:
     inference_mode: onnx 
     onnx:
@@ -200,6 +174,23 @@ models:
       std: null
       to_openpose: false
 
+# 트래킹 설정
+  tracking:
+    frame_rate: 30
+    iou_weight: 0.7
+    keypoint_weight: 0.정정
+    match_thresh: 0.5
+    match_thresh_second: 0.4
+    min_box_area: 100
+    mot20: false
+    new_track_thresh: 0.5
+    track_buffer: 120
+    track_high_thresh: 0.4
+    track_low_thresh: 0.1
+    track_thresh: 0.2
+    tracker_name: bytetrack
+    use_hybrid_matching: true
+
 # 듀얼 서비스 스코어링 설정
   scoring:
     # Fight 스코어링
@@ -235,21 +226,6 @@ models:
       position: 0.1
       temporal: 0.1
 
-  tracking:
-    frame_rate: 30
-    iou_weight: 0.7
-    keypoint_weight: 0.3
-    match_thresh: 0.5
-    match_thresh_second: 0.4
-    min_box_area: 100
-    mot20: false
-    new_track_thresh: 0.5
-    track_buffer: 120
-    track_high_thresh: 0.3
-    track_low_thresh: 0.1
-    track_thresh: 0.2
-    tracker_name: bytetrack
-    use_hybrid_matching: true
 
 
 performance:

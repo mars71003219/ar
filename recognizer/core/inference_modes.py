@@ -36,15 +36,9 @@ class AnalysisMode(BaseMode):
         logger.info(f"Input folder: {input_folder_name}")
         logger.info(f"Output directory: {output_dir}")
         
-        # 공통 멀티프로세싱 설정 확인
-        multi_config = self.config.get('multi_process', {})
-        if multi_config.get('enabled', False):
-            logger.info("Using multi-process analysis mode (annotation style)")
-            success = self._execute_multiprocess_annotation_style(input_path, output_dir, multi_config)
-        else:
-            logger.info("Using single-process analysis mode")
-            result = self._execute_singleprocess(input_path, output_dir)
-            success = result['success']
+        # DualServicePipeline을 단일 서비스 모드로 사용
+        logger.info("Using DualServicePipeline in single-service mode for analysis")
+        success = self._execute_with_dual_pipeline(input_path, output_dir)
         
         # 성능평가 실행 (evaluation 파라미터가 있는 경우)
         if success and self._should_run_evaluation():
@@ -54,35 +48,98 @@ class AnalysisMode(BaseMode):
         return success
     
     def _execute_singleprocess(self, input_path: str, output_dir: str) -> Dict[str, Any]:
-        """단일 프로세스 실행"""
-        from pipelines.analysis import BatchAnalysisProcessor
+        """단일 프로세스 실행 (DEPRECATED: DualServicePipeline 사용 권장)"""
+        logger.warning("Using deprecated single process analysis. DualServicePipeline is recommended.")
+        # from pipelines.analysis import BatchAnalysisProcessor
         from pathlib import Path
-        
-        processor = BatchAnalysisProcessor(self.config)
-        
-        # 경로가 파일인지 폴더인지 자동 감지
-        path_obj = Path(input_path)
-        
-        if path_obj.is_file():
-            # 단일 파일 처리 - 파일명 기반 폴더 생성
-            logger.info(f"Processing single file: {input_path}")
-            
-            # 파일명으로 출력 폴더 생성
-            video_name = path_obj.stem
-            file_output_dir = Path(output_dir) / video_name
-            
-            logger.info(f"Creating output directory: {file_output_dir}")
-            result = processor.process_file(input_path, str(file_output_dir))
-        elif path_obj.is_dir():
-            # 폴더 처리
-            logger.info(f"Processing folder: {input_path}")
-            result = processor.process_folder(input_path, output_dir)
-        else:
-            logger.error(f"Input path does not exist: {input_path}")
-            return {'success': False}
-        
-        return result
-    
+
+        # processor = BatchAnalysisProcessor(self.config)
+        # 이 메서드는 더 이상 사용되지 않습니다. _execute_with_dual_pipeline을 사용하세요.
+        return {'success': False, 'error': 'Deprecated method. Use DualServicePipeline instead.'}
+
+    def _execute_with_dual_pipeline(self, input_path: str, output_dir: str) -> bool:
+        """DualServicePipeline을 사용한 분석 실행"""
+        try:
+            from pipelines.dual_service.dual_pipeline import DualServicePipeline
+            from pathlib import Path
+            import os
+
+            # 출력 디렉토리 생성
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+            # 단일 서비스 모드를 위한 config 복사 및 수정
+            analysis_config = self.config.copy()
+
+            # dual_service를 단일 서비스로 설정
+            if not analysis_config.get('dual_service', {}).get('enabled', False):
+                # 비활성화된 경우 첫 번째 서비스만 사용
+                services = analysis_config.get('dual_service', {}).get('services', ['fight'])
+                first_service = services[0] if services else 'fight'
+
+                analysis_config['dual_service'] = {
+                    'enabled': False,
+                    'services': [first_service]
+                }
+                logger.info(f"Using single service mode with service: {first_service}")
+
+            # DualServicePipeline 초기화
+            pipeline = DualServicePipeline(analysis_config)
+            if not pipeline.initialize_pipeline():
+                logger.error("Failed to initialize DualServicePipeline")
+                return False
+
+            # 입력 경로 처리
+            input_path_obj = Path(input_path)
+            if input_path_obj.is_file():
+                video_files = [input_path_obj]
+            else:
+                # 비디오 파일들 찾기 (하위 디렉토리 포함)
+                video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv']
+                video_files = []
+                for ext in video_extensions:
+                    # rglob으로 하위 디렉토리까지 재귀적으로 검색
+                    video_files.extend(input_path_obj.rglob(f'*{ext}'))
+                    video_files.extend(input_path_obj.rglob(f'*{ext.upper()}'))
+
+                if not video_files:
+                    logger.error(f"No video files found in {input_path}")
+                    return False
+
+            logger.info(f"Processing {len(video_files)} video files...")
+
+            # 각 비디오 파일 처리
+            processed_count = 0
+            for video_file in video_files:
+                try:
+                    # 비디오별 출력 경로
+                    video_output_dir = Path(output_dir) / video_file.stem
+                    video_output_dir.mkdir(parents=True, exist_ok=True)
+
+                    logger.info(f"Processing {video_file.name}...")
+
+                    # 파이프라인으로 비디오 처리
+                    result = pipeline.process_video_file_for_analysis(
+                        str(video_file),
+                        str(video_output_dir)
+                    )
+
+                    if result.get('success', False):
+                        processed_count += 1
+                        logger.info(f"✓ Completed: {video_file.name}")
+                    else:
+                        logger.error(f"✗ Failed: {video_file.name}")
+
+                except Exception as e:
+                    logger.error(f"Error processing {video_file.name}: {e}")
+                    continue
+
+            logger.info(f"Analysis completed: {processed_count}/{len(video_files)} videos processed")
+            return processed_count > 0
+
+        except Exception as e:
+            logger.error(f"Error in DualServicePipeline analysis: {e}")
+            return False
+
     def _execute_multiprocess_annotation_style(self, input_path: str, output_dir: str, multi_config: Dict[str, Any]) -> bool:
         """annotation 방식의 멀티프로세싱 실행"""
         from utils.multi_process_splitter import run_multi_process_inference_analysis
@@ -777,22 +834,21 @@ class RealtimeMode(BaseMode):
         
         from pathlib import Path
         
-        # 듀얼 서비스 설정 확인
+        # 듀얼 서비스 설정 확인 - 이제 항상 DualServicePipeline 사용
         dual_config = self.config.get('dual_service', {})
+        services = dual_config.get('services', ['fight', 'falldown'])
+
         if dual_config.get('enabled', False):
-            logger.info("Dual service is enabled, creating DualServicePipeline")
-            from pipelines.dual_service import create_dual_service_pipeline
-            pipeline = create_dual_service_pipeline(self.config)
-            if not pipeline:
-                logger.error("Failed to create dual service pipeline")
-                return False
+            logger.info(f"Dual service is enabled, creating DualServicePipeline with services: {services}")
         else:
-            logger.info("Single service mode, creating InferencePipeline")
-            from pipelines.inference.pipeline import InferencePipeline
-            pipeline = InferencePipeline(self.config)
-            if not pipeline.initialize_pipeline():
-                logger.error("Failed to initialize pipeline")
-                return False
+            # enabled=false일 때도 DualServicePipeline 사용하되 단일 서비스로 동작
+            logger.info(f"Single service mode using DualServicePipeline with services: {services}")
+
+        from pipelines.dual_service import create_dual_service_pipeline
+        pipeline = create_dual_service_pipeline(self.config)
+        if not pipeline:
+            logger.error("Failed to create dual service pipeline")
+            return False
         
         input_source = self.mode_config.get('input')
         save_output = self.mode_config.get('save_output', False)

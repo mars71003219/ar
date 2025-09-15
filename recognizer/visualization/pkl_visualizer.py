@@ -116,9 +116,18 @@ class PKLVisualizer:
             return json.load(f)
     
     def _load_pkl(self, pkl_file: Path) -> List:
-        """PKL 파일 로드"""
+        """PKL 파일 로드 (통일된 데이터 구조 지원)"""
         with open(pkl_file, 'rb') as f:
-            return pickle.load(f)
+            data = pickle.load(f)
+
+        # VisualizationData 객체인 경우 poses_with_tracking 추출
+        if hasattr(data, 'poses_with_tracking') and data.poses_with_tracking:
+            return data.poses_with_tracking
+        elif hasattr(data, 'frame_data') and data.frame_data:
+            return data.frame_data
+        else:
+            # 기존 리스트 형태 데이터 그대로 반환
+            return data
     
     def _display_realtime_overlay(self, video_file: str, json_data: Dict, frame_poses_data: List) -> bool:
         """실시간 오버레이 표시"""

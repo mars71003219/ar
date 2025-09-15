@@ -6,7 +6,6 @@ num_workers 파라미터로 프로세스 수를 제어할 수 있습니다.
 """
 
 import multiprocessing as mp
-import concurrent.futures
 import queue
 import logging
 import time

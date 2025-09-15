@@ -9,7 +9,7 @@ import os
 import cv2
 import numpy as np
 from tqdm import tqdm
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Tuple
 import logging
 
 try:

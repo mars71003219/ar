@@ -197,8 +197,8 @@ class SlidingWindowProcessor:
     def _create_windows_if_ready(self) -> List[WindowAnnotation]:
         """윈도우 생성 - 모드별 분기 처리"""
         if self.processing_mode == 'analysis':
-            # 분석 모드는 한 번에 처리하므로 여기서는 빈 리스트 반환
-            return []
+            # 분석 모드에서도 윈도우 생성 (실시간과 동일한 로직 사용)
+            return self._create_realtime_windows()
         else:
             # 실시간 모드는 기존 로직 유지 (단순화)
             return self._create_realtime_windows()
