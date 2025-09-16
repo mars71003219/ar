@@ -51,42 +51,55 @@ class AnnotationPipelineMode(BaseMode):
         
         logger.info(f"Enabled stages: {enabled_stages}")
         
-        # 각 스테이지 순차 실행
+        # 스테이지별 실행
         results = {}
-        
-        for stage_name in enabled_stages:
+
+        # Stage1 실행 (멀티프로세스 지원)
+        if 'stage1' in enabled_stages:
+            try:
+                logger.info(f"\n--- Executing STAGE1 ---")
+                updated_config = self._prepare_stage_config('stage1', path_manager)
+                success = self._execute_stage1_with_multiprocess(updated_config)
+                results['stage1'] = success
+
+                if success:
+                    logger.info(f"✓ STAGE1 completed successfully")
+                else:
+                    logger.error(f"✗ STAGE1 failed")
+                    logger.error("Pipeline stopped due to stage1 failure")
+                    return False
+
+            except Exception as e:
+                logger.error(f"Error in stage1: {e}")
+                results['stage1'] = False
+                return False
+
+        # Stage2/3 실행 (단일 프로세스)
+        for stage_name in ['stage2', 'stage3']:
+            if stage_name not in enabled_stages:
+                continue
+
             try:
                 logger.info(f"\n--- Executing {stage_name.upper()} ---")
-                
-                # 스테이지별 설정 업데이트
                 updated_config = self._prepare_stage_config(stage_name, path_manager)
-                
-                # 스테이지 실행
-                if stage_name == 'stage1':
-                    stage_mode = Stage1Mode(updated_config)
-                elif stage_name == 'stage2':
+
+                if stage_name == 'stage2':
                     stage_mode = Stage2Mode(updated_config)
+                    success = stage_mode.execute()
                 elif stage_name == 'stage3':
                     stage_mode = Stage3Mode(updated_config)
-                else:
-                    logger.error(f"Unknown stage: {stage_name}")
-                    results[stage_name] = False
-                    continue
-                
-                # 실행
-                success = stage_mode.execute()
+                    success = stage_mode.execute()
+
                 results[stage_name] = success
-                
+
                 if success:
                     logger.info(f"✓ {stage_name.upper()} completed successfully")
                 else:
                     logger.error(f"✗ {stage_name.upper()} failed")
-                    
-                    # 실패 시 계속할지 결정
                     if not self._should_continue_on_failure(stage_name):
                         logger.error("Pipeline stopped due to stage failure")
                         break
-                
+
             except Exception as e:
                 logger.error(f"Error in {stage_name}: {e}")
                 results[stage_name] = False
@@ -139,6 +152,40 @@ class AnnotationPipelineMode(BaseMode):
         
         updated_config['annotation'] = annotation_config
         return updated_config
+
+    def _execute_stage1_with_multiprocess(self, config: Dict[str, Any]) -> bool:
+        """Stage1 멀티프로세스 지원 실행"""
+        try:
+            # stage1 멀티프로세스 설정 확인
+            annotation_config = config.get('annotation', {})
+            stage1_config = annotation_config.get('stage1', {})
+            stage1_multi_process = stage1_config.get('multi_process', {})
+            should_run_multi_process = stage1_multi_process.get('enabled', False)
+
+            if should_run_multi_process:
+                logger.info("Stage1 - using multi-process mode in pipeline")
+                # 멀티프로세스 실행
+                from main import run_multi_process_annotation
+
+                # 가짜 args 객체 생성 (멀티프로세스 함수 호환성)
+                class FakeArgs:
+                    def __init__(self):
+                        self.multi_process = False  # config 기반으로 실행
+                        self.num_processes = stage1_multi_process.get('num_processes', 6)
+                        self.gpus = ','.join(map(str, stage1_multi_process.get('gpus', [0, 1])))
+                        self.config = 'configs/config.yaml'  # 기본 설정 파일 경로
+
+                fake_args = FakeArgs()
+                return run_multi_process_annotation(config, fake_args)
+            else:
+                logger.info("Stage1 - using single process mode in pipeline")
+                # 단일 프로세스 실행
+                stage_mode = Stage1Mode(config)
+                return stage_mode.execute()
+
+        except Exception as e:
+            logger.error(f"Error in stage1 execution: {e}")
+            return False
     
     def _should_continue_on_failure(self, failed_stage: str) -> bool:
         """실패 시 계속 진행할지 결정"""

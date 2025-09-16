@@ -6,13 +6,14 @@ num_workers 파라미터로 프로세스 수를 제어할 수 있습니다.
 """
 
 import multiprocessing as mp
-import concurrent.futures
 import queue
 import logging
 import time
 import os
 import pickle
 import traceback
+import signal
+import atexit
 from typing import List, Any, Dict, Callable, Optional, Union, Tuple
 from dataclasses import dataclass
 from pathlib import Path
@@ -142,12 +143,38 @@ class WorkerProcess:
         raise ValueError(f"Function {func_name} not found")
     
     def terminate(self):
-        """프로세스 강제 종료"""
+        """프로세스 강제 종료 - 좀비 프로세스 방지"""
         if self.process and self.process.is_alive():
+            logging.info(f"Terminating worker {self.worker_id} (PID: {self.process.pid})")
+            
+            # 1. 먼저 graceful termination 시도
             self.process.terminate()
-            self.process.join(timeout=5)
-            if self.process.is_alive():
-                self.process.kill()
+            
+            # 2. 최대 5초 대기 후 프로세스 정리
+            try:
+                self.process.join(timeout=5)
+                if self.process.is_alive():
+                    logging.warning(f"Worker {self.worker_id} did not terminate gracefully, killing process")
+                    self.process.kill()
+                    # kill 후에도 join을 호출하여 좀비 프로세스 방지
+                    self.process.join(timeout=2)
+            except Exception as e:
+                logging.error(f"Error terminating worker {self.worker_id}: {str(e)}")
+            
+            # 3. 프로세스 상태 확인 및 정리
+            finally:
+                try:
+                    if self.process.is_alive():
+                        logging.error(f"Worker {self.worker_id} still alive after kill, forcing cleanup")
+                    else:
+                        logging.info(f"Worker {self.worker_id} terminated successfully")
+                    
+                    # 프로세스 객체 정리
+                    self.process = None
+                except Exception as e:
+                    logging.error(f"Error during process cleanup: {str(e)}")
+        else:
+            logging.info(f"Worker {self.worker_id} process already terminated or not started")
 
 
 class MultiprocessManager:
@@ -184,6 +211,12 @@ class MultiprocessManager:
             'total_processing_time': 0.0
         }
         
+        # 시그널 핸들러 등록 (SIGINT, SIGTERM)
+        self._setup_signal_handlers()
+        
+        # 프로그램 종료시 자동 정리 등록
+        atexit.register(self._atexit_cleanup)
+        
         logging.info(f"MultiprocessManager initialized with {self.num_workers} workers")
     
     def start(self):
@@ -210,32 +243,91 @@ class MultiprocessManager:
         logging.info("MultiprocessManager started successfully")
     
     def stop(self, timeout: float = 10.0):
-        """매니저 중지"""
+        """매니저 중지 - 좀비 프로세스 방지"""
         if not self.is_running:
             return
         
         logging.info("Stopping MultiprocessManager...")
+        start_time = time.time()
         
-        # 종료 신호 설정
+        # 1. 종료 신호 설정
         self.shutdown_event.set()
         
-        # 워커들에게 종료 신호 전송
+        # 2. 워커들에게 종료 신호 전송
         for _ in range(self.num_workers):
             try:
                 self.task_queue.put(None, timeout=1.0)
             except queue.Full:
-                pass
+                logging.warning("Task queue full, forcing shutdown")
+                break
         
-        # 워커 프로세스들 종료 대기
+        # 3. 결과 수집 스레드 종료 대기
+        if self.result_collector_thread and self.result_collector_thread.is_alive():
+            self.result_collector_thread.join(timeout=2.0)
+            if self.result_collector_thread.is_alive():
+                logging.warning("Result collector thread did not shutdown gracefully")
+        
+        # 4. 워커 프로세스들 안전한 종료
+        worker_timeout = max(timeout / len(self.workers) if self.workers else 1.0, 1.0)
+        active_workers = []
+        
         for worker in self.workers:
-            if worker.process:
-                worker.process.join(timeout=timeout/len(self.workers))
-                if worker.process.is_alive():
-                    logging.warning(f"Worker {worker.worker_id} did not shutdown gracefully, terminating")
+            if worker.process and worker.process.is_alive():
+                active_workers.append(worker)
+        
+        if active_workers:
+            logging.info(f"Waiting for {len(active_workers)} workers to shutdown...")
+            
+            # Graceful shutdown 시도
+            for worker in active_workers:
+                try:
+                    worker.process.join(timeout=worker_timeout)
+                    if worker.process.is_alive():
+                        logging.warning(f"Worker {worker.worker_id} timeout, will force terminate")
+                except Exception as e:
+                    logging.error(f"Error waiting for worker {worker.worker_id}: {str(e)}")
+            
+            # 아직 살아있는 프로세스들 강제 종료
+            remaining_workers = [w for w in active_workers if w.process and w.process.is_alive()]
+            if remaining_workers:
+                logging.warning(f"Force terminating {len(remaining_workers)} remaining workers")
+                for worker in remaining_workers:
                     worker.terminate()
         
+        # 5. 큐 정리 
+        self._cleanup_queues()
+        
+        # 6. 워커 리스트 정리
+        self.workers.clear()
+        
         self.is_running = False
-        logging.info("MultiprocessManager stopped")
+        elapsed_time = time.time() - start_time
+        logging.info(f"MultiprocessManager stopped successfully in {elapsed_time:.2f}s")
+    
+    def _cleanup_queues(self):
+        """큐 정리 - 남은 작업과 결과 정리"""
+        try:
+            # 남은 작업들 정리
+            while True:
+                try:
+                    self.task_queue.get_nowait()
+                except queue.Empty:
+                    break
+                except Exception:
+                    break
+            
+            # 남은 결과들 정리
+            while True:
+                try:
+                    self.result_queue.get_nowait()
+                except queue.Empty:
+                    break
+                except Exception:
+                    break
+                    
+            logging.info("Queues cleaned up successfully")
+        except Exception as e:
+            logging.error(f"Error cleaning up queues: {str(e)}")
     
     def _collect_results(self):
         """결과 수집 스레드"""
@@ -418,8 +510,69 @@ class MultiprocessManager:
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """컨텍스트 매니저 종료"""
-        self.stop()
+        """컨텍스트 매니저 종료 - 예외 발생시에도 안전한 정리"""
+        try:
+            self.stop(timeout=15.0)
+        except Exception as e:
+            logging.error(f"Error during context manager exit: {str(e)}")
+            # 강제로라도 프로세스들 정리
+            self._force_cleanup()
+    
+    def _force_cleanup(self):
+        """강제 정리 - 모든 프로세스와 리소스 강제 해제"""
+        logging.warning("Forcing cleanup of multiprocess manager")
+        
+        # 종료 신호 설정
+        if hasattr(self, 'shutdown_event'):
+            self.shutdown_event.set()
+        
+        # 모든 워커 프로세스 강제 종료
+        for worker in self.workers:
+            if worker.process:
+                try:
+                    if worker.process.is_alive():
+                        worker.process.kill()
+                        worker.process.join(timeout=1)
+                except Exception as e:
+                    logging.error(f"Error force killing worker {worker.worker_id}: {str(e)}")
+                finally:
+                    worker.process = None
+        
+        # 리스트 정리
+        self.workers.clear()
+        self.is_running = False
+        
+        logging.warning("Force cleanup completed")
+    
+    def _setup_signal_handlers(self):
+        """시그널 핸들러 설정 - 프로그램 강제 종료시에도 안전한 정리"""
+        def signal_handler(signum, frame):
+            logging.warning(f"Received signal {signum}, cleaning up multiprocess manager...")
+            try:
+                if self.is_running:
+                    self.stop(timeout=5.0)
+            except Exception as e:
+                logging.error(f"Error during signal cleanup: {str(e)}")
+                self._force_cleanup()
+        
+        # 메인 스레드에서만 시그널 핸들러 등록
+        try:
+            if threading.current_thread() is threading.main_thread():
+                signal.signal(signal.SIGINT, signal_handler)
+                signal.signal(signal.SIGTERM, signal_handler)
+                logging.info("Signal handlers registered for graceful shutdown")
+        except Exception as e:
+            logging.warning(f"Could not register signal handlers: {str(e)}")
+    
+    def _atexit_cleanup(self):
+        """프로그램 종료시 자동 정리"""
+        if self.is_running:
+            logging.info("Performing atexit cleanup of multiprocess manager")
+            try:
+                self.stop(timeout=3.0)
+            except Exception as e:
+                logging.error(f"Error during atexit cleanup: {str(e)}")
+                self._force_cleanup()
 
 
 # 전역 매니저 인스턴스
@@ -433,17 +586,41 @@ def get_global_multiprocess_manager(num_workers: int = None) -> MultiprocessMana
     if _global_manager is None:
         _global_manager = MultiprocessManager(num_workers=num_workers)
         _global_manager.start()
+        
+        # 전역 매니저용 추가 정리 함수 등록
+        atexit.register(_cleanup_global_at_exit)
     
     return _global_manager
 
 
+def _cleanup_global_at_exit():
+    """프로그램 종료시 전역 매니저 정리"""
+    global _global_manager
+    if _global_manager:
+        logging.info("Cleaning up global manager at program exit")
+        try:
+            _global_manager.stop(timeout=5.0)
+        except Exception as e:
+            logging.error(f"Error cleaning up global manager at exit: {str(e)}")
+            if hasattr(_global_manager, '_force_cleanup'):
+                _global_manager._force_cleanup()
+        finally:
+            _global_manager = None
+
+
 def cleanup_global_manager():
-    """전역 매니저 정리"""
+    """전역 매니저 정리 - 좀비 프로세스 방지"""
     global _global_manager
     
     if _global_manager:
-        _global_manager.stop()
-        _global_manager = None
+        try:
+            logging.info("Cleaning up global multiprocess manager...")
+            _global_manager.stop(timeout=15.0)  # 더 긴 타임아웃 설정
+            _global_manager = None
+            logging.info("Global multiprocess manager cleaned up successfully")
+        except Exception as e:
+            logging.error(f"Error cleaning up global manager: {str(e)}")
+            _global_manager = None
 
 
 def parallel_process(func_name: str, data_list: List[Any], num_workers: int = None,

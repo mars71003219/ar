@@ -1,0 +1,1292 @@
+nohup: ignoring input
+2025-09-15 12:34:04,676 - INFO - Loaded config from: /workspace/recognizer/configs/config.yaml
+2025-09-15 12:34:04,676 - INFO - Configuration loaded from: /workspace/recognizer/configs/config.yaml
+2025-09-15 12:34:04,679 - INFO - Registered 8 modes
+2025-09-15 12:34:04,679 - INFO - annotation.stage3 - switching to single process mode (only stage1 supports multi-process)
+2025-09-15 12:34:09,466 - WARNING - TensorRT not available
+2025-09-15 12:34:09,466 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:09,466 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:09,466 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:09,469 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:09,470 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:09,470 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:09,470 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:09,488 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:09,488 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:09,488 - INFO - All modules registered successfully
+2025-09-15 12:34:09,488 - INFO - Pipeline mode detected - switching to annotation.pipeline
+2025-09-15 12:34:09,488 - INFO - === EXECUTING MODE: annotation.pipeline ===
+2025-09-15 12:34:09,488 - INFO - Executing mode: annotation.pipeline
+2025-09-15 12:34:09,488 - INFO - === ANNOTATION PIPELINE MODE START ===
+2025-09-15 12:34:09,488 - INFO - Executing Stage 1-3 sequentially
+2025-09-15 12:34:09,489 - INFO - Input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup
+2025-09-15 12:34:09,489 - INFO - Base output: output/falldown_aihub_backup
+2025-09-15 12:34:09,489 - INFO - Enabled stages: ['stage1', 'stage2', 'stage3']
+2025-09-15 12:34:09,489 - INFO - 
+--- Executing STAGE1 ---
+2025-09-15 12:34:09,489 - INFO - Stage1 - using multi-process mode in pipeline
+2025-09-15 12:34:09,490 - INFO - === Multi-Process Annotation Configuration ===
+2025-09-15 12:34:09,490 - INFO - Input directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup
+2025-09-15 12:34:09,490 - INFO - Output directory: /workspace/recognizer/output
+2025-09-15 12:34:09,490 - INFO - Config file: /workspace/recognizer/configs/config.yaml
+2025-09-15 12:34:09,490 - INFO - Number of processes: 16
+2025-09-15 12:34:09,490 - INFO - GPU assignments: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+2025-09-15 12:34:09,490 - INFO - Config source: Config file
+2025-09-15 12:34:09,511 - INFO - Starting multi-process annotation with 16 processes
+2025-09-15 12:34:09,511 - INFO - Input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup
+2025-09-15 12:34:09,511 - INFO - Output: /workspace/recognizer/output/falldown_aihub_backup
+2025-09-15 12:34:09,511 - INFO - GPU assignments: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+2025-09-15 12:34:09,511 - INFO - === Step 1: Splitting videos ===
+2025-09-15 12:34:09,531 - INFO - Split 203 videos into 16 groups:
+2025-09-15 12:34:09,531 - INFO -   Split 0: 13 videos
+2025-09-15 12:34:09,531 - INFO -   Split 1: 13 videos
+2025-09-15 12:34:09,531 - INFO -   Split 2: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 3: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 4: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 5: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 6: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 7: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 8: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 9: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 10: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 11: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 12: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 13: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 14: 13 videos
+2025-09-15 12:34:09,532 - INFO -   Split 15: 8 videos
+2025-09-15 12:34:09,537 - INFO - === Step 2: Creating split configurations ===
+2025-09-15 12:34:09,566 - INFO - Created config for split 0: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_0/config_split_0.yaml
+2025-09-15 12:34:09,594 - INFO - Created config for split 1: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_1/config_split_1.yaml
+2025-09-15 12:34:09,622 - INFO - Created config for split 2: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_2/config_split_2.yaml
+2025-09-15 12:34:09,648 - INFO - Created config for split 3: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_3/config_split_3.yaml
+2025-09-15 12:34:09,675 - INFO - Created config for split 4: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_4/config_split_4.yaml
+2025-09-15 12:34:09,700 - INFO - Created config for split 5: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_5/config_split_5.yaml
+2025-09-15 12:34:09,725 - INFO - Created config for split 6: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_6/config_split_6.yaml
+2025-09-15 12:34:09,751 - INFO - Created config for split 7: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_7/config_split_7.yaml
+2025-09-15 12:34:09,778 - INFO - Created config for split 8: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/config_split_8.yaml
+2025-09-15 12:34:09,801 - INFO - Created config for split 9: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/config_split_9.yaml
+2025-09-15 12:34:09,827 - INFO - Created config for split 10: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/config_split_10.yaml
+2025-09-15 12:34:09,850 - INFO - Created config for split 11: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/config_split_11.yaml
+2025-09-15 12:34:09,876 - INFO - Created config for split 12: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/config_split_12.yaml
+2025-09-15 12:34:09,903 - INFO - Created config for split 13: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/config_split_13.yaml
+2025-09-15 12:34:09,925 - INFO - Created config for split 14: 13 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/config_split_14.yaml
+2025-09-15 12:34:09,944 - INFO - Created config for split 15: 8 videos -> /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/config_split_15.yaml
+2025-09-15 12:34:09,944 - INFO - === Step 3: Running split processes ===
+2025-09-15 12:34:09,944 - INFO - Starting split 0 on GPU 0: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_0/config_split_0.yaml
+2025-09-15 12:34:11,948 - INFO - Starting split 1 on GPU 1: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_1/config_split_1.yaml
+2025-09-15 12:34:13,951 - INFO - Starting split 2 on GPU 0: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_2/config_split_2.yaml
+2025-09-15 12:34:15,955 - INFO - Starting split 3 on GPU 1: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_3/config_split_3.yaml
+2025-09-15 12:34:17,958 - INFO - Starting split 4 on GPU 0: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_4/config_split_4.yaml
+2025-09-15 12:34:19,961 - INFO - Starting split 5 on GPU 1: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_5/config_split_5.yaml
+2025-09-15 12:34:21,964 - INFO - Starting split 6 on GPU 0: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_6/config_split_6.yaml
+2025-09-15 12:34:23,967 - INFO - Starting split 7 on GPU 1: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_7/config_split_7.yaml
+2025-09-15 12:34:25,971 - INFO - Starting split 8 on GPU 0: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/config_split_8.yaml
+2025-09-15 12:34:27,974 - INFO - Starting split 9 on GPU 1: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/config_split_9.yaml
+2025-09-15 12:34:29,977 - INFO - Starting split 10 on GPU 0: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/config_split_10.yaml
+2025-09-15 12:34:31,980 - INFO - Starting split 11 on GPU 1: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/config_split_11.yaml
+2025-09-15 12:34:33,983 - INFO - Starting split 12 on GPU 0: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/config_split_12.yaml
+2025-09-15 12:34:35,986 - INFO - Starting split 13 on GPU 1: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/config_split_13.yaml
+2025-09-15 12:34:37,989 - INFO - Starting split 14 on GPU 0: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/config_split_14.yaml
+2025-09-15 12:34:39,992 - INFO - Starting split 15 on GPU 1: python3 /workspace/recognizer/main.py --config /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/config_split_15.yaml
+2025-09-15 12:34:41,994 - INFO - === Step 4: Monitoring processes ===
+2025-09-15 12:34:41,994 - INFO - Monitoring split 0 (PID: 2044530)
+2025-09-15 12:34:41,994 - INFO - Monitoring split 1 (PID: 2044564)
+2025-09-15 12:34:41,994 - INFO - Split 0: 2025-09-15 12:34:10,085 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_0/config_split_0.yaml
+2025-09-15 12:34:41,995 - INFO - Monitoring split 2 (PID: 2044676)
+2025-09-15 12:34:41,995 - INFO - Split 1: 2025-09-15 12:34:12,086 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_1/config_split_1.yaml
+2025-09-15 12:34:41,995 - INFO - Split 1: 2025-09-15 12:34:12,086 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_1/config_split_1.yaml
+2025-09-15 12:34:41,995 - INFO - Monitoring split 3 (PID: 2044905)
+2025-09-15 12:34:41,995 - INFO - Monitoring split 4 (PID: 2045142)
+2025-09-15 12:34:41,995 - INFO - Split 2: 2025-09-15 12:34:14,107 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_2/config_split_2.yaml
+2025-09-15 12:34:41,996 - INFO - Split 2: 2025-09-15 12:34:14,107 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_2/config_split_2.yaml
+2025-09-15 12:34:41,995 - INFO - Monitoring split 5 (PID: 2045365)
+2025-09-15 12:34:41,995 - INFO - Split 1: 2025-09-15 12:34:12,089 - INFO - Registered 8 modes
+2025-09-15 12:34:41,996 - INFO - Monitoring split 6 (PID: 2045594)
+2025-09-15 12:34:41,996 - INFO - Split 3: 2025-09-15 12:34:16,095 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_3/config_split_3.yaml
+2025-09-15 12:34:41,996 - INFO - Monitoring split 7 (PID: 2045823)
+2025-09-15 12:34:41,996 - INFO - Split 4: 2025-09-15 12:34:18,098 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_4/config_split_4.yaml
+2025-09-15 12:34:41,996 - INFO - Monitoring split 8 (PID: 2046057)
+2025-09-15 12:34:41,995 - INFO - Split 0: 2025-09-15 12:34:10,085 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_0/config_split_0.yaml
+2025-09-15 12:34:41,998 - INFO - Split 0: 2025-09-15 12:34:10,088 - INFO - Registered 8 modes
+2025-09-15 12:34:41,996 - INFO - Monitoring split 9 (PID: 2046292)
+2025-09-15 12:34:41,997 - INFO - Split 5: 2025-09-15 12:34:20,108 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_5/config_split_5.yaml
+2025-09-15 12:34:41,997 - INFO - Monitoring split 10 (PID: 2046531)
+2025-09-15 12:34:41,997 - INFO - Split 1: 2025-09-15 12:34:15,186 - WARNING - TensorRT not available
+2025-09-15 12:34:41,997 - INFO - Monitoring split 11 (PID: 2046743)
+2025-09-15 12:34:41,999 - INFO - Split 11: 2025-09-15 12:34:32,125 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/config_split_11.yaml
+2025-09-15 12:34:41,999 - INFO - Split 11: 2025-09-15 12:34:32,126 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/config_split_11.yaml
+2025-09-15 12:34:41,999 - INFO - Split 11: 2025-09-15 12:34:32,129 - INFO - Registered 8 modes
+2025-09-15 12:34:41,997 - INFO - Split 3: 2025-09-15 12:34:16,095 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_3/config_split_3.yaml
+2025-09-15 12:34:41,999 - INFO - Split 3: 2025-09-15 12:34:16,098 - INFO - Registered 8 modes
+2025-09-15 12:34:41,998 - INFO - Monitoring split 14 (PID: 2047378)
+2025-09-15 12:34:41,998 - INFO - Split 4: 2025-09-15 12:34:18,099 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_4/config_split_4.yaml
+2025-09-15 12:34:41,998 - INFO - Monitoring split 15 (PID: 2047528)
+2025-09-15 12:34:41,998 - INFO - Split 8: 2025-09-15 12:34:26,113 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/config_split_8.yaml
+2025-09-15 12:34:41,996 - INFO - Split 2: 2025-09-15 12:34:14,111 - INFO - Registered 8 modes
+2025-09-15 12:34:41,999 - INFO - Split 2: 2025-09-15 12:34:17,382 - WARNING - TensorRT not available
+2025-09-15 12:34:41,998 - INFO - Split 9: 2025-09-15 12:34:28,115 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/config_split_9.yaml
+2025-09-15 12:34:41,999 - INFO - Split 9: 2025-09-15 12:34:28,115 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/config_split_9.yaml
+2025-09-15 12:34:41,999 - INFO - Split 9: 2025-09-15 12:34:28,118 - INFO - Registered 8 modes
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,524 - WARNING - TensorRT not available
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,524 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,524 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,524 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,527 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,528 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,529 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,529 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,551 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,551 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,551 - INFO - All modules registered successfully
+2025-09-15 12:34:41,999 - INFO - Split 2: 2025-09-15 12:34:17,382 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:41,998 - INFO - Split 0: 2025-09-15 12:34:13,178 - WARNING - TensorRT not available
+2025-09-15 12:34:41,998 - INFO - Split 5: 2025-09-15 12:34:20,108 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_5/config_split_5.yaml
+2025-09-15 12:34:42,000 - INFO - Split 5: 2025-09-15 12:34:20,111 - INFO - Registered 8 modes
+2025-09-15 12:34:42,000 - INFO - Split 5: 2025-09-15 12:34:23,441 - WARNING - TensorRT not available
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,552 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,552 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,553 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,553 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/videos
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,553 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,555 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,586 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,586 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,000 - INFO - Split 9: 2025-09-15 12:34:31,593 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,001 - INFO - Split 9: 2025-09-15 12:34:31,593 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:41,998 - INFO - Split 1: 2025-09-15 12:34:15,186 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,000 - INFO - Split 2: 2025-09-15 12:34:17,382 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:41,997 - INFO - Split 6: 2025-09-15 12:34:22,106 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_6/config_split_6.yaml
+2025-09-15 12:34:41,998 - INFO - Split 7: 2025-09-15 12:34:24,114 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_7/config_split_7.yaml
+2025-09-15 12:34:42,000 - INFO - Split 5: 2025-09-15 12:34:23,442 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,001 - INFO - Split 5: 2025-09-15 12:34:23,442 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,001 - INFO - Split 5: 2025-09-15 12:34:23,442 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,001 - INFO - Split 9: 2025-09-15 12:34:31,593 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,001 - INFO - Split 9: 2025-09-15 12:34:32,067 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:41,997 - INFO - Monitoring split 13 (PID: 2047101)
+2025-09-15 12:34:41,997 - INFO - Monitoring split 12 (PID: 2046956)
+2025-09-15 12:34:42,002 - INFO - Split 12: 2025-09-15 12:34:34,132 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/config_split_12.yaml
+2025-09-15 12:34:42,002 - INFO - Split 12: 2025-09-15 12:34:34,132 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/config_split_12.yaml
+2025-09-15 12:34:42,002 - INFO - Split 12: 2025-09-15 12:34:34,135 - INFO - Registered 8 modes
+2025-09-15 12:34:42,002 - INFO - Split 12: 2025-09-15 12:34:37,556 - WARNING - TensorRT not available
+2025-09-15 12:34:41,999 - INFO - Split 4: 2025-09-15 12:34:18,102 - INFO - Registered 8 modes
+2025-09-15 12:34:42,002 - INFO - Split 4: 2025-09-15 12:34:21,520 - WARNING - TensorRT not available
+2025-09-15 12:34:42,001 - INFO - Split 2: 2025-09-15 12:34:17,382 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,001 - INFO - Split 6: 2025-09-15 12:34:22,106 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_6/config_split_6.yaml
+2025-09-15 12:34:42,002 - INFO - Split 6: 2025-09-15 12:34:22,109 - INFO - Registered 8 modes
+2025-09-15 12:34:41,999 - INFO - Split 8: 2025-09-15 12:34:26,113 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/config_split_8.yaml
+2025-09-15 12:34:42,001 - INFO - Split 5: 2025-09-15 12:34:23,444 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,002 - INFO - Split 5: 2025-09-15 12:34:23,445 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:41,999 - INFO - Split 14: 2025-09-15 12:34:38,130 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/config_split_14.yaml
+2025-09-15 12:34:42,002 - INFO - Split 9: 2025-09-15 12:34:32,067 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,002 - INFO - Split 13: 2025-09-15 12:34:36,134 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/config_split_13.yaml
+2025-09-15 12:34:42,002 - INFO - Split 12: 2025-09-15 12:34:37,556 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,003 - INFO - Split 12: 2025-09-15 12:34:37,556 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,003 - INFO - Split 12: 2025-09-15 12:34:37,556 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,003 - INFO - Split 12: 2025-09-15 12:34:37,559 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,003 - INFO - Split 12: 2025-09-15 12:34:37,560 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,002 - INFO - Split 6: 2025-09-15 12:34:25,423 - WARNING - TensorRT not available
+2025-09-15 12:34:42,003 - INFO - Split 6: 2025-09-15 12:34:25,423 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:41,999 - INFO - Split 3: 2025-09-15 12:34:19,382 - WARNING - TensorRT not available
+2025-09-15 12:34:42,001 - INFO - Split 7: 2025-09-15 12:34:24,114 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_7/config_split_7.yaml
+2025-09-15 12:34:42,003 - INFO - Split 7: 2025-09-15 12:34:24,117 - INFO - Registered 8 modes
+2025-09-15 12:34:42,002 - INFO - Split 8: 2025-09-15 12:34:26,116 - INFO - Registered 8 modes
+2025-09-15 12:34:42,002 - INFO - Split 5: 2025-09-15 12:34:23,445 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,004 - INFO - Split 5: 2025-09-15 12:34:23,445 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,003 - INFO - Split 14: 2025-09-15 12:34:38,130 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/config_split_14.yaml
+2025-09-15 12:34:42,003 - INFO - Split 9: 2025-09-15 12:34:32,067 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,003 - INFO - Split 13: 2025-09-15 12:34:36,134 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/config_split_13.yaml
+2025-09-15 12:34:42,003 - INFO - Split 12: 2025-09-15 12:34:37,560 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,004 - INFO - Split 12: 2025-09-15 12:34:37,560 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,004 - INFO - Split 12: 2025-09-15 12:34:37,583 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,004 - INFO - Split 12: 2025-09-15 12:34:37,583 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,003 - INFO - Split 6: 2025-09-15 12:34:25,423 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,004 - INFO - Split 6: 2025-09-15 12:34:25,423 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,002 - INFO - Split 4: 2025-09-15 12:34:21,520 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,003 - INFO - Split 3: 2025-09-15 12:34:19,383 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,001 - INFO - Split 1: 2025-09-15 12:34:15,186 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,004 - INFO - Split 1: 2025-09-15 12:34:15,186 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,003 - INFO - Split 8: 2025-09-15 12:34:29,357 - WARNING - TensorRT not available
+2025-09-15 12:34:42,004 - INFO - Split 5: 2025-09-15 12:34:23,464 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,004 - INFO - Split 5: 2025-09-15 12:34:23,464 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,004 - INFO - Split 14: 2025-09-15 12:34:38,133 - INFO - Registered 8 modes
+2025-09-15 12:34:42,004 - INFO - Split 9: 2025-09-15 12:34:32,067 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,004 - INFO - Split 13: 2025-09-15 12:34:36,137 - INFO - Registered 8 modes
+2025-09-15 12:34:42,004 - INFO - Split 12: 2025-09-15 12:34:37,583 - INFO - All modules registered successfully
+2025-09-15 12:34:42,005 - INFO - Split 12: 2025-09-15 12:34:37,583 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,005 - INFO - Split 12: 2025-09-15 12:34:37,583 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,005 - INFO - Split 12: 2025-09-15 12:34:37,585 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,004 - INFO - Split 6: 2025-09-15 12:34:25,426 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,005 - INFO - Split 6: 2025-09-15 12:34:25,427 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,004 - INFO - Split 4: 2025-09-15 12:34:21,520 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,004 - INFO - Split 3: 2025-09-15 12:34:19,383 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,003 - INFO - Split 7: 2025-09-15 12:34:27,488 - WARNING - TensorRT not available
+2025-09-15 12:34:42,004 - INFO - Split 1: 2025-09-15 12:34:15,189 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,005 - INFO - Split 1: 2025-09-15 12:34:15,190 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,005 - INFO - Split 5: 2025-09-15 12:34:23,464 - INFO - All modules registered successfully
+2025-09-15 12:34:42,005 - INFO - Split 5: 2025-09-15 12:34:23,464 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,005 - INFO - Split 14: 2025-09-15 12:34:41,599 - WARNING - TensorRT not available
+2025-09-15 12:34:42,005 - INFO - Split 9: 2025-09-15 12:34:32,067 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,005 - INFO - Split 13: 2025-09-15 12:34:39,601 - WARNING - TensorRT not available
+2025-09-15 12:34:42,005 - INFO - Split 12: 2025-09-15 12:34:37,585 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/videos
+2025-09-15 12:34:41,998 - INFO - Split 10: 2025-09-15 12:34:30,120 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/config_split_10.yaml
+2025-09-15 12:34:41,999 - INFO - Split 11: 2025-09-15 12:34:35,522 - WARNING - TensorRT not available
+2025-09-15 12:34:41,999 - INFO - Split 15: 2025-09-15 12:34:40,190 - INFO - Loaded config from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/config_split_15.yaml
+2025-09-15 12:34:42,005 - INFO - Split 6: 2025-09-15 12:34:25,427 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,006 - INFO - Split 6: 2025-09-15 12:34:25,427 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,005 - INFO - Split 4: 2025-09-15 12:34:21,520 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,005 - INFO - Split 3: 2025-09-15 12:34:19,383 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,005 - INFO - Split 7: 2025-09-15 12:34:27,488 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,004 - INFO - Split 8: 2025-09-15 12:34:29,358 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,005 - INFO - Split 1: 2025-09-15 12:34:15,190 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,005 - INFO - Split 5: 2025-09-15 12:34:23,464 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,006 - INFO - Split 5: 2025-09-15 12:34:23,466 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_5/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,005 - INFO - Split 14: 2025-09-15 12:34:41,599 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,006 - INFO - Split 9: 2025-09-15 12:34:32,067 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,006 - INFO - Split 13: 2025-09-15 12:34:39,601 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,006 - INFO - Split 12: 2025-09-15 12:34:37,585 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,006 - INFO - Split 10: 2025-09-15 12:34:30,120 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/config_split_10.yaml
+2025-09-15 12:34:42,006 - INFO - Split 11: 2025-09-15 12:34:35,522 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,006 - INFO - Split 15: 2025-09-15 12:34:40,191 - INFO - Configuration loaded from: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/config_split_15.yaml
+2025-09-15 12:34:42,006 - INFO - Split 6: 2025-09-15 12:34:25,446 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,007 - INFO - Split 6: 2025-09-15 12:34:25,446 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,006 - INFO - Split 4: 2025-09-15 12:34:21,523 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,006 - INFO - Split 3: 2025-09-15 12:34:19,385 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,006 - INFO - Split 7: 2025-09-15 12:34:27,488 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,006 - INFO - Split 8: 2025-09-15 12:34:29,358 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,006 - INFO - Split 1: 2025-09-15 12:34:15,190 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,006 - INFO - Split 5: 2025-09-15 12:34:23,466 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_5/videos
+2025-09-15 12:34:42,007 - INFO - Split 5: 2025-09-15 12:34:23,466 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_5/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,007 - INFO - Split 14: 2025-09-15 12:34:41,599 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,007 - INFO - Split 9: 2025-09-15 12:34:32,068 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,007 - INFO - Split 13: 2025-09-15 12:34:39,601 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,007 - INFO - Split 12: 2025-09-15 12:34:37,587 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,007 - INFO - Split 10: 2025-09-15 12:34:30,123 - INFO - Registered 8 modes
+2025-09-15 12:34:42,007 - INFO - Split 11: 2025-09-15 12:34:35,522 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,007 - INFO - Split 15: 2025-09-15 12:34:40,194 - INFO - Registered 8 modes
+2025-09-15 12:34:42,007 - INFO - Split 6: 2025-09-15 12:34:25,446 - INFO - All modules registered successfully
+2025-09-15 12:34:42,008 - INFO - Split 6: 2025-09-15 12:34:25,446 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,007 - INFO - Split 4: 2025-09-15 12:34:21,524 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,007 - INFO - Split 3: 2025-09-15 12:34:19,386 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,007 - INFO - Split 7: 2025-09-15 12:34:27,488 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,007 - INFO - Split 8: 2025-09-15 12:34:29,358 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,007 - INFO - Split 1: 2025-09-15 12:34:15,208 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,008 - INFO - Split 5: 2025-09-15 12:34:23,467 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_5/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,000 - INFO - Split 0: 2025-09-15 12:34:13,178 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,008 - INFO - Split 14: 2025-09-15 12:34:41,599 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,008 - INFO - Split 9: 2025-09-15 12:34:32,068 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,008 - INFO - Split 13: 2025-09-15 12:34:39,601 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,008 - INFO - Split 12: 2025-09-15 12:34:37,615 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,008 - INFO - Split 10: 2025-09-15 12:34:33,593 - WARNING - TensorRT not available
+2025-09-15 12:34:42,008 - INFO - Split 11: 2025-09-15 12:34:35,522 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,008 - INFO - Split 6: 2025-09-15 12:34:25,446 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,002 - INFO - Split 2: 2025-09-15 12:34:17,385 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,008 - INFO - Split 4: 2025-09-15 12:34:21,524 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,008 - INFO - Split 3: 2025-09-15 12:34:19,386 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,008 - INFO - Split 7: 2025-09-15 12:34:27,491 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,008 - INFO - Split 8: 2025-09-15 12:34:29,360 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,008 - INFO - Split 1: 2025-09-15 12:34:15,208 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,008 - INFO - Split 5: 2025-09-15 12:34:23,497 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,009 - INFO - Split 5: 2025-09-15 12:34:23,497 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,009 - INFO - Split 14: 2025-09-15 12:34:41,602 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,009 - INFO - Split 9: 2025-09-15 12:34:32,068 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,009 - INFO - Split 13: 2025-09-15 12:34:39,605 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,009 - INFO - Split 12: 2025-09-15 12:34:37,615 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,009 - INFO - Split 10: 2025-09-15 12:34:33,593 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:42,009 - INFO - Split 11: 2025-09-15 12:34:35,526 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,009 - INFO - Split 6: 2025-09-15 12:34:25,448 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_6/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,009 - INFO - Split 2: 2025-09-15 12:34:17,386 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,009 - INFO - Split 4: 2025-09-15 12:34:21,525 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,010 - INFO - Split 4: 2025-09-15 12:34:21,544 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,009 - INFO - Split 7: 2025-09-15 12:34:27,492 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,009 - INFO - Split 8: 2025-09-15 12:34:29,361 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,009 - INFO - Split 1: 2025-09-15 12:34:15,208 - INFO - All modules registered successfully
+2025-09-15 12:34:42,009 - INFO - Split 5: 2025-09-15 12:34:23,503 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,010 - INFO - Split 5: 2025-09-15 12:34:23,503 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,010 - INFO - Split 14: 2025-09-15 12:34:41,603 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,010 - INFO - Split 9: 2025-09-15 12:34:32,068 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,010 - INFO - Split 13: 2025-09-15 12:34:39,606 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,010 - INFO - Split 12: 2025-09-15 12:34:37,623 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,010 - INFO - Split 10: 2025-09-15 12:34:33,593 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,010 - INFO - Split 11: 2025-09-15 12:34:35,527 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,010 - INFO - Split 6: 2025-09-15 12:34:25,449 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_6/videos
+2025-09-15 12:34:42,010 - INFO - Split 2: 2025-09-15 12:34:17,386 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,010 - INFO - Split 4: 2025-09-15 12:34:21,544 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,011 - INFO - Split 4: 2025-09-15 12:34:21,544 - INFO - All modules registered successfully
+2025-09-15 12:34:42,010 - INFO - Split 7: 2025-09-15 12:34:27,492 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,010 - INFO - Split 8: 2025-09-15 12:34:29,361 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,010 - INFO - Split 1: 2025-09-15 12:34:15,208 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,010 - INFO - Split 5: 2025-09-15 12:34:23,503 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,011 - INFO - Split 5: 2025-09-15 12:34:23,944 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,010 - INFO - Split 14: 2025-09-15 12:34:41,603 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,011 - INFO - Split 9: 2025-09-15 12:34:32,068 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,011 - INFO - Split 13: 2025-09-15 12:34:39,606 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,011 - INFO - Split 12: 2025-09-15 12:34:37,623 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,011 - INFO - Split 10: 2025-09-15 12:34:33,593 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,011 - INFO - Split 11: 2025-09-15 12:34:35,527 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,011 - INFO - Split 6: 2025-09-15 12:34:25,449 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_6/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,011 - INFO - Split 2: 2025-09-15 12:34:17,386 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,009 - INFO - Split 3: 2025-09-15 12:34:19,387 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,012 - INFO - Split 3: 2025-09-15 12:34:19,405 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,011 - INFO - Split 7: 2025-09-15 12:34:27,493 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,011 - INFO - Split 8: 2025-09-15 12:34:29,362 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,011 - INFO - Split 1: 2025-09-15 12:34:15,208 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,011 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,008 - INFO - Split 0: 2025-09-15 12:34:13,178 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:42,011 - INFO - Split 14: 2025-09-15 12:34:41,603 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,011 - INFO - Split 9: 2025-09-15 12:34:32,068 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,012 - INFO - Split 13: 2025-09-15 12:34:39,606 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,012 - INFO - Split 12: 2025-09-15 12:34:37,623 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,012 - INFO - Split 10: 2025-09-15 12:34:33,596 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,012 - INFO - Split 11: 2025-09-15 12:34:35,527 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,012 - INFO - Split 6: 2025-09-15 12:34:25,450 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_6/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,012 - INFO - Split 2: 2025-09-15 12:34:17,404 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,012 - INFO - Split 3: 2025-09-15 12:34:19,405 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,013 - INFO - Split 3: 2025-09-15 12:34:19,405 - INFO - All modules registered successfully
+2025-09-15 12:34:42,012 - INFO - Split 7: 2025-09-15 12:34:27,515 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,012 - INFO - Split 8: 2025-09-15 12:34:29,380 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,012 - INFO - Split 1: 2025-09-15 12:34:15,210 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_1/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,012 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,012 - INFO - Split 0: 2025-09-15 12:34:13,178 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:42,012 - INFO - Split 14: 2025-09-15 12:34:41,622 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,012 - INFO - Split 9: 2025-09-15 12:34:32,068 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,013 - INFO - Split 13: 2025-09-15 12:34:39,628 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,013 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,013 - INFO - Split 10: 2025-09-15 12:34:33,597 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,013 - INFO - Split 11: 2025-09-15 12:34:35,549 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,013 - INFO - Split 6: 2025-09-15 12:34:25,479 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,013 - INFO - Split 2: 2025-09-15 12:34:17,404 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,013 - INFO - Split 3: 2025-09-15 12:34:19,405 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,014 - INFO - Split 3: 2025-09-15 12:34:19,405 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,013 - INFO - Split 7: 2025-09-15 12:34:27,515 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,013 - INFO - Split 8: 2025-09-15 12:34:29,381 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,013 - INFO - Split 1: 2025-09-15 12:34:15,210 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_1/videos
+2025-09-15 12:34:42,013 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,013 - INFO - Split 0: 2025-09-15 12:34:13,181 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:42,013 - INFO - Split 14: 2025-09-15 12:34:41,622 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,013 - INFO - Split 9: 2025-09-15 12:34:32,608 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,014 - INFO - Split 13: 2025-09-15 12:34:39,629 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,014 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,014 - INFO - Split 10: 2025-09-15 12:34:33,597 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,014 - INFO - Split 11: 2025-09-15 12:34:35,549 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,014 - INFO - Split 6: 2025-09-15 12:34:25,479 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,014 - INFO - Split 2: 2025-09-15 12:34:17,404 - INFO - All modules registered successfully
+2025-09-15 12:34:42,011 - INFO - Split 4: 2025-09-15 12:34:21,544 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,014 - INFO - Split 3: 2025-09-15 12:34:19,407 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_3/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,014 - INFO - Split 7: 2025-09-15 12:34:27,515 - INFO - All modules registered successfully
+2025-09-15 12:34:42,014 - INFO - Split 8: 2025-09-15 12:34:29,381 - INFO - All modules registered successfully
+2025-09-15 12:34:42,014 - INFO - Split 1: 2025-09-15 12:34:15,210 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_1/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,014 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,015 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,014 - INFO - Split 14: 2025-09-15 12:34:41,622 - INFO - All modules registered successfully
+2025-09-15 12:34:42,014 - INFO - Split 9: 2025-09-15 12:34:32,608 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,014 - INFO - Split 13: 2025-09-15 12:34:39,629 - INFO - All modules registered successfully
+2025-09-15 12:34:42,015 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,015 - INFO - Split 10: 2025-09-15 12:34:33,597 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,015 - INFO - Split 11: 2025-09-15 12:34:35,549 - INFO - All modules registered successfully
+2025-09-15 12:34:42,015 - INFO - Split 6: 2025-09-15 12:34:25,485 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,015 - INFO - Split 2: 2025-09-15 12:34:17,404 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,015 - INFO - Split 4: 2025-09-15 12:34:21,544 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,015 - INFO - Split 3: 2025-09-15 12:34:19,407 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_3/videos
+2025-09-15 12:34:42,015 - INFO - Split 7: 2025-09-15 12:34:27,515 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,015 - INFO - Split 8: 2025-09-15 12:34:29,381 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,015 - INFO - Split 1: 2025-09-15 12:34:15,212 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_1/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,015 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,014 - INFO - Split 0: 2025-09-15 12:34:13,182 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:42,015 - INFO - Split 14: 2025-09-15 12:34:41,622 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,015 - INFO - Split 9: 2025-09-15 12:34:33,064 - INFO -   Warmup 1/1: 456.02ms
+2025-09-15 12:34:42,015 - INFO - Split 13: 2025-09-15 12:34:39,629 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,015 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,016 - INFO - Split 10: 2025-09-15 12:34:33,616 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,016 - INFO - Split 11: 2025-09-15 12:34:35,549 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,016 - INFO - Split 6: 2025-09-15 12:34:25,485 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,016 - INFO - Split 2: 2025-09-15 12:34:17,404 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,016 - INFO - Split 4: 2025-09-15 12:34:21,546 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_4/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,016 - INFO - Split 3: 2025-09-15 12:34:19,407 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_3/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,016 - INFO - Split 7: 2025-09-15 12:34:27,515 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,016 - INFO - Split 8: 2025-09-15 12:34:29,381 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,016 - INFO - Split 1: 2025-09-15 12:34:15,242 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,017 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,017 - INFO - Split 0: 2025-09-15 12:34:13,182 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:42,017 - INFO - Split 14: 2025-09-15 12:34:41,622 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,017 - INFO - Split 9: 2025-09-15 12:34:33,067 - INFO - Warmup completed! Average time: 456.02ms
+2025-09-15 12:34:42,017 - INFO - Split 13: 2025-09-15 12:34:39,629 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,017 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,017 - INFO - Split 10: 2025-09-15 12:34:33,617 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,017 - INFO - Split 11: 2025-09-15 12:34:35,549 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,017 - INFO - Split 6: 2025-09-15 12:34:25,485 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,017 - INFO - Split 2: 2025-09-15 12:34:17,406 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_2/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,017 - INFO - Split 4: 2025-09-15 12:34:21,546 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_4/videos
+2025-09-15 12:34:42,017 - INFO - Split 3: 2025-09-15 12:34:19,408 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_3/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,017 - INFO - Split 7: 2025-09-15 12:34:27,517 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_7/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,017 - INFO - Split 8: 2025-09-15 12:34:29,382 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,017 - INFO - Split 1: 2025-09-15 12:34:15,242 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,018 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,018 - INFO - Split 0: 2025-09-15 12:34:13,182 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:42,018 - INFO - Split 14: 2025-09-15 12:34:41,625 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,018 - INFO - Split 9: 2025-09-15 12:34:33,067 - INFO - Final warmup time: 456.02ms (2.2 FPS)
+2025-09-15 12:34:42,018 - INFO - Split 13: 2025-09-15 12:34:39,630 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,018 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,018 - INFO - Split 10: 2025-09-15 12:34:33,617 - INFO - All modules registered successfully
+2025-09-15 12:34:42,018 - INFO - Split 11: 2025-09-15 12:34:35,551 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,018 - INFO - Split 6: 2025-09-15 12:34:25,942 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,018 - INFO - Split 2: 2025-09-15 12:34:17,406 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_2/videos
+2025-09-15 12:34:42,018 - INFO - Split 4: 2025-09-15 12:34:21,546 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_4/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,018 - INFO - Split 3: 2025-09-15 12:34:19,436 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,018 - INFO - Split 7: 2025-09-15 12:34:27,517 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_7/videos
+2025-09-15 12:34:42,018 - INFO - Split 8: 2025-09-15 12:34:29,382 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/videos
+2025-09-15 12:34:42,018 - INFO - Split 1: 2025-09-15 12:34:15,248 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,019 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,019 - INFO - Split 0: 2025-09-15 12:34:13,201 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:42,019 - INFO - Split 14: 2025-09-15 12:34:41,625 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/videos
+2025-09-15 12:34:42,019 - INFO - Split 9: 2025-09-15 12:34:33,067 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,019 - INFO - Split 13: 2025-09-15 12:34:39,630 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/videos
+2025-09-15 12:34:42,019 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,019 - INFO - Split 10: 2025-09-15 12:34:33,617 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,019 - INFO - Split 11: 2025-09-15 12:34:35,551 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/videos
+2025-09-15 12:34:42,019 - INFO - Split 6: 2025-09-15 12:34:25,942 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,019 - INFO - Split 2: 2025-09-15 12:34:17,406 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_2/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,019 - INFO - Split 4: 2025-09-15 12:34:21,548 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_4/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,019 - INFO - Split 3: 2025-09-15 12:34:19,436 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,019 - INFO - Split 7: 2025-09-15 12:34:27,517 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_7/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,020 - INFO - Split 7: 2025-09-15 12:34:27,518 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_7/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,019 - INFO - Split 1: 2025-09-15 12:34:15,248 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,019 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,020 - INFO - Split 0: 2025-09-15 12:34:13,201 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:42,020 - INFO - Split 14: 2025-09-15 12:34:41,625 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,020 - INFO - Split 9: 2025-09-15 12:34:33,188 - INFO -   Extended warmup 1/5: 119.23ms - Success
+2025-09-15 12:34:42,020 - INFO - Split 13: 2025-09-15 12:34:39,630 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,020 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,020 - INFO - Split 10: 2025-09-15 12:34:33,617 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,020 - INFO - Split 11: 2025-09-15 12:34:35,551 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,020 - INFO - Split 6: 2025-09-15 12:34:25,942 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,020 - INFO - Split 2: 2025-09-15 12:34:17,410 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_2/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,020 - INFO - Split 4: 2025-09-15 12:34:21,576 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,020 - INFO - Split 3: 2025-09-15 12:34:19,442 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,020 - INFO - Split 7: 2025-09-15 12:34:27,556 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,020 - INFO - Split 1: 2025-09-15 12:34:15,248 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,020 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,019 - INFO - Split 8: 2025-09-15 12:34:29,382 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,020 - INFO - Split 0: 2025-09-15 12:34:13,201 - INFO - All modules registered successfully
+2025-09-15 12:34:42,021 - INFO - Split 14: 2025-09-15 12:34:41,626 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,021 - INFO - Split 9: 2025-09-15 12:34:33,302 - INFO -   Extended warmup 2/5: 114.19ms - Success
+2025-09-15 12:34:42,021 - INFO - Split 13: 2025-09-15 12:34:39,631 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,021 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,021 - INFO - Split 10: 2025-09-15 12:34:33,619 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,021 - INFO - Split 11: 2025-09-15 12:34:35,553 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,021 - INFO - Split 6: 2025-09-15 12:34:25,942 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,021 - INFO - Split 2: 2025-09-15 12:34:17,440 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,021 - INFO - Split 4: 2025-09-15 12:34:21,576 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,021 - INFO - Split 3: 2025-09-15 12:34:19,442 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,021 - INFO - Split 7: 2025-09-15 12:34:27,556 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,021 - INFO - Split 1: 2025-09-15 12:34:15,646 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,021 - INFO - Split 5: 2025-09-15 12:34:23,945 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,021 - INFO - Split 8: 2025-09-15 12:34:29,383 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,021 - INFO - Split 0: 2025-09-15 12:34:13,201 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:42,022 - INFO - Split 14: 2025-09-15 12:34:41,656 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,022 - INFO - Split 9: 2025-09-15 12:34:33,417 - INFO -   Extended warmup 3/5: 115.22ms - Success
+2025-09-15 12:34:42,022 - INFO - Split 13: 2025-09-15 12:34:39,659 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,022 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,022 - INFO - Split 10: 2025-09-15 12:34:33,619 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/videos
+2025-09-15 12:34:42,022 - INFO - Split 11: 2025-09-15 12:34:35,580 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,022 - INFO - Split 6: 2025-09-15 12:34:25,942 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,022 - INFO - Split 2: 2025-09-15 12:34:17,440 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,022 - INFO - Split 4: 2025-09-15 12:34:21,582 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,022 - INFO - Split 3: 2025-09-15 12:34:19,442 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,022 - INFO - Split 7: 2025-09-15 12:34:27,564 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,022 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,022 - INFO - Split 5: 2025-09-15 12:34:24,458 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,022 - INFO - Split 8: 2025-09-15 12:34:29,412 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,022 - INFO - Split 0: 2025-09-15 12:34:13,201 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:42,022 - INFO - Split 14: 2025-09-15 12:34:41,656 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,023 - INFO - Split 9: 2025-09-15 12:34:33,536 - INFO -   Extended warmup 4/5: 118.21ms - Success
+2025-09-15 12:34:42,023 - INFO - Split 13: 2025-09-15 12:34:39,659 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,023 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,023 - INFO - Split 10: 2025-09-15 12:34:33,619 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,023 - INFO - Split 11: 2025-09-15 12:34:35,581 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,023 - INFO - Split 6: 2025-09-15 12:34:25,942 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,023 - INFO - Split 2: 2025-09-15 12:34:17,446 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,023 - INFO - Split 4: 2025-09-15 12:34:21,582 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,023 - INFO - Split 3: 2025-09-15 12:34:19,866 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,023 - INFO - Split 7: 2025-09-15 12:34:27,564 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,023 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,023 - INFO - Split 5: 2025-09-15 12:34:24,458 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,023 - INFO - Split 8: 2025-09-15 12:34:29,412 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,023 - INFO - Split 0: 2025-09-15 12:34:13,202 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_0/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,023 - INFO - Split 14: 2025-09-15 12:34:41,664 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,023 - INFO - Split 9: 2025-09-15 12:34:33,651 - INFO -   Extended warmup 5/5: 114.84ms - Success
+2025-09-15 12:34:42,024 - INFO - Split 13: 2025-09-15 12:34:39,666 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,024 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,024 - INFO - Split 10: 2025-09-15 12:34:33,620 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,024 - INFO - Split 11: 2025-09-15 12:34:35,587 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,024 - INFO - Split 6: 2025-09-15 12:34:25,942 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,024 - INFO - Split 2: 2025-09-15 12:34:17,446 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,025 - INFO - Split 2: 2025-09-15 12:34:17,446 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,024 - INFO - Split 3: 2025-09-15 12:34:19,866 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,024 - INFO - Split 7: 2025-09-15 12:34:27,564 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,024 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,024 - INFO - Split 5: 2025-09-15 12:34:24,865 - INFO -   Warmup 1/1: 407.49ms
+2025-09-15 12:34:42,024 - INFO - Split 8: 2025-09-15 12:34:29,418 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,024 - INFO - Split 0: 2025-09-15 12:34:13,202 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_0/videos
+2025-09-15 12:34:42,024 - INFO - Split 14: 2025-09-15 12:34:41,664 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,024 - INFO - Split 9: 2025-09-15 12:34:33,651 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 116.09ms (8.6 FPS)
+2025-09-15 12:34:42,024 - INFO - Split 13: 2025-09-15 12:34:39,666 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,024 - INFO - Split 12: 2025-09-15 12:34:38,231 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,025 - INFO - Split 10: 2025-09-15 12:34:33,647 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,025 - INFO - Split 11: 2025-09-15 12:34:35,587 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,025 - INFO - Split 6: 2025-09-15 12:34:25,942 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,025 - INFO - Split 2: 2025-09-15 12:34:17,874 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,025 - INFO - Split 3: 2025-09-15 12:34:19,866 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,025 - INFO - Split 7: 2025-09-15 12:34:28,026 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,025 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,025 - INFO - Split 5: 2025-09-15 12:34:24,868 - INFO - Warmup completed! Average time: 407.49ms
+2025-09-15 12:34:42,025 - INFO - Split 8: 2025-09-15 12:34:29,418 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,025 - INFO - Split 0: 2025-09-15 12:34:13,202 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_0/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:42,025 - INFO - Split 14: 2025-09-15 12:34:41,664 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,025 - INFO - Split 9: 2025-09-15 12:34:33,653 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,025 - INFO - Split 13: 2025-09-15 12:34:39,666 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,025 - INFO - Split 12: 2025-09-15 12:34:38,873 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,025 - INFO - Split 10: 2025-09-15 12:34:33,647 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,024 - INFO - Split 4: 2025-09-15 12:34:21,582 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,025 - INFO - Split 11: 2025-09-15 12:34:35,587 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,026 - INFO - Split 6: 2025-09-15 12:34:25,943 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,026 - INFO - Split 2: 2025-09-15 12:34:17,874 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,026 - INFO - Split 3: 2025-09-15 12:34:19,867 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,026 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,026 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,026 - INFO - Split 5: 2025-09-15 12:34:24,869 - INFO - Final warmup time: 407.49ms (2.5 FPS)
+2025-09-15 12:34:42,026 - INFO - Split 8: 2025-09-15 12:34:29,418 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,026 - INFO - Split 0: 2025-09-15 12:34:13,204 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_0/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:42,026 - INFO - Split 9: 2025-09-15 12:34:33,653 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,026 - INFO - Split 13: 2025-09-15 12:34:40,176 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,026 - INFO - Split 12: 2025-09-15 12:34:38,873 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,026 - INFO - Split 10: 2025-09-15 12:34:33,654 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,026 - INFO - Split 4: 2025-09-15 12:34:22,028 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,026 - INFO - Split 11: 2025-09-15 12:34:36,102 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,027 - INFO - Split 6: 2025-09-15 12:34:25,943 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,027 - INFO - Split 2: 2025-09-15 12:34:17,874 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,027 - INFO - Split 3: 2025-09-15 12:34:19,867 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,027 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,027 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,027 - INFO - Split 5: 2025-09-15 12:34:24,869 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,027 - INFO - Split 8: 2025-09-15 12:34:29,892 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,027 - INFO - Split 0: 2025-09-15 12:34:13,231 - INFO - Found 13 video files to process
+2025-09-15 12:34:42,027 - INFO - Split 9: 2025-09-15 12:34:33,653 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,027 - INFO - Split 13: 2025-09-15 12:34:40,176 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,027 - INFO - Split 12: 2025-09-15 12:34:39,359 - INFO -   Warmup 1/1: 486.33ms
+2025-09-15 12:34:42,027 - INFO - Split 10: 2025-09-15 12:34:33,654 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,027 - INFO - Split 4: 2025-09-15 12:34:22,028 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,027 - INFO - Split 11: 2025-09-15 12:34:36,102 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,027 - INFO - Split 6: 2025-09-15 12:34:25,943 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,028 - INFO - Split 2: 2025-09-15 12:34:17,874 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,028 - INFO - Split 3: 2025-09-15 12:34:19,867 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,028 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,028 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,028 - INFO - Split 5: 2025-09-15 12:34:24,941 - INFO -   Extended warmup 1/5: 70.87ms - Success
+2025-09-15 12:34:42,028 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,028 - INFO - Split 0: 2025-09-15 12:34:13,231 - INFO - Using DualServicePipeline for 13 videos
+2025-09-15 12:34:42,028 - INFO - Split 9: 2025-09-15 12:34:33,677 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,028 - INFO - Split 13: 2025-09-15 12:34:40,177 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,028 - INFO - Split 12: 2025-09-15 12:34:39,363 - INFO - Warmup completed! Average time: 486.33ms
+2025-09-15 12:34:42,028 - INFO - Split 10: 2025-09-15 12:34:33,654 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,028 - INFO - Split 4: 2025-09-15 12:34:22,028 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,028 - INFO - Split 11: 2025-09-15 12:34:36,102 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,028 - INFO - Split 6: 2025-09-15 12:34:25,943 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,029 - INFO - Split 6: 2025-09-15 12:34:25,943 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,028 - INFO - Split 3: 2025-09-15 12:34:19,867 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,029 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,029 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,029 - INFO - Split 5: 2025-09-15 12:34:25,006 - INFO -   Extended warmup 2/5: 65.05ms - Success
+2025-09-15 12:34:42,029 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,029 - INFO - Split 0: 2025-09-15 12:34:13,237 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:42,029 - INFO - Split 9: 2025-09-15 12:34:33,677 - INFO - Processing 0xoSMgad_0.avi...
+2025-09-15 12:34:42,029 - INFO - Split 13: 2025-09-15 12:34:40,177 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,029 - INFO - Split 12: 2025-09-15 12:34:39,363 - INFO - Final warmup time: 486.33ms (2.1 FPS)
+2025-09-15 12:34:42,029 - INFO - Split 10: 2025-09-15 12:34:34,173 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,029 - INFO - Split 4: 2025-09-15 12:34:22,028 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,029 - INFO - Split 11: 2025-09-15 12:34:36,102 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,029 - INFO - Split 6: 2025-09-15 12:34:26,485 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,028 - INFO - Split 2: 2025-09-15 12:34:17,874 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,030 - INFO - Split 2: 2025-09-15 12:34:17,875 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,030 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,030 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,030 - INFO - Split 5: 2025-09-15 12:34:25,077 - INFO -   Extended warmup 3/5: 70.74ms - Success
+2025-09-15 12:34:42,030 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,030 - INFO - Split 0: 2025-09-15 12:34:13,237 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:42,030 - INFO - Split 9: 2025-09-15 12:34:33,677 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/videos/normal/0xoSMgad_0.avi
+2025-09-15 12:34:42,030 - INFO - Split 13: 2025-09-15 12:34:40,177 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,030 - INFO - Split 12: 2025-09-15 12:34:39,363 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,030 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,030 - INFO - Split 4: 2025-09-15 12:34:22,028 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,030 - INFO - Split 11: 2025-09-15 12:34:36,102 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,030 - INFO - Split 6: 2025-09-15 12:34:26,485 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,029 - INFO - Split 3: 2025-09-15 12:34:19,867 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,030 - INFO - Split 2: 2025-09-15 12:34:17,875 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,030 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,030 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,031 - INFO - Split 5: 2025-09-15 12:34:25,147 - INFO -   Extended warmup 4/5: 70.65ms - Success
+2025-09-15 12:34:42,031 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,031 - INFO - Split 0: 2025-09-15 12:34:13,237 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:42,031 - INFO - Split 9: 2025-09-15 12:34:33,697 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:34:42,031 - INFO - Split 13: 2025-09-15 12:34:40,177 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,031 - INFO - Split 12: 2025-09-15 12:34:39,531 - INFO -   Extended warmup 1/5: 167.27ms - Success
+2025-09-15 12:34:42,031 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,031 - INFO - Split 4: 2025-09-15 12:34:22,028 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,031 - INFO - Split 11: 2025-09-15 12:34:36,102 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,031 - INFO - Split 6: 2025-09-15 12:34:26,936 - INFO -   Warmup 1/1: 451.21ms
+2025-09-15 12:34:42,031 - INFO - Split 3: 2025-09-15 12:34:19,867 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,031 - INFO - Split 2: 2025-09-15 12:34:17,875 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,031 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,031 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,032 - INFO - Split 5: 2025-09-15 12:34:25,212 - INFO -   Extended warmup 5/5: 64.72ms - Success
+2025-09-15 12:34:42,032 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,032 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,032 - INFO - Split 13: 2025-09-15 12:34:40,177 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,032 - INFO - Split 12: 2025-09-15 12:34:39,716 - INFO -   Extended warmup 2/5: 184.66ms - Success
+2025-09-15 12:34:42,032 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,032 - INFO - Split 4: 2025-09-15 12:34:22,029 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,032 - INFO - Split 11: 2025-09-15 12:34:36,103 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,032 - INFO - Split 6: 2025-09-15 12:34:26,939 - INFO - Warmup completed! Average time: 451.21ms
+2025-09-15 12:34:42,032 - INFO - Split 3: 2025-09-15 12:34:19,867 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,032 - INFO - Split 2: 2025-09-15 12:34:17,875 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,032 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,032 - INFO - Split 1: 2025-09-15 12:34:15,647 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,032 - INFO - Split 5: 2025-09-15 12:34:25,212 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 68.71ms (14.6 FPS)
+2025-09-15 12:34:42,033 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,033 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,033 - INFO - Split 13: 2025-09-15 12:34:40,177 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,033 - INFO - Split 12: 2025-09-15 12:34:39,882 - INFO -   Extended warmup 3/5: 165.27ms - Success
+2025-09-15 12:34:42,033 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,033 - INFO - Split 4: 2025-09-15 12:34:22,029 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,033 - INFO - Split 11: 2025-09-15 12:34:36,103 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,033 - INFO - Split 6: 2025-09-15 12:34:26,939 - INFO - Final warmup time: 451.21ms (2.2 FPS)
+2025-09-15 12:34:42,033 - INFO - Split 3: 2025-09-15 12:34:19,867 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,033 - INFO - Split 2: 2025-09-15 12:34:17,875 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,033 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,033 - INFO - Split 1: 2025-09-15 12:34:16,059 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,033 - INFO - Split 5: 2025-09-15 12:34:25,215 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,033 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,034 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,034 - INFO - Split 13: 2025-09-15 12:34:40,177 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,034 - INFO - Split 12: 2025-09-15 12:34:40,048 - INFO -   Extended warmup 4/5: 166.69ms - Success
+2025-09-15 12:34:42,034 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,034 - INFO - Split 4: 2025-09-15 12:34:22,029 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,034 - INFO - Split 11: 2025-09-15 12:34:36,103 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,034 - INFO - Split 6: 2025-09-15 12:34:26,940 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,034 - INFO - Split 3: 2025-09-15 12:34:19,867 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,034 - INFO - Split 2: 2025-09-15 12:34:17,875 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,034 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,034 - INFO - Split 1: 2025-09-15 12:34:16,059 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,034 - INFO - Split 5: 2025-09-15 12:34:25,215 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,034 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,035 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,035 - INFO - Split 13: 2025-09-15 12:34:40,177 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,035 - INFO - Split 12: 2025-09-15 12:34:40,221 - INFO -   Extended warmup 5/5: 172.67ms - Success
+2025-09-15 12:34:42,035 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,035 - INFO - Split 4: 2025-09-15 12:34:22,029 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,035 - INFO - Split 11: 2025-09-15 12:34:36,103 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,035 - INFO - Split 6: 2025-09-15 12:34:27,034 - INFO -   Extended warmup 1/5: 93.07ms - Success
+2025-09-15 12:34:42,035 - INFO - Split 3: 2025-09-15 12:34:19,867 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,035 - INFO - Split 2: 2025-09-15 12:34:17,875 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,035 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,035 - INFO - Split 1: 2025-09-15 12:34:16,408 - INFO -   Warmup 1/1: 349.30ms
+2025-09-15 12:34:42,035 - INFO - Split 5: 2025-09-15 12:34:25,215 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,035 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,035 - INFO - Split 13: 2025-09-15 12:34:40,177 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,035 - INFO - Split 12: 2025-09-15 12:34:40,221 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 168.21ms (5.9 FPS)
+2025-09-15 12:34:42,035 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,034 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,036 - INFO - Split 4: 2025-09-15 12:34:22,029 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,036 - INFO - Split 11: 2025-09-15 12:34:36,103 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,036 - INFO - Split 6: 2025-09-15 12:34:27,131 - INFO -   Extended warmup 2/5: 97.14ms - Success
+2025-09-15 12:34:42,036 - INFO - Split 3: 2025-09-15 12:34:20,375 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,036 - INFO - Split 2: 2025-09-15 12:34:17,875 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,036 - INFO - Split 7: 2025-09-15 12:34:28,027 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,036 - INFO - Split 1: 2025-09-15 12:34:16,411 - INFO - Warmup completed! Average time: 349.30ms
+2025-09-15 12:34:42,036 - INFO - Split 5: 2025-09-15 12:34:25,238 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,036 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,036 - INFO - Split 13: 2025-09-15 12:34:40,177 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,036 - INFO - Split 12: 2025-09-15 12:34:40,224 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,036 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,036 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,036 - INFO - Split 4: 2025-09-15 12:34:22,029 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,036 - INFO - Split 11: 2025-09-15 12:34:36,103 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,037 - INFO - Split 6: 2025-09-15 12:34:27,228 - INFO -   Extended warmup 3/5: 96.55ms - Success
+2025-09-15 12:34:42,037 - INFO - Split 3: 2025-09-15 12:34:20,375 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,037 - INFO - Split 2: 2025-09-15 12:34:18,332 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,037 - INFO - Split 7: 2025-09-15 12:34:28,602 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,037 - INFO - Split 1: 2025-09-15 12:34:16,411 - INFO - Final warmup time: 349.30ms (2.9 FPS)
+2025-09-15 12:34:42,037 - INFO - Split 5: 2025-09-15 12:34:25,238 - INFO - Processing human-accident_fall-down_rgb_0957_cctv2.mp4...
+2025-09-15 12:34:42,037 - INFO - Split 8: 2025-09-15 12:34:29,893 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,037 - INFO - Split 13: 2025-09-15 12:34:40,177 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,037 - INFO - Split 12: 2025-09-15 12:34:40,224 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,037 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,037 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,037 - INFO - Split 4: 2025-09-15 12:34:22,029 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,037 - INFO - Split 11: 2025-09-15 12:34:36,103 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,037 - INFO - Split 6: 2025-09-15 12:34:27,320 - INFO -   Extended warmup 4/5: 92.31ms - Success
+2025-09-15 12:34:42,037 - INFO - Split 3: 2025-09-15 12:34:20,792 - INFO -   Warmup 1/1: 416.41ms
+2025-09-15 12:34:42,037 - INFO - Split 2: 2025-09-15 12:34:18,332 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,037 - INFO - Split 7: 2025-09-15 12:34:28,602 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,038 - INFO - Split 1: 2025-09-15 12:34:16,412 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,038 - INFO - Split 5: 2025-09-15 12:34:25,238 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_5/videos/falldown/human-accident_fall-down_rgb_0957_cctv2.mp4
+2025-09-15 12:34:42,038 - INFO - Split 8: 2025-09-15 12:34:30,451 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,038 - INFO - Split 13: 2025-09-15 12:34:40,817 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,038 - INFO - Split 12: 2025-09-15 12:34:40,224 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,038 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,039 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,038 - INFO - Split 4: 2025-09-15 12:34:22,550 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,038 - INFO - Split 11: 2025-09-15 12:34:36,700 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,039 - INFO - Split 6: 2025-09-15 12:34:27,417 - INFO -   Extended warmup 5/5: 96.97ms - Success
+2025-09-15 12:34:42,039 - INFO - Split 3: 2025-09-15 12:34:20,795 - INFO - Warmup completed! Average time: 416.41ms
+2025-09-15 12:34:42,039 - INFO - Split 2: 2025-09-15 12:34:18,717 - INFO -   Warmup 1/1: 384.30ms
+2025-09-15 12:34:42,039 - INFO - Split 7: 2025-09-15 12:34:29,045 - INFO -   Warmup 1/1: 442.54ms
+2025-09-15 12:34:42,039 - INFO - Split 1: 2025-09-15 12:34:16,425 - INFO -   Extended warmup 1/5: 11.87ms - Success
+2025-09-15 12:34:42,039 - INFO - Split 5: 2025-09-15 12:34:25,316 - INFO - Video info: 370 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:34:42,039 - INFO - Split 8: 2025-09-15 12:34:30,451 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,039 - INFO - Split 13: 2025-09-15 12:34:40,817 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,039 - INFO - Split 12: 2025-09-15 12:34:40,248 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,039 - INFO - Split 10: 2025-09-15 12:34:34,174 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,038 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,039 - INFO - Split 4: 2025-09-15 12:34:22,550 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,039 - INFO - Split 11: 2025-09-15 12:34:36,700 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,039 - INFO - Split 6: 2025-09-15 12:34:27,417 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 95.28ms (10.5 FPS)
+2025-09-15 12:34:42,039 - INFO - Split 3: 2025-09-15 12:34:20,795 - INFO - Final warmup time: 416.41ms (2.4 FPS)
+2025-09-15 12:34:42,039 - INFO - Split 2: 2025-09-15 12:34:18,720 - INFO - Warmup completed! Average time: 384.30ms
+2025-09-15 12:34:42,039 - INFO - Split 7: 2025-09-15 12:34:29,048 - INFO - Warmup completed! Average time: 442.54ms
+2025-09-15 12:34:42,040 - INFO - Split 1: 2025-09-15 12:34:16,446 - INFO -   Extended warmup 2/5: 21.05ms - Success
+2025-09-15 12:34:42,040 - INFO - Split 8: 2025-09-15 12:34:30,911 - INFO -   Warmup 1/1: 459.44ms
+2025-09-15 12:34:42,040 - INFO - Split 13: 2025-09-15 12:34:41,323 - INFO -   Warmup 1/1: 506.22ms
+2025-09-15 12:34:42,040 - INFO - Split 12: 2025-09-15 12:34:40,248 - INFO - Processing 4fY0Iv4t_0.avi...
+2025-09-15 12:34:42,040 - INFO - Split 10: 2025-09-15 12:34:34,799 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,040 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,040 - INFO - Split 4: 2025-09-15 12:34:22,929 - INFO -   Warmup 1/1: 379.28ms
+2025-09-15 12:34:42,040 - INFO - Split 11: 2025-09-15 12:34:37,184 - INFO -   Warmup 1/1: 483.63ms
+2025-09-15 12:34:42,041 - INFO - Split 11: 2025-09-15 12:34:37,187 - INFO - Warmup completed! Average time: 483.63ms
+2025-09-15 12:34:42,040 - INFO - Split 3: 2025-09-15 12:34:20,795 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,040 - INFO - Split 2: 2025-09-15 12:34:18,720 - INFO - Final warmup time: 384.30ms (2.6 FPS)
+2025-09-15 12:34:42,040 - INFO - Split 7: 2025-09-15 12:34:29,048 - INFO - Final warmup time: 442.54ms (2.3 FPS)
+2025-09-15 12:34:42,040 - INFO - Split 1: 2025-09-15 12:34:16,474 - INFO -   Extended warmup 3/5: 27.64ms - Success
+2025-09-15 12:34:42,040 - INFO - Split 8: 2025-09-15 12:34:30,914 - INFO - Warmup completed! Average time: 459.44ms
+2025-09-15 12:34:42,041 - INFO - Split 13: 2025-09-15 12:34:41,327 - INFO - Warmup completed! Average time: 506.22ms
+2025-09-15 12:34:42,041 - INFO - Split 12: 2025-09-15 12:34:40,248 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/videos/normal/4fY0Iv4t_0.avi
+2025-09-15 12:34:42,041 - INFO - Split 10: 2025-09-15 12:34:34,799 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,041 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,041 - INFO - Split 4: 2025-09-15 12:34:22,933 - INFO - Warmup completed! Average time: 379.28ms
+2025-09-15 12:34:42,041 - INFO - Split 11: 2025-09-15 12:34:37,187 - INFO - Final warmup time: 483.63ms (2.1 FPS)
+2025-09-15 12:34:42,042 - INFO - Split 11: 2025-09-15 12:34:37,187 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,041 - INFO - Split 3: 2025-09-15 12:34:20,844 - INFO -   Extended warmup 1/5: 47.56ms - Success
+2025-09-15 12:34:42,041 - INFO - Split 2: 2025-09-15 12:34:18,720 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,041 - INFO - Split 7: 2025-09-15 12:34:29,048 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,041 - INFO - Split 1: 2025-09-15 12:34:16,492 - INFO -   Extended warmup 4/5: 18.57ms - Success
+2025-09-15 12:34:42,041 - INFO - Split 8: 2025-09-15 12:34:30,914 - INFO - Final warmup time: 459.44ms (2.2 FPS)
+2025-09-15 12:34:42,041 - INFO - Split 13: 2025-09-15 12:34:41,327 - INFO - Final warmup time: 506.22ms (2.0 FPS)
+2025-09-15 12:34:42,041 - INFO - Split 12: 2025-09-15 12:34:40,267 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:34:42,041 - INFO - Split 10: 2025-09-15 12:34:35,258 - INFO -   Warmup 1/1: 458.73ms
+2025-09-15 12:34:42,041 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,042 - INFO - Split 4: 2025-09-15 12:34:22,933 - INFO - Final warmup time: 379.28ms (2.6 FPS)
+2025-09-15 12:34:42,042 - INFO - Split 11: 2025-09-15 12:34:37,328 - INFO -   Extended warmup 1/5: 139.86ms - Success
+2025-09-15 12:34:42,040 - INFO - Split 6: 2025-09-15 12:34:27,420 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,042 - INFO - Split 3: 2025-09-15 12:34:20,889 - INFO -   Extended warmup 2/5: 45.04ms - Success
+2025-09-15 12:34:42,042 - INFO - Split 2: 2025-09-15 12:34:18,756 - INFO -   Extended warmup 1/5: 35.11ms - Success
+2025-09-15 12:34:42,042 - INFO - Split 7: 2025-09-15 12:34:29,144 - INFO -   Extended warmup 1/5: 94.81ms - Success
+2025-09-15 12:34:42,042 - INFO - Split 1: 2025-09-15 12:34:16,502 - INFO -   Extended warmup 5/5: 9.96ms - Success
+2025-09-15 12:34:42,042 - INFO - Split 8: 2025-09-15 12:34:30,914 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,042 - INFO - Split 13: 2025-09-15 12:34:41,327 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,042 - INFO - Split 10: 2025-09-15 12:34:35,261 - INFO - Warmup completed! Average time: 458.73ms
+2025-09-15 12:34:42,042 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,042 - INFO - Split 4: 2025-09-15 12:34:22,933 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,042 - INFO - Split 11: 2025-09-15 12:34:37,468 - INFO -   Extended warmup 2/5: 140.24ms - Success
+2025-09-15 12:34:42,043 - INFO - Split 6: 2025-09-15 12:34:27,420 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,043 - INFO - Split 3: 2025-09-15 12:34:20,936 - INFO -   Extended warmup 3/5: 47.37ms - Success
+2025-09-15 12:34:42,043 - INFO - Split 2: 2025-09-15 12:34:18,804 - INFO -   Extended warmup 2/5: 48.13ms - Success
+2025-09-15 12:34:42,043 - INFO - Split 7: 2025-09-15 12:34:29,235 - INFO -   Extended warmup 2/5: 90.79ms - Success
+2025-09-15 12:34:42,043 - INFO - Split 1: 2025-09-15 12:34:16,503 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 18.72ms (53.4 FPS)
+2025-09-15 12:34:42,043 - INFO - Split 8: 2025-09-15 12:34:31,036 - INFO -   Extended warmup 1/5: 121.44ms - Success
+2025-09-15 12:34:42,043 - INFO - Split 13: 2025-09-15 12:34:41,494 - INFO -   Extended warmup 1/5: 165.91ms - Success
+2025-09-15 12:34:42,043 - INFO - Split 10: 2025-09-15 12:34:35,261 - INFO - Final warmup time: 458.73ms (2.2 FPS)
+2025-09-15 12:34:42,043 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,043 - INFO - Split 4: 2025-09-15 12:34:23,007 - INFO -   Extended warmup 1/5: 72.89ms - Success
+2025-09-15 12:34:42,043 - INFO - Split 11: 2025-09-15 12:34:37,609 - INFO -   Extended warmup 3/5: 140.85ms - Success
+2025-09-15 12:34:42,043 - INFO - Split 6: 2025-09-15 12:34:27,420 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,043 - INFO - Split 3: 2025-09-15 12:34:20,983 - INFO -   Extended warmup 4/5: 46.80ms - Success
+2025-09-15 12:34:42,043 - INFO - Split 2: 2025-09-15 12:34:18,850 - INFO -   Extended warmup 3/5: 45.35ms - Success
+2025-09-15 12:34:42,043 - INFO - Split 7: 2025-09-15 12:34:29,331 - INFO -   Extended warmup 3/5: 95.85ms - Success
+2025-09-15 12:34:42,044 - INFO - Split 1: 2025-09-15 12:34:16,505 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,044 - INFO - Split 8: 2025-09-15 12:34:31,156 - INFO -   Extended warmup 2/5: 119.18ms - Success
+2025-09-15 12:34:42,044 - INFO - Split 13: 2025-09-15 12:34:41,659 - INFO -   Extended warmup 2/5: 165.42ms - Success
+2025-09-15 12:34:42,044 - INFO - Split 10: 2025-09-15 12:34:35,261 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,044 - INFO - Split 0: 2025-09-15 12:34:13,646 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,044 - INFO - Split 4: 2025-09-15 12:34:23,079 - INFO -   Extended warmup 2/5: 71.81ms - Success
+2025-09-15 12:34:42,044 - INFO - Split 11: 2025-09-15 12:34:37,752 - INFO -   Extended warmup 4/5: 142.53ms - Success
+2025-09-15 12:34:42,044 - INFO - Split 6: 2025-09-15 12:34:27,444 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,044 - INFO - Split 3: 2025-09-15 12:34:21,015 - INFO -   Extended warmup 5/5: 31.32ms - Success
+2025-09-15 12:34:42,044 - INFO - Split 2: 2025-09-15 12:34:18,895 - INFO -   Extended warmup 4/5: 44.70ms - Success
+2025-09-15 12:34:42,044 - INFO - Split 7: 2025-09-15 12:34:29,423 - INFO -   Extended warmup 4/5: 92.51ms - Success
+2025-09-15 12:34:42,044 - INFO - Split 1: 2025-09-15 12:34:16,505 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,044 - INFO - Split 8: 2025-09-15 12:34:31,272 - INFO -   Extended warmup 3/5: 116.25ms - Success
+2025-09-15 12:34:42,044 - INFO - Split 13: 2025-09-15 12:34:41,819 - INFO -   Extended warmup 3/5: 159.19ms - Success
+2025-09-15 12:34:42,044 - INFO - Split 10: 2025-09-15 12:34:35,404 - INFO -   Extended warmup 1/5: 141.81ms - Success
+2025-09-15 12:34:42,044 - INFO - Split 0: 2025-09-15 12:34:14,063 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,045 - INFO - Split 4: 2025-09-15 12:34:23,147 - INFO -   Extended warmup 3/5: 68.57ms - Success
+2025-09-15 12:34:42,045 - INFO - Split 11: 2025-09-15 12:34:37,890 - INFO -   Extended warmup 5/5: 138.17ms - Success
+2025-09-15 12:34:42,045 - INFO - Split 6: 2025-09-15 12:34:27,444 - INFO - Processing human-accident_fall-down_rgb_1120_cctv2.mp4...
+2025-09-15 12:34:42,045 - INFO - Split 3: 2025-09-15 12:34:21,015 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 41.83ms (23.9 FPS)
+2025-09-15 12:34:42,045 - INFO - Split 2: 2025-09-15 12:34:18,942 - INFO -   Extended warmup 5/5: 47.88ms - Success
+2025-09-15 12:34:42,045 - INFO - Split 7: 2025-09-15 12:34:29,528 - INFO -   Extended warmup 5/5: 104.57ms - Success
+2025-09-15 12:34:42,045 - INFO - Split 1: 2025-09-15 12:34:16,505 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,045 - INFO - Split 8: 2025-09-15 12:34:31,394 - INFO -   Extended warmup 4/5: 121.33ms - Success
+2025-09-15 12:34:42,045 - INFO - Split 13: 2025-09-15 12:34:41,982 - INFO -   Extended warmup 4/5: 163.60ms - Success
+2025-09-15 12:34:42,045 - INFO - Split 10: 2025-09-15 12:34:35,548 - INFO -   Extended warmup 2/5: 143.63ms - Success
+2025-09-15 12:34:42,045 - INFO - Split 0: 2025-09-15 12:34:14,063 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:42,045 - INFO - Split 4: 2025-09-15 12:34:23,220 - INFO -   Extended warmup 4/5: 72.56ms - Success
+2025-09-15 12:34:42,045 - INFO - Split 11: 2025-09-15 12:34:37,890 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 140.52ms (7.1 FPS)
+2025-09-15 12:34:42,045 - INFO - Split 6: 2025-09-15 12:34:27,444 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_6/videos/falldown/human-accident_fall-down_rgb_1120_cctv2.mp4
+2025-09-15 12:34:42,046 - INFO - Split 3: 2025-09-15 12:34:21,017 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,046 - INFO - Split 2: 2025-09-15 12:34:18,943 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 45.98ms (21.8 FPS)
+2025-09-15 12:34:42,046 - INFO - Split 7: 2025-09-15 12:34:29,528 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 97.64ms (10.2 FPS)
+2025-09-15 12:34:42,046 - INFO - Split 1: 2025-09-15 12:34:16,529 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,046 - INFO - Split 8: 2025-09-15 12:34:31,515 - INFO -   Extended warmup 5/5: 120.82ms - Success
+2025-09-15 12:34:42,046 - INFO - Split 10: 2025-09-15 12:34:35,688 - INFO -   Extended warmup 3/5: 140.69ms - Success
+2025-09-15 12:34:42,046 - INFO - Split 0: 2025-09-15 12:34:14,401 - INFO -   Warmup 1/1: 338.28ms
+2025-09-15 12:34:42,046 - INFO - Split 4: 2025-09-15 12:34:23,293 - INFO -   Extended warmup 5/5: 72.48ms - Success
+2025-09-15 12:34:42,046 - INFO - Split 11: 2025-09-15 12:34:37,893 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,046 - INFO - Split 6: 2025-09-15 12:34:27,529 - INFO - Video info: 415 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:34:42,046 - INFO - Split 3: 2025-09-15 12:34:21,017 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,046 - INFO - Split 2: 2025-09-15 12:34:18,945 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,046 - INFO - Split 7: 2025-09-15 12:34:29,531 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,046 - INFO - Split 1: 2025-09-15 12:34:16,529 - INFO - Processing human-accident_fall-down_rgb_0083_cctv4.mp4...
+2025-09-15 12:34:42,046 - INFO - Split 8: 2025-09-15 12:34:31,515 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 119.47ms (8.4 FPS)
+2025-09-15 12:34:42,047 - INFO - Split 10: 2025-09-15 12:34:35,829 - INFO -   Extended warmup 4/5: 140.71ms - Success
+2025-09-15 12:34:42,047 - INFO - Split 0: 2025-09-15 12:34:14,405 - INFO - Warmup completed! Average time: 338.28ms
+2025-09-15 12:34:42,047 - INFO - Split 4: 2025-09-15 12:34:23,293 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 71.20ms (14.0 FPS)
+2025-09-15 12:34:42,047 - INFO - Split 11: 2025-09-15 12:34:37,893 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,047 - INFO - Split 3: 2025-09-15 12:34:21,017 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,047 - INFO - Split 2: 2025-09-15 12:34:18,945 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,047 - INFO - Split 7: 2025-09-15 12:34:29,531 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,047 - INFO - Split 1: 2025-09-15 12:34:16,529 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_1/videos/falldown/human-accident_fall-down_rgb_0083_cctv4.mp4
+2025-09-15 12:34:42,047 - INFO - Split 8: 2025-09-15 12:34:31,517 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,047 - INFO - Split 10: 2025-09-15 12:34:35,973 - INFO -   Extended warmup 5/5: 143.61ms - Success
+2025-09-15 12:34:42,047 - INFO - Split 0: 2025-09-15 12:34:14,405 - INFO - Final warmup time: 338.28ms (3.0 FPS)
+2025-09-15 12:34:42,047 - INFO - Split 4: 2025-09-15 12:34:23,295 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,047 - INFO - Split 11: 2025-09-15 12:34:37,893 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,047 - INFO - Split 3: 2025-09-15 12:34:21,041 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,048 - INFO - Split 2: 2025-09-15 12:34:18,945 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,048 - INFO - Split 7: 2025-09-15 12:34:29,531 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,048 - INFO - Split 1: 2025-09-15 12:34:16,616 - INFO - Video info: 428 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:34:42,048 - INFO - Split 8: 2025-09-15 12:34:31,517 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,048 - INFO - Split 10: 2025-09-15 12:34:35,973 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 141.67ms (7.1 FPS)
+2025-09-15 12:34:42,048 - INFO - Split 0: 2025-09-15 12:34:14,405 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:42,048 - INFO - Split 4: 2025-09-15 12:34:23,295 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,048 - INFO - Split 11: 2025-09-15 12:34:37,918 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,048 - INFO - Split 3: 2025-09-15 12:34:21,041 - INFO - Processing human-accident_fall-down_rgb_0444_cctv3.mp4...
+2025-09-15 12:34:42,048 - INFO - Split 2: 2025-09-15 12:34:18,970 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,048 - INFO - Split 7: 2025-09-15 12:34:29,561 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,048 - INFO - Split 8: 2025-09-15 12:34:31,517 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,048 - INFO - Split 10: 2025-09-15 12:34:35,975 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,048 - INFO - Split 0: 2025-09-15 12:34:14,416 - INFO -   Extended warmup 1/5: 10.39ms - Success
+2025-09-15 12:34:42,048 - INFO - Split 4: 2025-09-15 12:34:23,295 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,049 - INFO - Split 11: 2025-09-15 12:34:37,918 - INFO - Processing 3TQqO4N8_0.avi...
+2025-09-15 12:34:42,049 - INFO - Split 3: 2025-09-15 12:34:21,041 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_3/videos/falldown/human-accident_fall-down_rgb_0444_cctv3.mp4
+2025-09-15 12:34:42,049 - INFO - Split 2: 2025-09-15 12:34:18,970 - INFO - Processing human-accident_fall-down_rgb_0285_cctv2.mp4...
+2025-09-15 12:34:42,049 - INFO - Split 7: 2025-09-15 12:34:29,561 - INFO - Processing human-accident_fall-down_rgb_1219_cctv2.mp4...
+2025-09-15 12:34:42,049 - INFO - Split 8: 2025-09-15 12:34:31,541 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,049 - INFO - Split 10: 2025-09-15 12:34:35,975 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,049 - INFO - Split 0: 2025-09-15 12:34:14,426 - INFO -   Extended warmup 2/5: 9.35ms - Success
+2025-09-15 12:34:42,049 - INFO - Split 4: 2025-09-15 12:34:23,319 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,049 - INFO - Split 11: 2025-09-15 12:34:37,918 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/videos/normal/3TQqO4N8_0.avi
+2025-09-15 12:34:42,049 - INFO - Split 3: 2025-09-15 12:34:21,132 - INFO - Video info: 357 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:34:42,049 - INFO - Split 2: 2025-09-15 12:34:18,970 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_2/videos/falldown/human-accident_fall-down_rgb_0285_cctv2.mp4
+2025-09-15 12:34:42,049 - INFO - Split 7: 2025-09-15 12:34:29,561 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_7/videos/falldown/human-accident_fall-down_rgb_1219_cctv2.mp4
+2025-09-15 12:34:42,049 - INFO - Split 8: 2025-09-15 12:34:31,541 - INFO - Processing 0GGPb4iO_0.avi...
+2025-09-15 12:34:42,049 - INFO - Split 10: 2025-09-15 12:34:35,976 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,049 - INFO - Split 0: 2025-09-15 12:34:14,435 - INFO -   Extended warmup 3/5: 9.35ms - Success
+2025-09-15 12:34:42,050 - INFO - Split 4: 2025-09-15 12:34:23,319 - INFO - Processing human-accident_fall-down_rgb_0599_cctv3.mp4...
+2025-09-15 12:34:42,050 - INFO - Split 11: 2025-09-15 12:34:37,943 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:34:42,050 - INFO - Split 2: 2025-09-15 12:34:19,068 - INFO - Video info: 345 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:34:42,050 - INFO - Split 7: 2025-09-15 12:34:29,731 - INFO - Video info: 371 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:34:42,050 - INFO - Split 8: 2025-09-15 12:34:31,541 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/videos/normal/0GGPb4iO_0.avi
+2025-09-15 12:34:42,050 - INFO - Split 10: 2025-09-15 12:34:35,999 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,050 - INFO - Split 0: 2025-09-15 12:34:14,444 - INFO -   Extended warmup 4/5: 9.26ms - Success
+2025-09-15 12:34:42,050 - INFO - Split 4: 2025-09-15 12:34:23,319 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_4/videos/falldown/human-accident_fall-down_rgb_0599_cctv3.mp4
+2025-09-15 12:34:42,050 - INFO - Split 8: 2025-09-15 12:34:31,567 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:34:42,050 - INFO - Split 10: 2025-09-15 12:34:35,999 - INFO - Processing 1r91ACCe_0.avi...
+2025-09-15 12:34:42,050 - INFO - Split 0: 2025-09-15 12:34:14,454 - INFO -   Extended warmup 5/5: 9.28ms - Success
+2025-09-15 12:34:42,050 - INFO - Split 4: 2025-09-15 12:34:23,399 - INFO - Video info: 324 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:34:42,051 - INFO - Split 10: 2025-09-15 12:34:35,999 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/videos/normal/1r91ACCe_0.avi
+2025-09-15 12:34:42,051 - INFO - Split 0: 2025-09-15 12:34:14,454 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 9.29ms (107.6 FPS)
+2025-09-15 12:34:42,051 - INFO - Split 10: 2025-09-15 12:34:36,030 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:34:42,051 - INFO - Split 0: 2025-09-15 12:34:14,456 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,051 - INFO - Split 0: 2025-09-15 12:34:14,456 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,051 - INFO - Split 0: 2025-09-15 12:34:14,456 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,051 - INFO - Split 0: 2025-09-15 12:34:14,481 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,051 - INFO - Split 0: 2025-09-15 12:34:14,481 - INFO - Processing human-accident_fall-down_rgb_0014_cctv4.mp4...
+2025-09-15 12:34:42,051 - INFO - Split 0: 2025-09-15 12:34:14,481 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_0/videos/falldown/human-accident_fall-down_rgb_0014_cctv4.mp4
+2025-09-15 12:34:42,051 - INFO - Split 0: 2025-09-15 12:34:14,574 - INFO - Video info: 438 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:34:42,146 - INFO - Split 13: 2025-09-15 12:34:42,146 - INFO -   Extended warmup 5/5: 163.67ms - Success
+2025-09-15 12:34:42,146 - INFO - Split 13: 2025-09-15 12:34:42,146 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 162.15ms (6.2 FPS)
+2025-09-15 12:34:42,149 - INFO - Split 13: 2025-09-15 12:34:42,149 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:42,149 - INFO - Split 13: 2025-09-15 12:34:42,149 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:42,149 - INFO - Split 13: 2025-09-15 12:34:42,149 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:42,175 - INFO - Split 13: 2025-09-15 12:34:42,175 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:42,175 - INFO - Split 13: 2025-09-15 12:34:42,175 - INFO - Processing 6JmCJbug_0.avi...
+2025-09-15 12:34:42,175 - INFO - Split 13: 2025-09-15 12:34:42,175 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/videos/normal/6JmCJbug_0.avi
+2025-09-15 12:34:42,194 - INFO - Split 13: 2025-09-15 12:34:42,194 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:34:42,291 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:42,291 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:42,291 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:42,291 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:42,291 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Common modules initialized successfully
+2025-09-15 12:34:42,291 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:42,291 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:42,291 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:42,291 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:42,291 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Model name from config: stgcn
+2025-09-15 12:34:42,291 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:42,292 - INFO - Split 14: 2025-09-15 12:34:42,291 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:42,292 - INFO - Split 14: 2025-09-15 12:34:42,292 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:42,984 - INFO - Split 14: 2025-09-15 12:34:42,983 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:42,984 - INFO - Split 14: 2025-09-15 12:34:42,983 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:43,531 - INFO - Split 14: 2025-09-15 12:34:43,531 - INFO -   Warmup 1/1: 547.05ms
+2025-09-15 12:34:43,534 - INFO - Split 14: 2025-09-15 12:34:43,534 - INFO - Warmup completed! Average time: 547.05ms
+2025-09-15 12:34:43,534 - INFO - Split 14: 2025-09-15 12:34:43,534 - INFO - Final warmup time: 547.05ms (1.8 FPS)
+2025-09-15 12:34:43,534 - INFO - Split 14: 2025-09-15 12:34:43,534 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:43,648 - INFO - Split 15: 2025-09-15 12:34:43,648 - WARNING - TensorRT not available
+2025-09-15 12:34:43,649 - INFO - Split 15: 2025-09-15 12:34:43,648 - INFO - Registered pose_estimator module: rtmo
+2025-09-15 12:34:43,649 - INFO - Split 15: 2025-09-15 12:34:43,649 - INFO - Registered pose_estimator module: rtmo_onnx
+2025-09-15 12:34:43,649 - INFO - Split 15: 2025-09-15 12:34:43,649 - INFO - Registered pose_estimator module: rtmo_tensorrt
+2025-09-15 12:34:43,652 - INFO - Split 15: 2025-09-15 12:34:43,652 - INFO - Registered tracker module: bytetrack
+2025-09-15 12:34:43,653 - INFO - Split 15: 2025-09-15 12:34:43,653 - INFO - Registered scorer module: region_based
+2025-09-15 12:34:43,653 - INFO - Split 15: 2025-09-15 12:34:43,653 - INFO - Registered scorer module: movement_based
+2025-09-15 12:34:43,654 - INFO - Split 15: 2025-09-15 12:34:43,654 - INFO - Registered scorer module: falldown_scorer
+2025-09-15 12:34:43,676 - INFO - Split 15: 2025-09-15 12:34:43,676 - INFO - Registered classifier module: stgcn
+2025-09-15 12:34:43,677 - INFO - Split 15: 2025-09-15 12:34:43,677 - INFO - Registered window_processor module: sliding_window
+2025-09-15 12:34:43,677 - INFO - Split 15: 2025-09-15 12:34:43,677 - INFO - All modules registered successfully
+2025-09-15 12:34:43,677 - INFO - Split 15: 2025-09-15 12:34:43,677 - INFO - === EXECUTING MODE: annotation.stage1 ===
+2025-09-15 12:34:43,677 - INFO - Split 15: 2025-09-15 12:34:43,677 - INFO - Executing mode: annotation.stage1
+2025-09-15 12:34:43,679 - INFO - Split 15: 2025-09-15 12:34:43,679 - INFO - Created stage1 output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:43,679 - INFO - Split 15: 2025-09-15 12:34:43,679 - INFO - Stage 1: Processing poses from /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/videos
+2025-09-15 12:34:43,679 - INFO - Split 15: 2025-09-15 12:34:43,679 - INFO - Output directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/videos/stage1_poses/unknown_s0.2_n0.65
+2025-09-15 12:34:43,681 - INFO - Split 15: 2025-09-15 12:34:43,681 - INFO - Saved path info: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/videos/stage1_poses/unknown_s0.2_n0.65/stage1_path_info.json
+2025-09-15 12:34:43,708 - INFO - Split 15: 2025-09-15 12:34:43,708 - INFO - Found 8 video files to process
+2025-09-15 12:34:43,708 - INFO - Split 15: 2025-09-15 12:34:43,708 - INFO - Using DualServicePipeline for 8 videos
+2025-09-15 12:34:43,715 - INFO - Split 15: 2025-09-15 12:34:43,715 - INFO - Using single service mode for stage1: falldown
+2025-09-15 12:34:43,715 - INFO - Split 15: 2025-09-15 12:34:43,715 - INFO - Single service pipeline initialized with services: ['falldown']
+2025-09-15 12:34:43,715 - INFO - Split 15: 2025-09-15 12:34:43,715 - INFO - Initializing dual service pipeline...
+2025-09-15 12:34:43,726 - INFO - Split 14: 2025-09-15 12:34:43,725 - INFO -   Extended warmup 1/5: 190.26ms - Success
+2025-09-15 12:34:43,939 - INFO - Split 14: 2025-09-15 12:34:43,939 - INFO -   Extended warmup 2/5: 202.10ms - Success
+2025-09-15 12:34:44,129 - INFO - Split 14: 2025-09-15 12:34:44,129 - INFO -   Extended warmup 3/5: 190.19ms - Success
+2025-09-15 12:34:44,320 - INFO - Split 14: 2025-09-15 12:34:44,320 - INFO -   Extended warmup 4/5: 190.35ms - Success
+2025-09-15 12:34:44,334 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Created pose_estimator module instance: rtmo_onnx
+2025-09-15 12:34:44,334 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Created tracker module instance: bytetrack
+2025-09-15 12:34:44,334 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Initialized WindowProcessor: mode=realtime, window_size=100, stride=50, buffer_size=150
+2025-09-15 12:34:44,334 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Created window_processor module instance: sliding_window
+2025-09-15 12:34:44,334 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Common modules initialized successfully
+2025-09-15 12:34:44,335 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Initializing falldown service modules...
+2025-09-15 12:34:44,335 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Falldown scorer initialized successfully
+2025-09-15 12:34:44,335 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Created scorer module instance: falldown_scorer
+2025-09-15 12:34:44,335 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Creating falldown classifier with config keys: ['checkpoint_path', 'class_names', 'confidence_threshold', 'config_file', 'coordinate_dimensions', 'device', 'expected_keypoint_count', 'input_format', 'max_persons', 'model_name', 'num_classes', 'window_size']
+2025-09-15 12:34:44,335 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Model name from config: stgcn
+2025-09-15 12:34:44,335 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Creating falldown classifier with name: stgcn
+2025-09-15 12:34:44,335 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Created classifier module instance: stgcn
+2025-09-15 12:34:44,336 - INFO - Split 15: 2025-09-15 12:34:44,334 - INFO - Loading ST-GCN++ model from /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+2025-09-15 12:34:44,514 - INFO - Split 14: 2025-09-15 12:34:44,513 - INFO -   Extended warmup 5/5: 193.75ms - Success
+2025-09-15 12:34:44,514 - INFO - Split 14: 2025-09-15 12:34:44,514 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 191.43ms (5.2 FPS)
+2025-09-15 12:34:44,517 - INFO - Split 14: 2025-09-15 12:34:44,517 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:44,517 - INFO - Split 14: 2025-09-15 12:34:44,517 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:44,517 - INFO - Split 14: 2025-09-15 12:34:44,517 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:44,541 - INFO - Split 14: 2025-09-15 12:34:44,541 - INFO - Processing 13 video files for stage1...
+2025-09-15 12:34:44,541 - INFO - Split 14: 2025-09-15 12:34:44,541 - INFO - Processing 86lUShJD_0.avi...
+2025-09-15 12:34:44,541 - INFO - Split 14: 2025-09-15 12:34:44,541 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/videos/normal/86lUShJD_0.avi
+2025-09-15 12:34:44,560 - INFO - Split 14: 2025-09-15 12:34:44,560 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:34:44,966 - INFO - Split 15: 2025-09-15 12:34:44,966 - INFO - Starting STGCN model warmup...
+2025-09-15 12:34:44,966 - INFO - Split 15: 2025-09-15 12:34:44,966 - INFO - Performing 1 warmup iterations...
+2025-09-15 12:34:45,473 - INFO - Split 15: 2025-09-15 12:34:45,473 - INFO -   Warmup 1/1: 506.56ms
+2025-09-15 12:34:45,476 - INFO - Split 15: 2025-09-15 12:34:45,476 - INFO - Warmup completed! Average time: 506.56ms
+2025-09-15 12:34:45,476 - INFO - Split 15: 2025-09-15 12:34:45,476 - INFO - Final warmup time: 506.56ms (2.0 FPS)
+2025-09-15 12:34:45,476 - INFO - Split 15: 2025-09-15 12:34:45,476 - INFO - Optimizing GPU performance...
+2025-09-15 12:34:45,667 - INFO - Split 15: 2025-09-15 12:34:45,667 - INFO -   Extended warmup 1/5: 189.39ms - Success
+2025-09-15 12:34:45,857 - INFO - Split 15: 2025-09-15 12:34:45,857 - INFO -   Extended warmup 2/5: 190.53ms - Success
+2025-09-15 12:34:46,041 - INFO - Split 15: 2025-09-15 12:34:46,040 - INFO -   Extended warmup 3/5: 183.13ms - Success
+2025-09-15 12:34:46,229 - INFO - Split 15: 2025-09-15 12:34:46,229 - INFO -   Extended warmup 4/5: 188.04ms - Success
+2025-09-15 12:34:46,419 - INFO - Split 15: 2025-09-15 12:34:46,419 - INFO -   Extended warmup 5/5: 189.53ms - Success
+2025-09-15 12:34:46,419 - INFO - Split 15: 2025-09-15 12:34:46,419 - INFO - GPU optimization completed! Successful runs: 5/5, Stable performance: 186.90ms (5.4 FPS)
+2025-09-15 12:34:46,421 - INFO - Split 15: 2025-09-15 12:34:46,421 - INFO - ST-GCN++ classifier initialized successfully
+2025-09-15 12:34:46,422 - INFO - Split 15: 2025-09-15 12:34:46,421 - INFO - falldown service modules initialized successfully
+2025-09-15 12:34:46,422 - INFO - Split 15: 2025-09-15 12:34:46,421 - INFO - Dual service pipeline initialization completed successfully
+2025-09-15 12:34:46,446 - INFO - Split 15: 2025-09-15 12:34:46,446 - INFO - Processing 8 video files for stage1...
+2025-09-15 12:34:46,446 - INFO - Split 15: 2025-09-15 12:34:46,446 - INFO - Processing 9Jss3rP1_0.avi...
+2025-09-15 12:34:46,446 - INFO - Split 15: 2025-09-15 12:34:46,446 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/videos/normal/9Jss3rP1_0.avi
+2025-09-15 12:34:46,472 - INFO - Split 15: 2025-09-15 12:34:46,472 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:35:58,470 - INFO - Split 8: 2025-09-15 12:35:58,470 - INFO - End of video file reached
+2025-09-15 12:35:58,477 - INFO - Split 8: 2025-09-15 12:35:58,477 - INFO - Annotation stage1 completed for 0GGPb4iO_0: 150 frames processed
+2025-09-15 12:35:58,477 - INFO - Split 8: 2025-09-15 12:35:58,477 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/videos/stage1_poses/unknown_s0.2_n0.65/0GGPb4iO_0_stage1_poses.pkl
+2025-09-15 12:35:58,477 - INFO - Split 8: 2025-09-15 12:35:58,477 - INFO - ✓ Completed: 0GGPb4iO_0.avi
+2025-09-15 12:35:58,477 - INFO - Split 8: 2025-09-15 12:35:58,477 - INFO - Processing 0H2s9UJcNJ0_1.avi...
+2025-09-15 12:35:58,477 - INFO - Split 8: 2025-09-15 12:35:58,477 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/videos/normal/0H2s9UJcNJ0_1.avi
+2025-09-15 12:35:58,483 - INFO - Split 8: 2025-09-15 12:35:58,483 - INFO - Video info: 150 frames, 30.00 FPS, 1280x720
+2025-09-15 12:35:59,262 - INFO - Split 9: 2025-09-15 12:35:59,262 - INFO - End of video file reached
+2025-09-15 12:35:59,270 - INFO - Split 9: 2025-09-15 12:35:59,270 - INFO - Annotation stage1 completed for 0xoSMgad_0: 150 frames processed
+2025-09-15 12:35:59,270 - INFO - Split 9: 2025-09-15 12:35:59,270 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/videos/stage1_poses/unknown_s0.2_n0.65/0xoSMgad_0_stage1_poses.pkl
+2025-09-15 12:35:59,270 - INFO - Split 9: 2025-09-15 12:35:59,270 - INFO - ✓ Completed: 0xoSMgad_0.avi
+2025-09-15 12:35:59,270 - INFO - Split 9: 2025-09-15 12:35:59,270 - INFO - Processing 11vr9Jho_0.avi...
+2025-09-15 12:35:59,270 - INFO - Split 9: 2025-09-15 12:35:59,270 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/videos/normal/11vr9Jho_0.avi
+2025-09-15 12:35:59,274 - INFO - Split 9: 2025-09-15 12:35:59,274 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:36:03,863 - INFO - Split 10: 2025-09-15 12:36:03,862 - INFO - End of video file reached
+2025-09-15 12:36:03,864 - INFO - Split 10: 2025-09-15 12:36:03,864 - INFO - Annotation stage1 completed for 1r91ACCe_0: 150 frames processed
+2025-09-15 12:36:03,865 - INFO - Split 10: 2025-09-15 12:36:03,864 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/videos/stage1_poses/unknown_s0.2_n0.65/1r91ACCe_0_stage1_poses.pkl
+2025-09-15 12:36:03,865 - INFO - Split 10: 2025-09-15 12:36:03,865 - INFO - ✓ Completed: 1r91ACCe_0.avi
+2025-09-15 12:36:03,865 - INFO - Split 10: 2025-09-15 12:36:03,865 - INFO - Processing 1tU4kxa51vw_0.avi...
+2025-09-15 12:36:03,865 - INFO - Split 10: 2025-09-15 12:36:03,865 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/videos/normal/1tU4kxa51vw_0.avi
+2025-09-15 12:36:03,868 - INFO - Split 10: 2025-09-15 12:36:03,868 - INFO - Video info: 150 frames, 30.00 FPS, 640x360
+2025-09-15 12:36:05,598 - INFO - Split 11: 2025-09-15 12:36:05,598 - INFO - End of video file reached
+2025-09-15 12:36:05,601 - INFO - Split 11: 2025-09-15 12:36:05,601 - INFO - Annotation stage1 completed for 3TQqO4N8_0: 150 frames processed
+2025-09-15 12:36:05,601 - INFO - Split 11: 2025-09-15 12:36:05,601 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/videos/stage1_poses/unknown_s0.2_n0.65/3TQqO4N8_0_stage1_poses.pkl
+2025-09-15 12:36:05,601 - INFO - Split 11: 2025-09-15 12:36:05,601 - INFO - ✓ Completed: 3TQqO4N8_0.avi
+2025-09-15 12:36:05,601 - INFO - Split 11: 2025-09-15 12:36:05,601 - INFO - Processing 3Vw7MoNBgx4_1.avi...
+2025-09-15 12:36:05,601 - INFO - Split 11: 2025-09-15 12:36:05,601 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/videos/normal/3Vw7MoNBgx4_1.avi
+2025-09-15 12:36:05,613 - INFO - Split 11: 2025-09-15 12:36:05,613 - INFO - Video info: 150 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:36:10,537 - INFO - Split 1: 2025-09-15 12:36:10,537 - INFO - End of video file reached
+2025-09-15 12:36:10,549 - INFO - Split 1: 2025-09-15 12:36:10,549 - INFO - Annotation stage1 completed for human-accident_fall-down_rgb_0083_cctv4: 428 frames processed
+2025-09-15 12:36:10,549 - INFO - Split 1: 2025-09-15 12:36:10,549 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_1/videos/stage1_poses/unknown_s0.2_n0.65/human-accident_fall-down_rgb_0083_cctv4_stage1_poses.pkl
+2025-09-15 12:36:10,549 - INFO - Split 1: 2025-09-15 12:36:10,549 - INFO - ✓ Completed: human-accident_fall-down_rgb_0083_cctv4.mp4
+2025-09-15 12:36:10,549 - INFO - Split 1: 2025-09-15 12:36:10,549 - INFO - Processing human-accident_fall-down_rgb_0092_cctv2.mp4...
+2025-09-15 12:36:10,549 - INFO - Split 1: 2025-09-15 12:36:10,549 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_1/videos/falldown/human-accident_fall-down_rgb_0092_cctv2.mp4
+2025-09-15 12:36:10,615 - INFO - Split 1: 2025-09-15 12:36:10,615 - INFO - Video info: 424 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:36:11,090 - INFO - Split 12: 2025-09-15 12:36:11,090 - INFO - End of video file reached
+2025-09-15 12:36:11,104 - INFO - Split 12: 2025-09-15 12:36:11,103 - INFO - Annotation stage1 completed for 4fY0Iv4t_0: 150 frames processed
+2025-09-15 12:36:11,104 - INFO - Split 12: 2025-09-15 12:36:11,104 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/videos/stage1_poses/unknown_s0.2_n0.65/4fY0Iv4t_0_stage1_poses.pkl
+2025-09-15 12:36:11,104 - INFO - Split 12: 2025-09-15 12:36:11,104 - INFO - ✓ Completed: 4fY0Iv4t_0.avi
+2025-09-15 12:36:11,104 - INFO - Split 12: 2025-09-15 12:36:11,104 - INFO - Processing 4grE6XdY_0.avi...
+2025-09-15 12:36:11,104 - INFO - Split 12: 2025-09-15 12:36:11,104 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/videos/normal/4grE6XdY_0.avi
+2025-09-15 12:36:11,108 - INFO - Split 12: 2025-09-15 12:36:11,108 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:36:11,332 - INFO - Split 13: 2025-09-15 12:36:11,332 - INFO - End of video file reached
+2025-09-15 12:36:11,339 - INFO - Split 13: 2025-09-15 12:36:11,339 - INFO - Annotation stage1 completed for 6JmCJbug_0: 150 frames processed
+2025-09-15 12:36:11,339 - INFO - Split 13: 2025-09-15 12:36:11,339 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/videos/stage1_poses/unknown_s0.2_n0.65/6JmCJbug_0_stage1_poses.pkl
+2025-09-15 12:36:11,339 - INFO - Split 13: 2025-09-15 12:36:11,339 - INFO - ✓ Completed: 6JmCJbug_0.avi
+2025-09-15 12:36:11,339 - INFO - Split 13: 2025-09-15 12:36:11,339 - INFO - Processing 6MSwCc0a_0.avi...
+2025-09-15 12:36:11,339 - INFO - Split 13: 2025-09-15 12:36:11,339 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/videos/normal/6MSwCc0a_0.avi
+2025-09-15 12:36:11,342 - INFO - Split 13: 2025-09-15 12:36:11,342 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:36:15,332 - INFO - Split 14: 2025-09-15 12:36:15,331 - INFO - End of video file reached
+2025-09-15 12:36:15,337 - INFO - Split 14: 2025-09-15 12:36:15,337 - INFO - Annotation stage1 completed for 86lUShJD_0: 150 frames processed
+2025-09-15 12:36:15,337 - INFO - Split 14: 2025-09-15 12:36:15,337 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/videos/stage1_poses/unknown_s0.2_n0.65/86lUShJD_0_stage1_poses.pkl
+2025-09-15 12:36:15,337 - INFO - Split 14: 2025-09-15 12:36:15,337 - INFO - ✓ Completed: 86lUShJD_0.avi
+2025-09-15 12:36:15,337 - INFO - Split 14: 2025-09-15 12:36:15,337 - INFO - Processing 8MuRpAyP_0.avi...
+2025-09-15 12:36:15,337 - INFO - Split 14: 2025-09-15 12:36:15,337 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/videos/normal/8MuRpAyP_0.avi
+2025-09-15 12:36:15,340 - INFO - Split 14: 2025-09-15 12:36:15,340 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:36:16,149 - INFO - Split 15: 2025-09-15 12:36:16,149 - INFO - End of video file reached
+2025-09-15 12:36:16,155 - INFO - Split 15: 2025-09-15 12:36:16,155 - INFO - Annotation stage1 completed for 9Jss3rP1_0: 150 frames processed
+2025-09-15 12:36:16,156 - INFO - Split 15: 2025-09-15 12:36:16,155 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/videos/stage1_poses/unknown_s0.2_n0.65/9Jss3rP1_0_stage1_poses.pkl
+2025-09-15 12:36:16,156 - INFO - Split 15: 2025-09-15 12:36:16,156 - INFO - ✓ Completed: 9Jss3rP1_0.avi
+2025-09-15 12:36:16,156 - INFO - Split 15: 2025-09-15 12:36:16,156 - INFO - Processing 9N4HikpX_0.avi...
+2025-09-15 12:36:16,156 - INFO - Split 15: 2025-09-15 12:36:16,156 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/videos/normal/9N4HikpX_0.avi
+2025-09-15 12:36:16,159 - INFO - Split 15: 2025-09-15 12:36:16,159 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:36:18,369 - INFO - Split 0: 2025-09-15 12:36:18,369 - INFO - End of video file reached
+2025-09-15 12:36:18,381 - INFO - Split 0: 2025-09-15 12:36:18,381 - INFO - Annotation stage1 completed for human-accident_fall-down_rgb_0014_cctv4: 438 frames processed
+2025-09-15 12:36:18,381 - INFO - Split 0: 2025-09-15 12:36:18,381 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_0/videos/stage1_poses/unknown_s0.2_n0.65/human-accident_fall-down_rgb_0014_cctv4_stage1_poses.pkl
+2025-09-15 12:36:18,381 - INFO - Split 0: 2025-09-15 12:36:18,381 - INFO - ✓ Completed: human-accident_fall-down_rgb_0014_cctv4.mp4
+2025-09-15 12:36:18,381 - INFO - Split 0: 2025-09-15 12:36:18,381 - INFO - Processing human-accident_fall-down_rgb_0016_cctv4.mp4...
+2025-09-15 12:36:18,381 - INFO - Split 0: 2025-09-15 12:36:18,381 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_0/videos/falldown/human-accident_fall-down_rgb_0016_cctv4.mp4
+2025-09-15 12:36:18,434 - INFO - Split 0: 2025-09-15 12:36:18,433 - INFO - Video info: 403 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:37:20,045 - INFO - Split 2: 2025-09-15 12:37:20,045 - INFO - End of video file reached
+2025-09-15 12:37:20,057 - INFO - Split 2: 2025-09-15 12:37:20,057 - INFO - Annotation stage1 completed for human-accident_fall-down_rgb_0285_cctv2: 345 frames processed
+2025-09-15 12:37:20,057 - INFO - Split 2: 2025-09-15 12:37:20,057 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_2/videos/stage1_poses/unknown_s0.2_n0.65/human-accident_fall-down_rgb_0285_cctv2_stage1_poses.pkl
+2025-09-15 12:37:20,057 - INFO - Split 2: 2025-09-15 12:37:20,057 - INFO - ✓ Completed: human-accident_fall-down_rgb_0285_cctv2.mp4
+2025-09-15 12:37:20,057 - INFO - Split 2: 2025-09-15 12:37:20,057 - INFO - Processing human-accident_fall-down_rgb_0286_cctv3.mp4...
+2025-09-15 12:37:20,057 - INFO - Split 2: 2025-09-15 12:37:20,057 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_2/videos/falldown/human-accident_fall-down_rgb_0286_cctv3.mp4
+2025-09-15 12:37:20,120 - INFO - Split 2: 2025-09-15 12:37:20,120 - INFO - Video info: 326 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:37:23,465 - INFO - Split 4: 2025-09-15 12:37:23,465 - INFO - End of video file reached
+2025-09-15 12:37:23,473 - INFO - Split 4: 2025-09-15 12:37:23,473 - INFO - Annotation stage1 completed for human-accident_fall-down_rgb_0599_cctv3: 324 frames processed
+2025-09-15 12:37:23,474 - INFO - Split 4: 2025-09-15 12:37:23,473 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_4/videos/stage1_poses/unknown_s0.2_n0.65/human-accident_fall-down_rgb_0599_cctv3_stage1_poses.pkl
+2025-09-15 12:37:23,474 - INFO - Split 4: 2025-09-15 12:37:23,474 - INFO - ✓ Completed: human-accident_fall-down_rgb_0599_cctv3.mp4
+2025-09-15 12:37:23,474 - INFO - Split 4: 2025-09-15 12:37:23,474 - INFO - Processing human-accident_fall-down_rgb_0608_cctv1.mp4...
+2025-09-15 12:37:23,474 - INFO - Split 4: 2025-09-15 12:37:23,474 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_4/videos/falldown/human-accident_fall-down_rgb_0608_cctv1.mp4
+2025-09-15 12:37:23,540 - INFO - Split 4: 2025-09-15 12:37:23,540 - INFO - Video info: 370 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:37:25,937 - INFO - Split 9: 2025-09-15 12:37:25,937 - INFO - End of video file reached
+2025-09-15 12:37:25,939 - INFO - Split 9: 2025-09-15 12:37:25,939 - INFO - Annotation stage1 completed for 11vr9Jho_0: 150 frames processed
+2025-09-15 12:37:25,939 - INFO - Split 9: 2025-09-15 12:37:25,939 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/videos/stage1_poses/unknown_s0.2_n0.65/11vr9Jho_0_stage1_poses.pkl
+2025-09-15 12:37:25,939 - INFO - Split 9: 2025-09-15 12:37:25,939 - INFO - ✓ Completed: 11vr9Jho_0.avi
+2025-09-15 12:37:25,939 - INFO - Split 9: 2025-09-15 12:37:25,939 - INFO - Processing 14YZVngQ_0.avi...
+2025-09-15 12:37:25,940 - INFO - Split 9: 2025-09-15 12:37:25,939 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/videos/normal/14YZVngQ_0.avi
+2025-09-15 12:37:25,944 - INFO - Split 9: 2025-09-15 12:37:25,944 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:37:27,594 - INFO - Split 3: 2025-09-15 12:37:27,594 - INFO - End of video file reached
+2025-09-15 12:37:27,604 - INFO - Split 3: 2025-09-15 12:37:27,604 - INFO - Annotation stage1 completed for human-accident_fall-down_rgb_0444_cctv3: 357 frames processed
+2025-09-15 12:37:27,604 - INFO - Split 3: 2025-09-15 12:37:27,604 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_3/videos/stage1_poses/unknown_s0.2_n0.65/human-accident_fall-down_rgb_0444_cctv3_stage1_poses.pkl
+2025-09-15 12:37:27,604 - INFO - Split 3: 2025-09-15 12:37:27,604 - INFO - ✓ Completed: human-accident_fall-down_rgb_0444_cctv3.mp4
+2025-09-15 12:37:27,604 - INFO - Split 3: 2025-09-15 12:37:27,604 - INFO - Processing human-accident_fall-down_rgb_0445_cctv3.mp4...
+2025-09-15 12:37:27,604 - INFO - Split 3: 2025-09-15 12:37:27,604 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_3/videos/falldown/human-accident_fall-down_rgb_0445_cctv3.mp4
+2025-09-15 12:37:27,670 - INFO - Split 3: 2025-09-15 12:37:27,670 - INFO - Video info: 314 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:37:29,588 - INFO - Split 8: 2025-09-15 12:37:29,588 - INFO - End of video file reached
+2025-09-15 12:37:29,603 - INFO - Split 8: 2025-09-15 12:37:29,603 - INFO - Annotation stage1 completed for 0H2s9UJcNJ0_1: 150 frames processed
+2025-09-15 12:37:29,603 - INFO - Split 8: 2025-09-15 12:37:29,603 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/videos/stage1_poses/unknown_s0.2_n0.65/0H2s9UJcNJ0_1_stage1_poses.pkl
+2025-09-15 12:37:29,603 - INFO - Split 8: 2025-09-15 12:37:29,603 - INFO - ✓ Completed: 0H2s9UJcNJ0_1.avi
+2025-09-15 12:37:29,604 - INFO - Split 8: 2025-09-15 12:37:29,603 - INFO - Processing 0NqPsSHdri8_0.avi...
+2025-09-15 12:37:29,604 - INFO - Split 8: 2025-09-15 12:37:29,603 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/videos/normal/0NqPsSHdri8_0.avi
+2025-09-15 12:37:29,608 - INFO - Split 8: 2025-09-15 12:37:29,607 - INFO - Video info: 150 frames, 30.00 FPS, 480x360
+2025-09-15 12:37:34,037 - INFO - Split 11: 2025-09-15 12:37:34,037 - INFO - End of video file reached
+2025-09-15 12:37:34,039 - INFO - Split 11: 2025-09-15 12:37:34,039 - INFO - Annotation stage1 completed for 3Vw7MoNBgx4_1: 150 frames processed
+2025-09-15 12:37:34,040 - INFO - Split 11: 2025-09-15 12:37:34,039 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/videos/stage1_poses/unknown_s0.2_n0.65/3Vw7MoNBgx4_1_stage1_poses.pkl
+2025-09-15 12:37:34,040 - INFO - Split 11: 2025-09-15 12:37:34,039 - INFO - ✓ Completed: 3Vw7MoNBgx4_1.avi
+2025-09-15 12:37:34,040 - INFO - Split 11: 2025-09-15 12:37:34,040 - INFO - Processing 3ZY4hpms_0.avi...
+2025-09-15 12:37:34,040 - INFO - Split 11: 2025-09-15 12:37:34,040 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/videos/normal/3ZY4hpms_0.avi
+2025-09-15 12:37:34,058 - INFO - Split 11: 2025-09-15 12:37:34,058 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:37:34,604 - INFO - Split 10: 2025-09-15 12:37:34,604 - INFO - End of video file reached
+2025-09-15 12:37:34,615 - INFO - Split 10: 2025-09-15 12:37:34,615 - INFO - Annotation stage1 completed for 1tU4kxa51vw_0: 150 frames processed
+2025-09-15 12:37:34,616 - INFO - Split 10: 2025-09-15 12:37:34,615 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/videos/stage1_poses/unknown_s0.2_n0.65/1tU4kxa51vw_0_stage1_poses.pkl
+2025-09-15 12:37:34,616 - INFO - Split 10: 2025-09-15 12:37:34,616 - INFO - ✓ Completed: 1tU4kxa51vw_0.avi
+2025-09-15 12:37:34,616 - INFO - Split 10: 2025-09-15 12:37:34,616 - INFO - Processing 1tU4kxa51vw_2.avi...
+2025-09-15 12:37:34,616 - INFO - Split 10: 2025-09-15 12:37:34,616 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/videos/normal/1tU4kxa51vw_2.avi
+2025-09-15 12:37:34,620 - INFO - Split 10: 2025-09-15 12:37:34,619 - INFO - Video info: 150 frames, 30.00 FPS, 640x360
+2025-09-15 12:37:41,758 - INFO - Split 13: 2025-09-15 12:37:41,758 - INFO - End of video file reached
+2025-09-15 12:37:41,768 - INFO - Split 13: 2025-09-15 12:37:41,768 - INFO - Annotation stage1 completed for 6MSwCc0a_0: 150 frames processed
+2025-09-15 12:37:41,768 - INFO - Split 13: 2025-09-15 12:37:41,768 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/videos/stage1_poses/unknown_s0.2_n0.65/6MSwCc0a_0_stage1_poses.pkl
+2025-09-15 12:37:41,768 - INFO - Split 13: 2025-09-15 12:37:41,768 - INFO - ✓ Completed: 6MSwCc0a_0.avi
+2025-09-15 12:37:41,768 - INFO - Split 13: 2025-09-15 12:37:41,768 - INFO - Processing 6YmBBzyX_0.avi...
+2025-09-15 12:37:41,768 - INFO - Split 13: 2025-09-15 12:37:41,768 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/videos/normal/6YmBBzyX_0.avi
+2025-09-15 12:37:41,772 - INFO - Split 13: 2025-09-15 12:37:41,772 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:37:41,970 - INFO - Split 12: 2025-09-15 12:37:41,970 - INFO - End of video file reached
+2025-09-15 12:37:41,986 - INFO - Split 12: 2025-09-15 12:37:41,986 - INFO - Annotation stage1 completed for 4grE6XdY_0: 150 frames processed
+2025-09-15 12:37:41,986 - INFO - Split 12: 2025-09-15 12:37:41,986 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/videos/stage1_poses/unknown_s0.2_n0.65/4grE6XdY_0_stage1_poses.pkl
+2025-09-15 12:37:41,987 - INFO - Split 12: 2025-09-15 12:37:41,986 - INFO - ✓ Completed: 4grE6XdY_0.avi
+2025-09-15 12:37:41,987 - INFO - Split 12: 2025-09-15 12:37:41,987 - INFO - Processing 4jZvTj4j_0.avi...
+2025-09-15 12:37:41,987 - INFO - Split 12: 2025-09-15 12:37:41,987 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/videos/normal/4jZvTj4j_0.avi
+2025-09-15 12:37:41,991 - INFO - Split 12: 2025-09-15 12:37:41,990 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:37:45,853 - INFO - Split 15: 2025-09-15 12:37:45,853 - INFO - End of video file reached
+2025-09-15 12:37:45,856 - INFO - Split 15: 2025-09-15 12:37:45,856 - INFO - Annotation stage1 completed for 9N4HikpX_0: 150 frames processed
+2025-09-15 12:37:45,856 - INFO - Split 15: 2025-09-15 12:37:45,856 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/videos/stage1_poses/unknown_s0.2_n0.65/9N4HikpX_0_stage1_poses.pkl
+2025-09-15 12:37:45,856 - INFO - Split 15: 2025-09-15 12:37:45,856 - INFO - ✓ Completed: 9N4HikpX_0.avi
+2025-09-15 12:37:45,856 - INFO - Split 15: 2025-09-15 12:37:45,856 - INFO - Processing 9haGKtHJ_0.avi...
+2025-09-15 12:37:45,856 - INFO - Split 15: 2025-09-15 12:37:45,856 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/videos/normal/9haGKtHJ_0.avi
+2025-09-15 12:37:45,860 - INFO - Split 15: 2025-09-15 12:37:45,860 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:37:46,027 - INFO - Split 14: 2025-09-15 12:37:46,027 - INFO - End of video file reached
+2025-09-15 12:37:46,032 - INFO - Split 14: 2025-09-15 12:37:46,032 - INFO - Annotation stage1 completed for 8MuRpAyP_0: 150 frames processed
+2025-09-15 12:37:46,032 - INFO - Split 14: 2025-09-15 12:37:46,032 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/videos/stage1_poses/unknown_s0.2_n0.65/8MuRpAyP_0_stage1_poses.pkl
+2025-09-15 12:37:46,033 - INFO - Split 14: 2025-09-15 12:37:46,033 - INFO - ✓ Completed: 8MuRpAyP_0.avi
+2025-09-15 12:37:46,033 - INFO - Split 14: 2025-09-15 12:37:46,033 - INFO - Processing 8PuNOqvh_0.avi...
+2025-09-15 12:37:46,033 - INFO - Split 14: 2025-09-15 12:37:46,033 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/videos/normal/8PuNOqvh_0.avi
+2025-09-15 12:37:46,036 - INFO - Split 14: 2025-09-15 12:37:46,036 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:37:51,901 - INFO - Split 5: 2025-09-15 12:37:51,901 - INFO - End of video file reached
+2025-09-15 12:37:51,913 - INFO - Split 5: 2025-09-15 12:37:51,913 - INFO - Annotation stage1 completed for human-accident_fall-down_rgb_0957_cctv2: 370 frames processed
+2025-09-15 12:37:51,913 - INFO - Split 5: 2025-09-15 12:37:51,913 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_5/videos/stage1_poses/unknown_s0.2_n0.65/human-accident_fall-down_rgb_0957_cctv2_stage1_poses.pkl
+2025-09-15 12:37:51,913 - INFO - Split 5: 2025-09-15 12:37:51,913 - INFO - ✓ Completed: human-accident_fall-down_rgb_0957_cctv2.mp4
+2025-09-15 12:37:51,913 - INFO - Split 5: 2025-09-15 12:37:51,913 - INFO - Processing human-accident_fall-down_rgb_0967_cctv4.mp4...
+2025-09-15 12:37:51,913 - INFO - Split 5: 2025-09-15 12:37:51,913 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_5/videos/falldown/human-accident_fall-down_rgb_0967_cctv4.mp4
+2025-09-15 12:37:51,952 - INFO - Split 5: 2025-09-15 12:37:51,952 - INFO - Video info: 341 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:38:04,482 - INFO - Split 7: 2025-09-15 12:38:04,482 - INFO - End of video file reached
+2025-09-15 12:38:04,492 - INFO - Split 7: 2025-09-15 12:38:04,492 - INFO - Annotation stage1 completed for human-accident_fall-down_rgb_1219_cctv2: 371 frames processed
+2025-09-15 12:38:04,492 - INFO - Split 7: 2025-09-15 12:38:04,492 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_7/videos/stage1_poses/unknown_s0.2_n0.65/human-accident_fall-down_rgb_1219_cctv2_stage1_poses.pkl
+2025-09-15 12:38:04,492 - INFO - Split 7: 2025-09-15 12:38:04,492 - INFO - ✓ Completed: human-accident_fall-down_rgb_1219_cctv2.mp4
+2025-09-15 12:38:04,492 - INFO - Split 7: 2025-09-15 12:38:04,492 - INFO - Processing human-accident_fall-down_rgb_1235_cctv1.mp4...
+2025-09-15 12:38:04,492 - INFO - Split 7: 2025-09-15 12:38:04,492 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_7/videos/falldown/human-accident_fall-down_rgb_1235_cctv1.mp4
+2025-09-15 12:38:04,552 - INFO - Split 7: 2025-09-15 12:38:04,552 - INFO - Video info: 334 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:38:30,647 - INFO - Split 6: 2025-09-15 12:38:30,647 - INFO - End of video file reached
+2025-09-15 12:38:30,661 - INFO - Split 6: 2025-09-15 12:38:30,661 - INFO - Annotation stage1 completed for human-accident_fall-down_rgb_1120_cctv2: 415 frames processed
+2025-09-15 12:38:30,661 - INFO - Split 6: 2025-09-15 12:38:30,661 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_6/videos/stage1_poses/unknown_s0.2_n0.65/human-accident_fall-down_rgb_1120_cctv2_stage1_poses.pkl
+2025-09-15 12:38:30,661 - INFO - Split 6: 2025-09-15 12:38:30,661 - INFO - ✓ Completed: human-accident_fall-down_rgb_1120_cctv2.mp4
+2025-09-15 12:38:30,661 - INFO - Split 6: 2025-09-15 12:38:30,661 - INFO - Processing human-accident_fall-down_rgb_1130_cctv4.mp4...
+2025-09-15 12:38:30,661 - INFO - Split 6: 2025-09-15 12:38:30,661 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_6/videos/falldown/human-accident_fall-down_rgb_1130_cctv4.mp4
+2025-09-15 12:38:30,722 - INFO - Split 6: 2025-09-15 12:38:30,722 - INFO - Video info: 335 frames, 30.00 FPS, 1920x1080
+2025-09-15 12:38:56,597 - INFO - Split 9: 2025-09-15 12:38:56,596 - INFO - End of video file reached
+2025-09-15 12:38:56,610 - INFO - Split 9: 2025-09-15 12:38:56,609 - INFO - Annotation stage1 completed for 14YZVngQ_0: 150 frames processed
+2025-09-15 12:38:56,610 - INFO - Split 9: 2025-09-15 12:38:56,610 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/videos/stage1_poses/unknown_s0.2_n0.65/14YZVngQ_0_stage1_poses.pkl
+2025-09-15 12:38:56,610 - INFO - Split 9: 2025-09-15 12:38:56,610 - INFO - ✓ Completed: 14YZVngQ_0.avi
+2025-09-15 12:38:56,610 - INFO - Split 9: 2025-09-15 12:38:56,610 - INFO - Processing 16O0PIQP_0.avi...
+2025-09-15 12:38:56,610 - INFO - Split 9: 2025-09-15 12:38:56,610 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_9/videos/normal/16O0PIQP_0.avi
+2025-09-15 12:38:56,614 - INFO - Split 9: 2025-09-15 12:38:56,614 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:39:00,358 - INFO - Split 8: 2025-09-15 12:39:00,358 - INFO - End of video file reached
+2025-09-15 12:39:00,362 - INFO - Split 8: 2025-09-15 12:39:00,362 - INFO - Annotation stage1 completed for 0NqPsSHdri8_0: 150 frames processed
+2025-09-15 12:39:00,362 - INFO - Split 8: 2025-09-15 12:39:00,362 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/videos/stage1_poses/unknown_s0.2_n0.65/0NqPsSHdri8_0_stage1_poses.pkl
+2025-09-15 12:39:00,362 - INFO - Split 8: 2025-09-15 12:39:00,362 - INFO - ✓ Completed: 0NqPsSHdri8_0.avi
+2025-09-15 12:39:00,362 - INFO - Split 8: 2025-09-15 12:39:00,362 - INFO - Processing 0QSeuqzpcOQ_0.avi...
+2025-09-15 12:39:00,362 - INFO - Split 8: 2025-09-15 12:39:00,362 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_8/videos/normal/0QSeuqzpcOQ_0.avi
+2025-09-15 12:39:00,381 - INFO - Split 8: 2025-09-15 12:39:00,381 - INFO - Video info: 150 frames, 30.00 FPS, 1280x720
+2025-09-15 12:39:04,475 - INFO - Split 11: 2025-09-15 12:39:04,475 - INFO - End of video file reached
+2025-09-15 12:39:04,482 - INFO - Split 11: 2025-09-15 12:39:04,482 - INFO - Annotation stage1 completed for 3ZY4hpms_0: 150 frames processed
+2025-09-15 12:39:04,482 - INFO - Split 11: 2025-09-15 12:39:04,482 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/videos/stage1_poses/unknown_s0.2_n0.65/3ZY4hpms_0_stage1_poses.pkl
+2025-09-15 12:39:04,482 - INFO - Split 11: 2025-09-15 12:39:04,482 - INFO - ✓ Completed: 3ZY4hpms_0.avi
+2025-09-15 12:39:04,482 - INFO - Split 11: 2025-09-15 12:39:04,482 - INFO - Processing 3djtKN3k_0.avi...
+2025-09-15 12:39:04,482 - INFO - Split 11: 2025-09-15 12:39:04,482 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_11/videos/normal/3djtKN3k_0.avi
+2025-09-15 12:39:04,486 - INFO - Split 11: 2025-09-15 12:39:04,486 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:39:05,448 - INFO - Split 10: 2025-09-15 12:39:05,448 - INFO - End of video file reached
+2025-09-15 12:39:05,458 - INFO - Split 10: 2025-09-15 12:39:05,458 - INFO - Annotation stage1 completed for 1tU4kxa51vw_2: 150 frames processed
+2025-09-15 12:39:05,458 - INFO - Split 10: 2025-09-15 12:39:05,458 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/videos/stage1_poses/unknown_s0.2_n0.65/1tU4kxa51vw_2_stage1_poses.pkl
+2025-09-15 12:39:05,458 - INFO - Split 10: 2025-09-15 12:39:05,458 - INFO - ✓ Completed: 1tU4kxa51vw_2.avi
+2025-09-15 12:39:05,458 - INFO - Split 10: 2025-09-15 12:39:05,458 - INFO - Processing 2KMf6p5Q_0.avi...
+2025-09-15 12:39:05,458 - INFO - Split 10: 2025-09-15 12:39:05,458 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_10/videos/normal/2KMf6p5Q_0.avi
+2025-09-15 12:39:05,462 - INFO - Split 10: 2025-09-15 12:39:05,462 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:39:11,095 - INFO - Split 12: 2025-09-15 12:39:11,095 - INFO - End of video file reached
+2025-09-15 12:39:11,099 - INFO - Split 12: 2025-09-15 12:39:11,099 - INFO - Annotation stage1 completed for 4jZvTj4j_0: 150 frames processed
+2025-09-15 12:39:11,099 - INFO - Split 12: 2025-09-15 12:39:11,099 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/videos/stage1_poses/unknown_s0.2_n0.65/4jZvTj4j_0_stage1_poses.pkl
+2025-09-15 12:39:11,099 - INFO - Split 12: 2025-09-15 12:39:11,099 - INFO - ✓ Completed: 4jZvTj4j_0.avi
+2025-09-15 12:39:11,099 - INFO - Split 12: 2025-09-15 12:39:11,099 - INFO - Processing 4x9VdiCc_0.avi...
+2025-09-15 12:39:11,099 - INFO - Split 12: 2025-09-15 12:39:11,099 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_12/videos/normal/4x9VdiCc_0.avi
+2025-09-15 12:39:11,103 - INFO - Split 12: 2025-09-15 12:39:11,103 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:39:12,389 - INFO - Split 13: 2025-09-15 12:39:12,389 - INFO - End of video file reached
+2025-09-15 12:39:12,399 - INFO - Split 13: 2025-09-15 12:39:12,399 - INFO - Annotation stage1 completed for 6YmBBzyX_0: 150 frames processed
+2025-09-15 12:39:12,399 - INFO - Split 13: 2025-09-15 12:39:12,399 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/videos/stage1_poses/unknown_s0.2_n0.65/6YmBBzyX_0_stage1_poses.pkl
+2025-09-15 12:39:12,400 - INFO - Split 13: 2025-09-15 12:39:12,400 - INFO - ✓ Completed: 6YmBBzyX_0.avi
+2025-09-15 12:39:12,400 - INFO - Split 13: 2025-09-15 12:39:12,400 - INFO - Processing 6b254l7P_0.avi...
+2025-09-15 12:39:12,400 - INFO - Split 13: 2025-09-15 12:39:12,400 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_13/videos/normal/6b254l7P_0.avi
+2025-09-15 12:39:12,404 - INFO - Split 13: 2025-09-15 12:39:12,403 - INFO - Video info: 150 frames, 30.00 FPS, 320x240
+2025-09-15 12:39:15,895 - INFO - Split 14: 2025-09-15 12:39:15,894 - INFO - End of video file reached
+2025-09-15 12:39:15,897 - INFO - Split 14: 2025-09-15 12:39:15,897 - INFO - Annotation stage1 completed for 8PuNOqvh_0: 150 frames processed
+2025-09-15 12:39:15,897 - INFO - Split 14: 2025-09-15 12:39:15,897 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/videos/stage1_poses/unknown_s0.2_n0.65/8PuNOqvh_0_stage1_poses.pkl
+2025-09-15 12:39:15,897 - INFO - Split 14: 2025-09-15 12:39:15,897 - INFO - ✓ Completed: 8PuNOqvh_0.avi
+2025-09-15 12:39:15,897 - INFO - Split 14: 2025-09-15 12:39:15,897 - INFO - Processing 8SWZq5we_fk_2.avi...
+2025-09-15 12:39:15,897 - INFO - Split 14: 2025-09-15 12:39:15,897 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_14/videos/normal/8SWZq5we_fk_2.avi
+2025-09-15 12:39:15,902 - INFO - Split 14: 2025-09-15 12:39:15,902 - INFO - Video info: 150 frames, 30.00 FPS, 1280x720
+2025-09-15 12:39:16,519 - INFO - Split 15: 2025-09-15 12:39:16,519 - INFO - End of video file reached
+2025-09-15 12:39:16,531 - INFO - Split 15: 2025-09-15 12:39:16,531 - INFO - Annotation stage1 completed for 9haGKtHJ_0: 150 frames processed
+2025-09-15 12:39:16,531 - INFO - Split 15: 2025-09-15 12:39:16,531 - INFO - Results saved to /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/videos/stage1_poses/unknown_s0.2_n0.65/9haGKtHJ_0_stage1_poses.pkl
+2025-09-15 12:39:16,531 - INFO - Split 15: 2025-09-15 12:39:16,531 - INFO - ✓ Completed: 9haGKtHJ_0.avi
+2025-09-15 12:39:16,531 - INFO - Split 15: 2025-09-15 12:39:16,531 - INFO - Processing 9nFtxkJ7ywg_0.avi...
+2025-09-15 12:39:16,531 - INFO - Split 15: 2025-09-15 12:39:16,531 - INFO - Processing video for annotation (stage1): /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits/split_15/videos/normal/9nFtxkJ7ywg_0.avi
+2025-09-15 12:39:16,539 - INFO - Split 15: 2025-09-15 12:39:16,539 - INFO - Video info: 150 frames, 30.00 FPS, 1152x720
+2025-09-15 12:39:41,998 - ERROR - Timeout waiting for process results
+2025-09-15 12:39:41,998 - WARNING - Force terminating split 0
+2025-09-15 12:39:42,145 - ERROR - Split 0 failed with return code -15
+2025-09-15 12:39:42,162 - WARNING - Force terminating split 1
+2025-09-15 12:39:42,308 - ERROR - Split 1 failed with return code -15
+2025-09-15 12:39:42,326 - WARNING - Force terminating split 2
+2025-09-15 12:39:42,456 - ERROR - Split 2 failed with return code -15
+2025-09-15 12:39:42,492 - WARNING - Force terminating split 3
+2025-09-15 12:39:42,618 - ERROR - Split 3 failed with return code -15
+2025-09-15 12:39:42,656 - WARNING - Force terminating split 4
+2025-09-15 12:39:42,782 - ERROR - Split 4 failed with return code -15
+2025-09-15 12:39:42,820 - WARNING - Force terminating split 5
+2025-09-15 12:39:42,953 - ERROR - Split 5 failed with return code -15
+2025-09-15 12:39:42,985 - WARNING - Force terminating split 6
+2025-09-15 12:39:43,122 - ERROR - Split 6 failed with return code -15
+2025-09-15 12:39:43,149 - WARNING - Force terminating split 7
+2025-09-15 12:39:43,274 - ERROR - Split 7 failed with return code -15
+2025-09-15 12:39:43,313 - WARNING - Force terminating split 8
+2025-09-15 12:39:43,429 - ERROR - Split 8 failed with return code -15
+2025-09-15 12:39:43,478 - WARNING - Force terminating split 9
+2025-09-15 12:39:43,592 - ERROR - Split 9 failed with return code -15
+2025-09-15 12:39:43,592 - WARNING - Force terminating split 10
+2025-09-15 12:39:43,713 - ERROR - Split 10 failed with return code -15
+2025-09-15 12:39:43,756 - WARNING - Force terminating split 11
+2025-09-15 12:39:43,873 - ERROR - Split 11 failed with return code -15
+2025-09-15 12:39:43,920 - WARNING - Force terminating split 12
+2025-09-15 12:39:44,035 - ERROR - Split 12 failed with return code -15
+2025-09-15 12:39:44,036 - WARNING - Force terminating split 13
+2025-09-15 12:39:44,150 - ERROR - Split 13 failed with return code -15
+2025-09-15 12:39:44,151 - WARNING - Force terminating split 14
+2025-09-15 12:39:44,267 - ERROR - Split 14 failed with return code -15
+2025-09-15 12:39:44,317 - WARNING - Force terminating split 15
+2025-09-15 12:39:44,438 - ERROR - Split 15 failed with return code -15
+2025-09-15 12:39:44,482 - INFO - === Step 5: Merging results ===
+2025-09-15 12:39:44,482 - INFO - Completed processes: 0/16
+2025-09-15 12:39:44,749 - INFO - Merged 32 files for stage1
+2025-09-15 12:39:44,846 - INFO - Merged 0 files for stage2
+2025-09-15 12:39:45,041 - WARNING - No stage3 temp directories found
+2025-09-15 12:39:45,041 - INFO - === Step 6: Cleanup ===
+2025-09-15 12:39:45,148 - INFO - Cleaned up temp_splits directory: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup_temp_splits
+2025-09-15 12:39:45,149 - INFO - Multi-process annotation completed in 335.64s
+2025-09-15 12:39:45,149 - INFO - Process success rate: 0/16
+2025-09-15 12:39:45,149 - INFO - Video processing success rate: 32/203 (15.8%)
+2025-09-15 12:39:45,149 - WARNING - ⚠️ Stage3 dataset generation failed
+2025-09-15 12:39:45,149 - WARNING - ⚠️ Multi-process stage1: Partial success or failure
+2025-09-15 12:39:45,150 - ERROR - ❌ Multi-process annotation failed!
+2025-09-15 12:39:45,150 - ERROR - ✗ STAGE1 failed
+2025-09-15 12:39:45,150 - ERROR - Pipeline stopped due to stage1 failure
+2025-09-15 12:39:45,150 - ERROR - Mode annotation.pipeline failed

@@ -58,8 +58,8 @@ class AnalysisPipeline(BasePipeline):
             self.config['input_dir'] = input_dir
         
         # 파이프라인 초기화
-        from pipelines.inference.pipeline import InferencePipeline
-        pipeline = InferencePipeline(self.config)
+        from pipelines.dual_service import create_dual_service_pipeline
+        pipeline = create_dual_service_pipeline(self.config)
         
         if not pipeline.initialize_pipeline():
             logger.error("Failed to initialize pipeline")
@@ -118,8 +118,8 @@ class AnalysisPipeline(BasePipeline):
         logger.info(f"Analysis mode - single file: {input_file}")
         
         # 파이프라인 초기화
-        from pipelines.inference.pipeline import InferencePipeline
-        pipeline = InferencePipeline(self.config)
+        from pipelines.dual_service import create_dual_service_pipeline
+        pipeline = create_dual_service_pipeline(self.config)
         
         if not pipeline.initialize_pipeline():
             logger.error("Failed to initialize pipeline")

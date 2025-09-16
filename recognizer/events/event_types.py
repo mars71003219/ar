@@ -4,7 +4,6 @@
 from enum import Enum
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
-import time
 
 class EventType(Enum):
     """이벤트 타입"""

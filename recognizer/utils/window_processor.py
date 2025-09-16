@@ -38,8 +38,9 @@ class SlidingWindowProcessor:
         self.processed_frame_count = 0
         
         # 윈도우 분류 결과 저장
-        self.window_results: Dict[int, Dict] = {}  
+        self.window_results: Dict[int, Dict] = {}
         self.current_frame_idx = 0
+        self.frame_offset = 0  # 멀티 비디오 처리를 위한 프레임 오프셋
         
         # 모드별 표시 설정
         if self.processing_mode == 'realtime':
@@ -91,16 +92,45 @@ class SlidingWindowProcessor:
         
         # 카운터 초기화
         self.processed_frame_count = 0
-        self.window_count = 0
+        self.window_counter = 0
         self.current_frame_idx = 0
+
+        # 윈도우 생성 관련 변수 초기화
+        if hasattr(self, 'last_window_end_frame'):
+            delattr(self, 'last_window_end_frame')
+        self.frame_offset = 0  # 새 비디오 시작을 위한 프레임 오프셋
         
-        # 오버레이 데이터 초기화
-        self.display_overlay_data = {
-            'window_results': {},
-            'active_windows': []
-        }
+        # 오버레이 데이터 초기화 (기존 키들 유지)
+        if hasattr(self, 'display_overlay_data'):
+            self.display_overlay_data['window_results'] = {}
+            self.display_overlay_data['active_windows'] = []
+        else:
+            # 초기화 시점에서 기본 설정
+            if self.processing_mode == 'realtime':
+                self.display_overlay_data = {
+                    'show_keypoints': True,
+                    'show_tracking_ids': True,
+                    'show_classification': False,
+                    'show_composite_score': False,
+                    'window_results': {},
+                    'active_windows': []
+                }
+            else:
+                self.display_overlay_data = {
+                    'show_keypoints': True,
+                    'show_tracking_ids': True,
+                    'show_classification': True,
+                    'show_composite_score': True,
+                    'window_results': {},
+                    'active_windows': []
+                }
         
         logging.info(f"WindowProcessor reset completed")
+
+    def set_frame_offset(self, offset: int):
+        """프레임 오프셋 설정 (새 비디오 시작 시 프레임 번호 조정용)"""
+        self.frame_offset = offset
+        logging.info(f"Frame offset set to {offset}")
     
     def add_frame(self, frame: FramePoses) -> List[WindowAnnotation]:
         """동적 버퍼에 프레임 추가 및 윈도우 생성
@@ -167,8 +197,8 @@ class SlidingWindowProcessor:
     def _create_windows_if_ready(self) -> List[WindowAnnotation]:
         """윈도우 생성 - 모드별 분기 처리"""
         if self.processing_mode == 'analysis':
-            # 분석 모드는 한 번에 처리하므로 여기서는 빈 리스트 반환
-            return []
+            # 분석 모드에서도 윈도우 생성 (실시간과 동일한 로직 사용)
+            return self._create_realtime_windows()
         else:
             # 실시간 모드는 기존 로직 유지 (단순화)
             return self._create_realtime_windows()
@@ -185,11 +215,13 @@ class SlidingWindowProcessor:
         
         # 첫 윈도우이거나 마지막 윈도우로부터 stride만큼 진행된 경우에만 생성
         should_create_window = False
+        frames_since_last_window = 0  # 기본값 설정
         
         if not hasattr(self, 'last_window_end_frame'):
             # 첫 번째 윈도우
             if len(self.frames_buffer) >= self.window_size:
                 should_create_window = True
+                frames_since_last_window = 0  # 첫 윈도우는 0
         else:
             # stride 간격 확인 (50프레임마다)
             frames_since_last_window = current_frame_idx - self.last_window_end_frame
@@ -218,7 +250,8 @@ class SlidingWindowProcessor:
                         self.last_window_end_frame = end_frame
                         self.window_counter += 1
                         
-                        logging.info(f"Created stride-optimized window: {start_frame}-{end_frame} (stride: {frames_since_last_window if hasattr(self, 'last_window_end_frame') else 'first'})")
+                        stride_info = 'first' if frames_since_last_window == 0 else str(frames_since_last_window)
+                        logging.info(f"Created stride-optimized window: {start_frame}-{end_frame} (stride: {stride_info})")
         
         return windows
     
@@ -405,19 +438,43 @@ class SlidingWindowProcessor:
         keypoint_data = np.zeros((max_persons, T, V, C), dtype=np.float32)  # [M, T, V, C]
         keypoint_score_data = np.zeros((max_persons, T, V), dtype=np.float32)  # [M, T, V]
         
+        # track_id에서 M 인덱스 매핑 생성 (스코어링 정렬을 위해 필요)
+        track_id_to_m_index = {}
+        seen_track_ids = set()
+        
+        # 모든 프레임에서 track_id 수집 및 M 인덱스 할당
+        for frame in frames:
+            if hasattr(frame, 'persons') and frame.persons:
+                for person in frame.persons:
+                    if hasattr(person, 'track_id') and person.track_id is not None:
+                        if person.track_id not in seen_track_ids:
+                            m_index = len(seen_track_ids)
+                            if m_index < max_persons:  # M 차원 한계 내에서만
+                                track_id_to_m_index[person.track_id] = m_index
+                                seen_track_ids.add(person.track_id)
+                                logging.debug(f"Assigned track_id {person.track_id} -> M[{m_index}]")
+        
+        logging.info(f"Track ID to M index mapping: {track_id_to_m_index}")
+        
         # 프레임별 데이터 채우기
         for t, frame in enumerate(frames):
             try:
                 if not hasattr(frame, 'persons') or not frame.persons:
                     continue
                     
-                for m, person in enumerate(frame.persons):
-                    if m >= max_persons:
-                        break
-                    
+                for person in frame.persons:
                     try:
                         if person is None or not hasattr(person, 'keypoints'):
                             continue
+                        
+                        # track_id를 기반으로 M 인덱스 결정
+                        if hasattr(person, 'track_id') and person.track_id is not None:
+                            if person.track_id in track_id_to_m_index:
+                                m = track_id_to_m_index[person.track_id]
+                            else:
+                                continue  # 매핑에 없는 track_id는 건너뛰기
+                        else:
+                            continue  # track_id가 없는 person은 건너뛰기
                             
                         if person.keypoints is not None:
                             if t < 5:  # 처음 5프레임만 출력
@@ -486,6 +543,9 @@ class SlidingWindowProcessor:
         
         # 원본 프레임 데이터도 저장 (필요시 참조용)
         window.frame_data = frames
+        
+        # track_id에서 M 인덱스 매핑 저장 (스코어링 정렬을 위해 필요)
+        window.track_id_to_m_index = track_id_to_m_index
         
         return window
     

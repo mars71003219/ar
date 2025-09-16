@@ -212,26 +212,62 @@ class BaseActionClassifier(ABC):
             
             logging.info(f"Using prepared keypoint data with shape: {keypoint_data.shape}")
             
-            # WindowAnnotation이 이미 MMAction2 표준 형식: [M, T, V, C]이므로 변환 불필요
-            keypoint = keypoint_data
-            
-            # WindowProcessor에서 이미 2D 좌표 (x, y)로 저장하므로 변환 불필요
-            # keypoint shape은 [M, T, V, 2]이어야 함
-            
-            # keypoint_score도 이미 MMAction2 표준 형식: [M, T, V]이므로 변환 불필요
-            if keypoint_score_data is not None:
-                keypoint_score = keypoint_score_data
+            # **핵심 수정: person_rankings를 사용해서 keypoint 데이터를 스코어 순으로 정렬**
+            if hasattr(window_data, 'person_rankings') and window_data.person_rankings:
+                logging.info(f"*** SCORE-BASED SORTING DETECTED FOR {self.model_name.upper()} ***")
+                logging.info(f"Person rankings: {window_data.person_rankings}")
+                logging.info(f"Model checkpoint: {getattr(self, 'checkpoint_path', 'unknown')}")
+                
+                # person_rankings: [(track_id, composite_score), ...] (높은 점수부터 정렬됨)
+                # track_id를 M 차원의 인덱스로 매핑
+                M, T, V, C = keypoint_data.shape
+                
+                # track_id에서 원래 M 인덱스 매핑 추출 (WindowProcessor에서 할당된 순서)
+                if hasattr(window_data, 'track_id_to_m_index') and window_data.track_id_to_m_index:
+                    track_to_m = window_data.track_id_to_m_index
+                    logging.info(f"Found track_id_to_m_index mapping: {track_to_m}")
+                    
+                    # 스코어 순으로 정렬된 M 인덱스 순서 생성
+                    sorted_m_indices = []
+                    for track_id, score in window_data.person_rankings:
+                        if track_id in track_to_m:
+                            m_idx = track_to_m[track_id]
+                            sorted_m_indices.append(m_idx)
+                            logging.info(f"Track {track_id} (score={score:.3f}) -> M[{m_idx}]")
+                    
+                    # 누락된 M 인덱스들도 뒤에 추가 (정렬에 포함되지 않은 person들)
+                    all_m_indices = set(range(M))
+                    used_m_indices = set(sorted_m_indices)
+                    remaining_m_indices = sorted(all_m_indices - used_m_indices)
+                    sorted_m_indices.extend(remaining_m_indices)
+                    
+                    logging.info(f"Final M index order: {sorted_m_indices}")
+                    
+                    # keypoint 데이터를 스코어 순으로 재정렬
+                    keypoint = keypoint_data[sorted_m_indices, :, :, :]  # M 차원 재정렬
+                    
+                    if keypoint_score_data is not None:
+                        keypoint_score = keypoint_score_data[sorted_m_indices, :, :]  # M 차원 재정렬
+                    else:
+                        keypoint_score = np.ones((M, T, V), dtype=np.float32)
+                    
+                    logging.info(f"*** KEYPOINT DATA SORTED BY SCORE ***")
+                    logging.info(f"Sorted keypoint shape: {keypoint.shape}")
+                else:
+                    logging.warning("No track_id_to_m_index mapping found, using original order")
+                    keypoint = keypoint_data
+                    keypoint_score = keypoint_score_data if keypoint_score_data is not None else np.ones((keypoint_data.shape[0], keypoint_data.shape[1], keypoint_data.shape[2]), dtype=np.float32)
             else:
-                # keypoint_score가 없으면 기본값으로 생성
-                M, T, V = keypoint.shape[:3]
-                keypoint_score = np.ones((M, T, V), dtype=np.float32)
+                logging.info("No person_rankings found, using original keypoint order")
+                keypoint = keypoint_data
+                keypoint_score = keypoint_score_data if keypoint_score_data is not None else np.ones((keypoint_data.shape[0], keypoint_data.shape[1], keypoint_data.shape[2]), dtype=np.float32)
             
-            logging.info(f"Converted keypoint shape: {keypoint.shape}")
-            logging.info(f"Converted keypoint_score shape: {keypoint_score.shape}")
+            logging.info(f"Final keypoint shape: {keypoint.shape}")
+            logging.info(f"Final keypoint_score shape: {keypoint_score.shape}")
             
             # MMAction2 data_sample 형태로 반환
             data_sample = {
-                'keypoint': keypoint,  # (M, T, V, C) 형태
+                'keypoint': keypoint,  # (M, T, V, C) 형태 - 스코어 순으로 정렬됨
                 'keypoint_score': keypoint_score,  # (M, T, V) 형태  
                 'total_frames': self.window_size,
                 'img_shape': (640, 640),  # 기본값

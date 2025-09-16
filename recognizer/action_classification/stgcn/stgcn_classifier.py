@@ -56,6 +56,7 @@ class STGCNActionClassifier(BaseActionClassifier):
         self.device = config.device or 'cuda:0'
         self.config_file = config.config_file
         self.num_classes = len(self.class_names)
+        self.model_name = getattr(config, 'model_name', 'stgcn')
         
         # 전처리 관련
         self.clip_len = config.window_size
@@ -75,6 +76,11 @@ class STGCNActionClassifier(BaseActionClassifier):
         # 워밍업 관련
         self.is_warmed_up = False
         self.warmup_runs = 1  # 워밍업 실행 횟수 (에러 방지를 위해 1번만)
+    
+    def reset(self):
+        """윈도우 카운터 및 상태 초기화 (새 비디오 처리 시)"""
+        self.window_counter = 0
+        logging.info("STGCNClassifier window counter reset to 0")
     
     def initialize_model(self) -> bool:
         """ST-GCN++ 모델 초기화"""

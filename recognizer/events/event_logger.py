@@ -4,7 +4,6 @@ JSON 및 CSV 형식으로 이벤트 히스토리를 저장
 """
 import json
 import csv
-import os
 import logging
 from typing import List, Dict, Any, Optional
 from pathlib import Path

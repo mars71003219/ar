@@ -8,7 +8,6 @@ import argparse
 import sys
 import logging
 from pathlib import Path
-from typing import Optional
 
 # recognizer 모듈 경로 추가
 sys.path.insert(0, str(Path(__file__).parent))
@@ -72,18 +71,26 @@ def register_modules():
             default_config={'track_thresh': 0.5}
         )
         
-        # Region-based Scorer
-        from scoring.region_based.region_scorer import RegionBasedScorer
+        # Motion-based Scorer (이전 Region-based Scorer)
+        from scoring.motion_based.fight_scorer import MotionBasedScorer
         ModuleFactory.register_scorer(
             name='region_based',
-            scorer_class=RegionBasedScorer,
+            scorer_class=MotionBasedScorer,
+            default_config={'distance_threshold': 100.0}
+        )
+
+        # Movement-based Scorer (same as motion_based but optimized for movement)
+        ModuleFactory.register_scorer(
+            name='movement_based',
+            scorer_class=MotionBasedScorer,
             default_config={'distance_threshold': 100.0}
         )
         
-        # Movement-based Scorer (same as region_based but optimized for movement)
+        # Falldown Scorer (쓰러짐 전용 점수 계산기)
+        from scoring.motion_based.falldown_scorer import FalldownScorer
         ModuleFactory.register_scorer(
-            name='movement_based',
-            scorer_class=RegionBasedScorer,
+            name='falldown_scorer',
+            scorer_class=FalldownScorer,
             default_config={'distance_threshold': 100.0}
         )
         
@@ -94,6 +101,7 @@ def register_modules():
             classifier_class=STGCNActionClassifier,
             default_config={'num_classes': 2, 'device': 'cuda:0'}
         )
+        
         
         # Window Processor
         from utils.window_processor import SlidingWindowProcessor
@@ -136,7 +144,7 @@ def load_config(config_file: str = None):
 def main():
     """메인 실행 함수 - 완전 일반화"""
     parser = argparse.ArgumentParser(description="Recognizer - Unified Mode Manager")
-    parser.add_argument('--config', type=str, default='config.yaml',
+    parser.add_argument('--config', type=str, default='configs/config.yaml',
                        help='Configuration file path')
     parser.add_argument('--mode', type=str,
                        help='Override mode from config (e.g., inference.analysis, annotation.stage1)')
@@ -149,8 +157,8 @@ def main():
     # 멀티 프로세스 어노테이션 옵션
     parser.add_argument('--multi-process', action='store_true',
                        help='Run multi-process annotation')
-    parser.add_argument('--num-processes', type=int, default=8,
-                       help='Number of processes for multi-process annotation (default: 8)')
+    parser.add_argument('--num-processes', type=int, default=4,
+                       help='Number of processes for multi-process annotation (default: 4)')
     parser.add_argument('--gpus', type=str, default='0,1',
                        help='GPU assignments for multi-process (comma-separated, e.g. 0,1)')
     
@@ -180,13 +188,35 @@ def main():
         # 모드 결정 (인자 우선, 그 다음 설정 파일)
         mode = args.mode or config.get('mode', 'inference.analysis')
         
-        # 멀티 프로세스 처리 설정 (annotation 또는 evaluation 모드)
-        if mode.startswith('annotation.'):
-            multi_process_config = config.get('annotation', {}).get('multi_process', {})
-            should_run_multi_process = args.multi_process or multi_process_config.get('enabled', False)
-            
-            if should_run_multi_process:
+        # 멀티 프로세스 처리 설정 (annotation, inference.analysis 또는 evaluation 모드)
+        annotation_config = config.get('annotation', {})
+        stage1_config = annotation_config.get('stage1', {})
+        stage1_multi_process = stage1_config.get('multi_process', {})
+        should_run_multi_process = args.multi_process or stage1_multi_process.get('enabled', False)
+
+        # 멀티프로세스는 stage1만 지원하도록 제한
+        if mode.startswith('annotation.') and should_run_multi_process:
+            stage1_enabled = stage1_config.get('enabled', True)
+
+            # stage1이 아닌 다른 annotation 모드들은 단일 프로세스로 실행
+            if mode in ['annotation.stage2', 'annotation.stage3', 'annotation.visualize']:
+                logger.info(f"{mode} - switching to single process mode (only stage1 supports multi-process)")
+                should_run_multi_process = False
+            elif not stage1_enabled:
+                logger.info("Stage1 disabled - switching to single process mode to use existing stage1 data")
+                should_run_multi_process = False
+            else:
+                # stage1이 활성화되고 멀티프로세스 모드인 경우에만 멀티프로세스 실행
                 return run_multi_process_annotation(config, args)
+        elif mode == 'inference.analysis':
+            # inference.analysis 멀티프로세스 설정 확인
+            inference_config = config.get('inference', {})
+            analysis_config = inference_config.get('analysis', {})
+            analysis_multi_process = analysis_config.get('multi_process', {})
+            analysis_should_run_multi_process = args.multi_process or analysis_multi_process.get('enabled', False)
+
+            if analysis_should_run_multi_process:
+                return run_multi_process_inference_analysis(config, args)
         elif mode == 'evaluation':
             # evaluation 모드의 멀티프로세스 설정
             if args.multi_process:
@@ -231,8 +261,10 @@ def run_multi_process_annotation(config, args):
     try:
         from utils.multi_process_splitter import run_multi_process_annotation as run_mp
         
-        # config에서 multi-process 설정 가져오기
-        multi_process_config = config.get('annotation', {}).get('multi_process', {})
+        # config에서 stage1 multi-process 설정 가져오기
+        annotation_config = config.get('annotation', {})
+        stage1_config = annotation_config.get('stage1', {})
+        multi_process_config = stage1_config.get('multi_process', {})
         
         # config 우선, command line args는 fallback
         if hasattr(args, 'num_processes') and args.num_processes != 4:
@@ -246,12 +278,8 @@ def run_multi_process_annotation(config, args):
             # command line에서 기본값이 아닌 값이 설정된 경우
             available_gpus = [int(x.strip()) for x in args.gpus.split(',')]
         else:
-            # config에서 GPU 목록 가져오기 (새로운 방식 우선)
-            if 'gpus' in multi_process_config:
-                available_gpus = multi_process_config['gpus']
-            else:
-                # 이전 방식 호환성 유지
-                available_gpus = multi_process_config.get('gpu_assignments', [0, 1])
+            # config에서 GPU 목록 가져오기
+            available_gpus = multi_process_config.get('gpus', [0, 1])
         
         # 라운드 로빈으로 GPU 할당
         gpu_assignments = [available_gpus[i % len(available_gpus)] for i in range(num_processes)]
@@ -295,6 +323,77 @@ def run_multi_process_annotation(config, args):
         
     except Exception as e:
         logger.error(f"Multi-process annotation error: {e}")
+        return False
+
+
+def run_multi_process_inference_analysis(config, args):
+    """멀티 프로세스 inference.analysis 실행"""
+    try:
+        from utils.multi_process_splitter import run_multi_process_inference_analysis as run_mp
+        
+        # config에서 inference.analysis multi-process 설정 가져오기
+        inference_config = config.get('inference', {})
+        analysis_config = inference_config.get('analysis', {})
+        multi_process_config = analysis_config.get('multi_process', {})
+        
+        # config 우선, command line args는 fallback
+        if hasattr(args, 'num_processes') and args.num_processes != 4:
+            num_processes = args.num_processes
+        else:
+            num_processes = multi_process_config.get('num_processes', 4)
+        
+        # GPU 할당 설정
+        if hasattr(args, 'gpus') and args.gpus != '0,1':
+            available_gpus = [int(x.strip()) for x in args.gpus.split(',')]
+        else:
+            available_gpus = multi_process_config.get('gpus', [0, 1])
+        
+        # 라운드 로빈으로 GPU 할당
+        gpu_assignments = [available_gpus[i % len(available_gpus)] for i in range(num_processes)]
+        
+        # 설정에서 입력/출력 경로 가져오기
+        input_dir = config.get('inference', {}).get('analysis', {}).get('input')
+        if not input_dir:
+            # inference.realtime의 input을 fallback으로 사용
+            input_dir = config.get('inference', {}).get('realtime', {}).get('input', '/aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo')
+        
+        output_dir = config.get('inference', {}).get('analysis', {}).get('output_dir', 'output')
+        
+        # 절대 경로로 변환
+        if not Path(output_dir).is_absolute():
+            output_dir = str(Path.cwd() / output_dir)
+        
+        # 설정 파일 경로를 절대 경로로 변환
+        config_path = args.config
+        if not Path(config_path).is_absolute():
+            config_path = str(Path.cwd() / config_path)
+        
+        logger.info("=== Multi-Process Inference Analysis Configuration ===")
+        logger.info(f"Input directory: {input_dir}")
+        logger.info(f"Output directory: {output_dir}")
+        logger.info(f"Config file: {config_path}")
+        logger.info(f"Number of processes: {num_processes}")
+        logger.info(f"GPU assignments: {gpu_assignments}")
+        logger.info(f"Config source: {'Config file' if multi_process_config.get('enabled', False) else 'Command line'}")
+        
+        # 멀티 프로세스 inference.analysis 실행
+        success = run_mp(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            config_path=config_path,
+            num_processes=num_processes,
+            gpu_assignments=gpu_assignments
+        )
+        
+        if success:
+            logger.info("🎉 Multi-process inference analysis completed successfully!")
+        else:
+            logger.error("❌ Multi-process inference analysis failed!")
+        
+        return success
+        
+    except Exception as e:
+        logger.error(f"Multi-process inference analysis error: {e}")
         return False
 
 

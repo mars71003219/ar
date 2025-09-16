@@ -48,9 +48,9 @@ def initialize_factory():
         factory.register_tracker('sort', MMTrackingAdapter)
         
         # 점수 계산 모듈
-        from .scoring.region_based import RegionBasedScorer
-        factory.register_scorer('region_based', RegionBasedScorer)
-        factory.register_scorer('movement_based', RegionBasedScorer)
+        from .scoring.motion_based import MotionBasedScorer
+        factory.register_scorer('region_based', MotionBasedScorer)
+        factory.register_scorer('movement_based', MotionBasedScorer)
         
         # 행동 분류 모듈
         from .action_classification.stgcn import STGCNActionClassifier

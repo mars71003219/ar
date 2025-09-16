@@ -17,3 +17,4 @@
 **/mmlabs.code-workspace
 /.gradio
 **/.gradio
+**/*.log

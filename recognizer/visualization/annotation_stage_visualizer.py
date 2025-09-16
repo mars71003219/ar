@@ -101,17 +101,23 @@ class AnnotationStageVisualizer:
             with open(pkl_path, 'rb') as f:
                 pkl_data = pickle.load(f)
             
-            # FramePoses 리스트 추출
-            if hasattr(pkl_data, 'poses_with_tracking'):
+            # FramePoses 리스트 추출 (기존 PKL 구조 우선 처리)
+            if hasattr(pkl_data, 'poses_with_tracking') and pkl_data.poses_with_tracking:
                 frame_poses_list = pkl_data.poses_with_tracking
-            elif hasattr(pkl_data, 'frame_data'):
+            elif hasattr(pkl_data, 'frame_data') and pkl_data.frame_data:
                 frame_poses_list = pkl_data.frame_data
-            elif hasattr(pkl_data, 'poses_only'):
+            elif hasattr(pkl_data, 'poses_only') and pkl_data.poses_only:
                 frame_poses_list = pkl_data.poses_only
             elif isinstance(pkl_data, list):
-                frame_poses_list = pkl_data
+                # list 형태 데이터 처리
+                if pkl_data and isinstance(pkl_data[0], dict):
+                    # dict 형태의 데이터를 FramePoses로 변환
+                    frame_poses_list = self._convert_dict_to_frame_poses(pkl_data)
+                else:
+                    # 이미 FramePoses 객체인 경우
+                    frame_poses_list = pkl_data
             else:
-                logger.error(f"Unsupported PKL format in {pkl_path}")
+                logger.error(f"Unsupported PKL format in {pkl_path}: {type(pkl_data)}")
                 return False
             
             return self._visualize_frame_poses(
@@ -277,5 +283,42 @@ class AnnotationStageVisualizer:
     def _draw_frame_info(self, frame: np.ndarray, frame_idx: int, person_count: int):
         """프레임 정보 표시"""
         info_text = f"Frame: {frame_idx}, Persons: {person_count}"
-        cv2.putText(frame, info_text, (10, 30), 
+        cv2.putText(frame, info_text, (10, 30),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, self.text_color, 2)
+
+    def _convert_dict_to_frame_poses(self, pkl_data_list):
+        """Dict 형태의 PKL 데이터를 FramePoses 객체로 변환"""
+        frame_poses_list = []
+
+        for frame_data in pkl_data_list:
+            if isinstance(frame_data, dict) and 'persons' in frame_data:
+                # PersonPose 객체 생성
+                person_poses = []
+                for person_data in frame_data['persons']:
+                    try:
+                        # PersonPose 생성을 위한 기본 파라미터 설정
+                        person_pose = PersonPose(
+                            person_id=person_data.get('person_id', 0),
+                            keypoints=np.array(person_data.get('keypoints', [])) if person_data.get('keypoints') is not None else None,
+                            bbox=person_data.get('bbox'),
+                            track_id=person_data.get('track_id'),
+                            score=person_data.get('score', 0.0)
+                        )
+                        person_poses.append(person_pose)
+                    except Exception as e:
+                        logger.debug(f"Error creating PersonPose: {e}")
+                        continue
+
+                # FramePoses 객체 생성
+                if person_poses:  # persons 리스트가 비어있지 않은 경우만 추가
+                    frame_poses = FramePoses(
+                        frame_idx=frame_data.get('frame_idx', 0),
+                        persons=person_poses,
+                        timestamp=float(frame_data.get('frame_idx', 0))
+                    )
+                    frame_poses_list.append(frame_poses)
+            else:
+                # 이미 FramePoses 객체인 경우 그대로 추가
+                frame_poses_list.append(frame_data)
+
+        return frame_poses_list

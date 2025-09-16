@@ -62,13 +62,43 @@ def process_stage1_pose_extraction(
     pkl_path = output_path / f"{video_name}_stage1_poses.pkl"
     
     if save_visualization:
-        # 원본 경로에서 라벨 정보 추출 (RWF-2000 구조)
+        # 원본 경로에서 라벨 정보 추출 (폴더명 기반, 대소문자 구분 없음)
         original_path_str = str(video_path)
         original_label = None
-        if '/Fight/' in original_path_str:
-            original_label = 1  # Fight
-        elif '/NonFight/' in original_path_str:
-            original_label = 0  # NonFight
+        
+        # 경로를 소문자로 변환하여 대소문자 구분 없이 처리
+        path_lower = original_path_str.lower()
+        
+        # 라벨 매핑 규칙 (대소문자 구분 없음)
+        label_mapping = {
+            # 기존 RWF-2000 구조
+            '/fight/': 1,       # Fight
+            '/nonfight/': 0,    # NonFight
+            '/normal/': 0,      # Normal
+            # Falldown 데이터셋 구조  
+            '/falldown/': 1,    # Falldown (Violence로 분류)
+            # 추가 가능한 매핑
+            '/violence/': 1,    # Violence
+            '/non_violence/': 0, # Non-Violence
+            '/nonviolence/': 0,  # NonViolence
+        }
+        
+        # 폴더명 기반 라벨 매칭
+        for folder_pattern, label_value in label_mapping.items():
+            if folder_pattern in path_lower:
+                original_label = label_value
+                logger.info(f"Detected label from folder: {folder_pattern.strip('/')} -> {label_value}")
+                break
+        
+        # 매칭되지 않은 경우 파일명으로 fallback
+        if original_label is None:
+            video_name_lower = video_path.name.lower()
+            if any(pattern in video_name_lower for pattern in ['fight', 'f_', 'falldown', 'violence']):
+                original_label = 1  # Fight/Violence
+                logger.info(f"Detected label from filename: {video_path.name} -> 1")
+            else:
+                original_label = 0  # Normal/NonFight
+                logger.info(f"Default label assignment: {video_path.name} -> 0")
         
         # 시각화용 데이터 생성 (원본 경로 정보 포함)
         viz_data = VisualizationData(

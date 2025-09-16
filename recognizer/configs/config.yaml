@@ -1,25 +1,30 @@
 # mode: inference.analysis
-mode: inference.realtime
 # mode: inference.visualize
-# mode: annotation.stage3
+# mode: inference.realtime
+mode: annotation.stage3
 # mode: annotation.visualize
 
-# 공통 멀티 프로세스 설정 (모든 모드에서 사용)
-multi_process:
-  enabled: true                     # 멀티 프로세스 활성화
-  num_processes: 6                  # 프로세스 수 (UBI_demo 6개 비디오용)
-  gpus: [0, 1]                     # 사용할 GPU 목록 (라운드 로빈 할당)
-  chunk_strategy: video_split       # 비디오 단위로 분할
+# 듀얼 서비스 설정
+dual_service:
+  # enabled: true                            # 듀얼 서비스 활성화
+  enabled: false                         # 단일 서비스 모드
+  services:
+    # - fight                              # Fight 탐지 서비스
+    - falldown                           # Falldown 탐지 서비스
 
 annotation:
-  input: /aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000
+  input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup
   output_dir: output
   pipeline_mode: true
 
-  # 멀티 프로세스 설정은 최상위에서 공통으로 사용
-
   stage1:
     enabled: true
+    # Stage1 전용 멀티 프로세스 설정
+    multi_process:
+      enabled: true                     # Stage1 멀티프로세스 활성화
+      num_processes: 16                  # 프로세스 수
+      gpus: [0, 1]                      # 사용할 GPU 목록 (라운드 로빈 할당)
+      chunk_strategy: video_split       # 비디오 단위로 분할
   stage2:
     enabled: true
   stage3:
@@ -31,23 +36,28 @@ annotation:
 
   visualize:
     stage: stage2
-    video_dir: /aivanas/raw/surveillance/action/violence/action_recognition/data/RWF-2000
-    results_dir: /workspace/recognizer/output/RWF-2000/stage2_tracking/bytetrack_h0.3_l0.1_t0.2
+    video_dir: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
+    results_dir: /workspace/recognizer/output/falldown_aihub/stage2_tracking/bytetrack_h0.4_l0.1_t0.2
     save_mode: false
 
 inference:
   analysis:
-    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
     output_dir: output
-    
+
     # 성능평가 설정
     enable_evaluation: true          # 성능평가 기능 활성화
 
+    # Inference Analysis 전용 멀티 프로세스 설정
+    multi_process:
+      enabled: true                  # Inference Analysis 멀티프로세스 활성화
+      num_processes: 4               # 프로세스 수
+      gpus: [0, 1]                   # 사용할 GPU 목록 (라운드 로빈 할당)
+      chunk_strategy: video_split    # 비디오 단위로 분할
+
   realtime:
-    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/fight/F_77_1_0_0_0.mp4
-    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/hanbit 
-    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
-    input: /aivanas/one
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
+    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
     output_path: /workspace/recognizer/output 
     save_output: true
     display_width: 640
@@ -56,14 +66,16 @@ inference:
     overlay_mode: skeleton_only  # full, skeleton_only, raw
 
   visualize:
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_FIGHTS/videos/normal/N_9_0_0_1_0.mp4
-    results_dir: /workspace/recognizer/output/N_9_0_0_1_0
-    save_dir: /workspace/recognizer/output/N_9_0_0_1_0
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
+    results_dir: /workspace/recognizer/output/UBI_demo
+    save_dir: /workspace/recognizer/output/UBI_demo
     save_mode: true
 
 
+# 듀얼 서비스 모델 설정
 models:
-  action_classification:
+  # Fight 탐지 모델
+  fight_classification:
     checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_RWF2000plus_stable/best_acc_top1_epoch_30.pth
     class_names:
     - NonFight
@@ -79,6 +91,24 @@ models:
     num_classes: 2
     window_size: 100
 
+  # Falldown 탐지 모델
+  falldown_classification:
+    checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+    class_names:
+    - Normal
+    - Falldown
+    confidence_threshold: 0.4
+    config_file: /workspace/mmaction2/configs/skeleton/stgcnpp/stgcnpp_enhanced_falldown_detection_stable.py
+    coordinate_dimensions: 2
+    device: cuda:0
+    expected_keypoint_count: 17
+    input_format: stgcn
+    max_persons: 4
+    model_name: stgcn
+    num_classes: 2
+    window_size: 100
+
+# 포즈 추정 탐지 모델
   pose_estimation:
     inference_mode: onnx 
     onnx:
@@ -144,31 +174,58 @@ models:
       std: null
       to_openpose: false
 
-  scoring:
-    min_track_length: 10
-    quality_threshold: 0.3
-    scorer_name: movement_based
-    weights:
-      movement: 0.4
-      interaction: 0.4
-      position: 0.1
-      temporal: 0.1
-
+# 트래킹 설정
   tracking:
     frame_rate: 30
     iou_weight: 0.7
-    keypoint_weight: 0.3
+    keypoint_weight: 0.정정
     match_thresh: 0.5
     match_thresh_second: 0.4
     min_box_area: 100
     mot20: false
     new_track_thresh: 0.5
     track_buffer: 120
-    track_high_thresh: 0.3
+    track_high_thresh: 0.4
     track_low_thresh: 0.1
     track_thresh: 0.2
     tracker_name: bytetrack
     use_hybrid_matching: true
+
+# 듀얼 서비스 스코어링 설정
+  scoring:
+    # Fight 스코어링
+    fight:
+      min_track_length: 10
+      quality_threshold: 0.3
+      scorer_name: region_based
+      weights:
+        movement: 0.4
+        interaction: 0.4
+        position: 0.1
+        temporal: 0.1
+    
+    # Falldown 스코어링
+    falldown:
+      min_track_length: 10
+      quality_threshold: 0.3
+      scorer_name: falldown_scorer
+      weights:
+        height_change: 0.35
+        posture_angle: 0.25
+        movement_intensity: 0.20
+        persistence: 0.15
+        position: 0.05
+    
+    # 기존 호환성 (fight와 동일)
+    min_track_length: 10
+    quality_threshold: 0.3
+    scorer_name: region_based
+    weights:
+      movement: 0.4
+      interaction: 0.4
+      position: 0.1
+      temporal: 0.1
+
 
 
 performance:
@@ -181,16 +238,33 @@ performance:
   window_stride: 50
 
 
+# 듀얼 서비스 이벤트 설정
 events:
-  # 이벤트 발생 조건
-  alert_threshold: 0.8                    # 폭력 탐지 신뢰도 임계값
-  min_consecutive_detections: 3           # 연속 탐지 최소 횟수
+  # Fight 이벤트 설정
+  fight:
+    alert_threshold: 0.8                    # Fight 탐지 신뢰도 임계값
+    min_consecutive_detections: 3           # 연속 탐지 최소 횟수
+    normal_threshold: 0.5                   # 정상 상태 신뢰도 임계값
+    min_consecutive_normal: 2               # 연속 정상 최소 횟수
+    min_event_duration: 2.0                 # 최소 이벤트 지속 시간 (초)
+    max_event_duration: 10.0               # 최대 이벤트 지속 시간 (초) 
+    cooldown_duration: 5.0                 # 이벤트 쿨다운 시간 (초)
   
-  # 이벤트 해제 조건  
+  # Falldown 이벤트 설정
+  falldown:
+    alert_threshold: 0.6                    # Falldown 탐지 신뢰도 임계값 (낮게 설정)
+    min_consecutive_detections: 2           # 연속 탐지 최소 횟수 (빠른 반응)
+    normal_threshold: 0.4                   # 정상 상태 신뢰도 임계값
+    min_consecutive_normal: 3               # 연속 정상 최소 횟수 (확실한 해제)
+    min_event_duration: 1.0                 # 최소 이벤트 지속 시간 (초, 빠른 탐지)
+    max_event_duration: 15.0               # 최대 이벤트 지속 시간 (초, 길게 설정)
+    cooldown_duration: 3.0                 # 이벤트 쿨다운 시간 (초, 짧게 설정)
+  
+  # 공통 설정 (기존 호환성)
+  alert_threshold: 0.8                    # 기본 탐지 신뢰도 임계값
+  min_consecutive_detections: 3           # 연속 탐지 최소 횟수
   normal_threshold: 0.5                   # 정상 상태 신뢰도 임계값
   min_consecutive_normal: 2               # 연속 정상 최소 횟수
-  
-  # 시간 기반 조건
   min_event_duration: 2.0                 # 최소 이벤트 지속 시간 (초)
   max_event_duration: 10.0               # 최대 이벤트 지속 시간 (초) 
   cooldown_duration: 5.0                 # 이벤트 쿨다운 시간 (초)
