@@ -17,12 +17,15 @@ logger = logging.getLogger(__name__)
 class PKLVisualizer:
     """분석 모드 PKL 파일 기반 시각화 클래스 (기존 코드 활용)"""
     
-    def __init__(self, config: Dict):
+    def __init__(self, config: Dict, target_service: str = None):
         self.config = config
         self.max_persons = config.get('models', {}).get('action_classification', {}).get('max_persons', 4)
-        
+
+        # 시각화 대상 서비스 설정
+        self.target_service = target_service
+
         # 기존 방식 유지 (BaseInferenceVisualizer는 추상 클래스이므로 직접 사용 안함)
-        
+
         # COCO 17 키포인트 연결 구조 (0-based index)
         self.skeleton_connections = [
             (0, 1), (0, 2), (1, 3), (2, 4),  # 머리
@@ -30,7 +33,7 @@ class PKLVisualizer:
             (5, 11), (6, 12), (11, 12),  # 몸통
             (11, 13), (13, 15), (12, 14), (14, 16)  # 다리
         ]
-        
+
         # 색상 설정
         self.colors = {
             'fight': (0, 0, 255),      # 빨강
@@ -42,21 +45,60 @@ class PKLVisualizer:
             'other_person': (255, 0, 0),     # 파란색 (나머지)
             'text': (255, 255, 255)          # 흰색
         }
-        
+
         # 폰트 크기 기본값
         self.base_font_scale = 1.0
         self.base_thickness = 2
+
+        # 서비스별 최신 추론값 저장 (지속적 표시용)
+        self.latest_scores = {
+            'fight': {'confidence': 0.0, 'label': 'NonFight', 'is_event': False},
+            'falldown': {'confidence': 0.0, 'label': 'Normal', 'is_event': False}
+        }
+
+        # 활성 서비스 목록
+        self.active_services = set()
+
+        # 모든 서비스 결과 (프레임별)
+        self.all_service_results = {}
     
-    def visualize_single_file(self, video_file: str, results_dir: Path, 
-                            save_mode: bool = False, save_dir: str = "overlay_output") -> bool:
-        """단일 파일 시각화"""
+    def visualize_single_file(self, video_file: str, results_dir: Path,
+                            save_mode: bool = False, save_dir: str = "overlay_output", service_name: str = None) -> bool:
+        """단일 파일 시각화 (서비스별 파일 지원)"""
         video_path = Path(video_file)
         video_name = video_path.stem
-        
-        # 결과 파일들 찾기
-        json_files = list(results_dir.glob(f"**/{video_name}_results.json"))
-        frame_pkl_files = list(results_dir.glob(f"**/{video_name}_frame_poses.pkl"))
-        rtmo_pkl_files = list(results_dir.glob(f"**/{video_name}_rtmo_poses.pkl"))
+
+        # 모든 서비스 파일 수집 (inference 점수 표시를 위해)
+        self.all_service_results = self._collect_all_service_results(results_dir, video_name)
+
+        # 서비스별 파일 찾기 (기존 로직)
+        if service_name:
+            # 서비스명이 지정된 경우 해당 서비스의 파일만 찾기
+            json_files = list(results_dir.glob(f"**/{video_name}_{service_name}_results.json"))
+            frame_pkl_files = list(results_dir.glob(f"**/{video_name}_{service_name}_frame_poses.pkl"))
+            rtmo_pkl_files = list(results_dir.glob(f"**/{video_name}_{service_name}_rtmo_poses.pkl"))
+
+            if not json_files or not frame_pkl_files:
+                logger.warning(f"No {service_name} service files found, trying without service name")
+                # 서비스명이 없는 파일도 시도
+                json_files = list(results_dir.glob(f"**/{video_name}_results.json"))
+                frame_pkl_files = list(results_dir.glob(f"**/{video_name}_frame_poses.pkl"))
+                rtmo_pkl_files = list(results_dir.glob(f"**/{video_name}_rtmo_poses.pkl"))
+        else:
+            # 서비스명이 없는 경우 모든 가능한 파일 찾기
+            json_files = list(results_dir.glob(f"**/{video_name}_results.json"))
+            json_files.extend(list(results_dir.glob(f"**/{video_name}_*_results.json")))
+
+            frame_pkl_files = list(results_dir.glob(f"**/{video_name}_frame_poses.pkl"))
+            frame_pkl_files.extend(list(results_dir.glob(f"**/{video_name}_*_frame_poses.pkl")))
+
+            rtmo_pkl_files = list(results_dir.glob(f"**/{video_name}_rtmo_poses.pkl"))
+            rtmo_pkl_files.extend(list(results_dir.glob(f"**/{video_name}_*_rtmo_poses.pkl")))
+
+            # 중복 제거
+            json_files = list(set(json_files))
+            frame_pkl_files = list(set(frame_pkl_files))
+            rtmo_pkl_files = list(set(rtmo_pkl_files))
         
         if not json_files or not frame_pkl_files:
             logger.error(f"Required result files not found for video: {video_name}")
@@ -83,30 +125,31 @@ class PKLVisualizer:
         else:
             return self._display_realtime_overlay(video_file, json_data, frame_poses_data)
     
-    def visualize_folder(self, video_dir: str, results_dir: Path, 
-                        save_mode: bool = False, save_dir: str = "overlay_output") -> bool:
-        """폴더 시각화"""
+    def visualize_folder(self, video_dir: str, results_dir: Path,
+                        save_mode: bool = False, save_dir: str = "overlay_output", service_name: str = None) -> bool:
+        """폴더 시각화 (서비스별 파일 지원)"""
         video_path = Path(video_dir)
         if not video_path.exists():
             logger.error(f"Video directory does not exist: {video_dir}")
             return False
-        
+
         # 비디오 파일들 찾기
         video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv']
         video_files = []
         for ext in video_extensions:
             video_files.extend(video_path.glob(f"**/*{ext}"))
-        
-        logger.info(f"Found {len(video_files)} video files")
-        
+
+        service_info = f" for {service_name} service" if service_name else ""
+        logger.info(f"Found {len(video_files)} video files{service_info}")
+
         success_count = 0
         for video_file in video_files:
             logger.info(f"Processing: {video_file.name}")
-            if self.visualize_single_file(str(video_file), results_dir, save_mode, save_dir):
+            if self.visualize_single_file(str(video_file), results_dir, save_mode, save_dir, service_name):
                 success_count += 1
             else:
                 logger.warning(f"Failed to visualize: {video_file.name}")
-        
+
         logger.info(f"Visualization complete: {success_count}/{len(video_files)} successful")
         return success_count > 0
     
@@ -282,27 +325,156 @@ class PKLVisualizer:
         """프레임에 오버레이 그리기"""
         height, width = frame.shape[:2]
         font_scale, thickness = self._get_dynamic_font_params(height, width)
-        
-        # 분류 결과 표시
+
+        # 모든 서비스 결과에서 현재 프레임의 데이터 가져오기
+        current_frame_results = self.all_service_results.get(frame_idx, {})
+
+        # 모든 서비스 점수 업데이트
+        for service in ['fight', 'falldown']:
+            if service in current_frame_results:
+                service_data = current_frame_results[service]
+                self.latest_scores[service]['confidence'] = service_data['confidence']
+                self.latest_scores[service]['is_event'] = service_data['is_event']
+                self.latest_scores[service]['label'] = (
+                    'Fight' if service == 'fight' and service_data['is_event'] else
+                    'Falldown' if service == 'falldown' and service_data['is_event'] else
+                    'NonFight' if service == 'fight' else 'Normal'
+                )
+
+        # 분류 결과 처리 및 최신값 업데이트 (기존 로직 유지)
         if classification_data:
-            # 새로운 구조에서는 predicted_label 사용
-            predicted_class = classification_data.get('predicted_label', 
-                             classification_data.get('predicted_class', 'Unknown'))
-            confidence = classification_data.get('confidence', 0.0)
-            
-            color = self.colors['fight'] if predicted_class == 'Fight' else self.colors['normal']
-            text = f"{predicted_class} ({confidence:.2f})"
-            
-            # 동적 폰트 크기 적용
-            cv2.putText(frame, text, (int(10 * width/1280), int(30 * height/720)), 
-                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
-            
-            # 윈도우 정보 표시
+            # 서비스별 분류 결과 처리
+            if 'services' in classification_data:
+                # 듀얼 서비스 구조
+                for service_name, service_result in classification_data['services'].items():
+                    predicted_class = service_result.get('predicted_class', 'Unknown')
+                    confidence = service_result.get('confidence', 0.0)
+
+                    self.active_services.add(service_name)
+
+                    # 서비스별 라벨 매핑 및 최신값 업데이트
+                    if service_name == 'fight':
+                        is_event = predicted_class == 'Fight' or predicted_class == 1
+                        self.latest_scores['fight']['confidence'] = confidence
+                        self.latest_scores['fight']['label'] = 'Fight' if is_event else 'NonFight'
+                        self.latest_scores['fight']['is_event'] = is_event
+
+                    elif service_name == 'falldown':
+                        is_event = predicted_class == 'Falldown' or predicted_class == 1
+                        self.latest_scores['falldown']['confidence'] = confidence
+                        self.latest_scores['falldown']['label'] = 'Falldown' if is_event else 'Normal'
+                        self.latest_scores['falldown']['is_event'] = is_event
+
+            else:
+                # 단일 서비스 구조 (Fight만)
+                predicted_class = classification_data.get('predicted_label',
+                                 classification_data.get('predicted_class', 'Unknown'))
+                confidence = classification_data.get('confidence', 0.0)
+
+                self.active_services.add('fight')
+
+                # Fight 서비스 업데이트
+                is_fight = predicted_class == 1 or predicted_class == 'Fight'
+                self.latest_scores['fight']['confidence'] = confidence
+                self.latest_scores['fight']['label'] = 'Fight' if is_fight else 'NonFight'
+                self.latest_scores['fight']['is_event'] = is_fight
+
+        # 새로운 오버레이 표시 형태
+        y_start = int(30 * height/720)
+        line_height = int(30 * height/720)
+        x_pos = int(10 * width/1280)
+
+        # 오버레이 텍스트들 준비 (target_service 기준)
+        # 1. Service 라인 - target_service에 따라 표시
+        if self.target_service:
+            service_text = f"Service: {self.target_service.capitalize()}"
+        elif len(self.active_services) >= 2:
+            service_text = "Service: Both"
+        elif 'fight' in self.active_services:
+            service_text = "Service: Fight"
+        elif 'falldown' in self.active_services:
+            service_text = "Service: Falldown"
+        else:
+            service_text = "Service: None"
+
+        # 2. Event 라인 - target_service에 따라 해당 서비스만 표시
+        y_event = y_start + line_height
+        event_parts = []
+
+        if self.target_service == 'fight':
+            # Fight 서비스만 표시
+            if self.latest_scores['fight']['is_event']:
+                event_parts.append("Fight")
+        elif self.target_service == 'falldown':
+            # Falldown 서비스만 표시
+            if self.latest_scores['falldown']['is_event']:
+                event_parts.append("Falldown")
+        else:
+            # 전체 서비스 표시
+            if self.latest_scores['fight']['is_event']:
+                event_parts.append("Fight")
+            if self.latest_scores['falldown']['is_event']:
+                event_parts.append("Falldown")
+
+        if event_parts:
+            event_text = f"Event: {' | '.join(event_parts)}"
+            event_color = (0, 0, 255)  # 빨간색
+        else:
+            event_text = "Event: Normal"  # None 대신 Normal
+            event_color = self.colors['text']  # 흰색
+
+        # 3. Inference 라인 - target_service에 따라 해당 서비스만 표시
+        y_inference = y_event + line_height
+        if self.target_service == 'fight':
+            fight_score = self.latest_scores['fight']['confidence']
+            inference_text = f"Inference: Fight({fight_score:.2f})"
+        elif self.target_service == 'falldown':
+            falldown_score = self.latest_scores['falldown']['confidence']
+            inference_text = f"Inference: Falldown({falldown_score:.2f})"
+        else:
+            # 전체 서비스 표시
+            fight_score = self.latest_scores['fight']['confidence']
+            falldown_score = self.latest_scores['falldown']['confidence']
+            inference_text = f"Inference: Fight({fight_score:.2f}) | Falldown({falldown_score:.2f})"
+
+        # 텍스트 크기 계산
+        texts = [service_text, event_text, inference_text]
+        max_width = 0
+        text_height = 0
+
+        for text in texts:
+            (text_width, text_height_single), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, thickness)
+            max_width = max(max_width, text_width)
+            text_height = text_height_single
+
+        # 배경 사각형 그리기 (검은색)
+        padding = int(10 * width/1280)
+        bg_x1 = x_pos - padding
+        bg_y1 = y_start - text_height - padding
+        bg_x2 = x_pos + max_width + padding
+        bg_y2 = y_inference + padding
+
+        # 검은색 배경 사각형
+        cv2.rectangle(frame, (bg_x1, bg_y1), (bg_x2, bg_y2), (0, 0, 0), -1)
+
+        # 텍스트 표시
+        cv2.putText(frame, service_text, (x_pos, y_start),
+                   cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, self.colors['text'], thickness)
+
+        cv2.putText(frame, event_text, (x_pos, y_event),
+                   cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, event_color, thickness)
+
+        cv2.putText(frame, inference_text, (x_pos, y_inference),
+                   cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, self.colors['text'], thickness)
+
+        # 윈도우 정보 표시
+        if classification_data:
             window_id = classification_data.get('window_id', -1)
             frame_range = classification_data.get('frame_range', '')
             if window_id >= 0 and frame_range:
+                y_window = y_inference + int(30 * height/720)
                 window_text = f"Window {window_id}: {frame_range}"
-                cv2.putText(frame, window_text, (int(10 * width/1280), int(70 * height/720)), 
+                cv2.putText(frame, window_text, (int(10 * width/1280), y_window),
                            cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.7, self.colors['text'], thickness)
         
         # 포즈 데이터 표시 (FramePoses 구조 사용)
@@ -336,7 +508,43 @@ class PKLVisualizer:
                    cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, self.colors['text'], thickness)
         
         return frame
-    
+
+    def _collect_all_service_results(self, results_dir: Path, video_name: str) -> Dict:
+        """모든 서비스의 결과를 수집해서 프레임별로 정리"""
+        all_results = {}
+
+        # 가능한 서비스들
+        services = ['fight', 'falldown']
+
+        for service in services:
+            service_files = list(results_dir.glob(f"**/{video_name}_{service}_results.json"))
+            if service_files:
+                try:
+                    with open(service_files[0], 'r') as f:
+                        data = json.load(f)
+
+                    if 'classification_results' in data:
+                        for result in data['classification_results']:
+                            window_start = result.get('window_start_frame', 0)
+                            window_end = result.get('window_end_frame', 100)
+                            confidence = result.get('confidence', 0.0)
+                            predicted_class = result.get('predicted_label', 0)
+
+                            # 각 윈도우의 모든 프레임에 대해 결과 저장
+                            for frame_idx in range(window_start, min(window_end + 1, window_start + 100)):
+                                if frame_idx not in all_results:
+                                    all_results[frame_idx] = {}
+                                all_results[frame_idx][service] = {
+                                    'confidence': confidence,
+                                    'predicted_class': predicted_class,
+                                    'is_event': predicted_class == 1
+                                }
+
+                except Exception as e:
+                    logger.warning(f"Error reading {service} results: {e}")
+
+        return all_results
+
     def _draw_person_pose(self, frame: np.ndarray, person_pose, is_top_ranked: bool, height: int, width: int):
         """개별 사람의 포즈 그리기 (기존 PoseVisualizer 스타일)"""
         if not hasattr(person_pose, 'keypoints'):
@@ -423,11 +631,11 @@ class PKLVisualizer:
                             (int(pt2[0]), int(pt2[1])), person_color, skeleton_thickness)
 
 
-def create_pkl_visualization(video_file: str, results_dir: str, save_mode: bool = False, 
-                           save_dir: str = "overlay_output", config: Dict = None) -> bool:
-    """PKL 기반 시각화 생성 (편의 함수)"""
+def create_pkl_visualization(video_file: str, results_dir: str, save_mode: bool = False,
+                           save_dir: str = "overlay_output", config: Dict = None, service_name: str = None) -> bool:
+    """PKL 기반 시각화 생성 (편의 함수, 서비스별 지원)"""
     if config is None:
         config = {}
-    
+
     visualizer = PKLVisualizer(config)
-    return visualizer.visualize_single_file(video_file, Path(results_dir), save_mode, save_dir)
+    return visualizer.visualize_single_file(video_file, Path(results_dir), save_mode, save_dir, service_name)

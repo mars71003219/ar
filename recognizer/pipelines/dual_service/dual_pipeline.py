@@ -921,75 +921,200 @@ class DualServicePipeline(BasePipeline):
             # 결과 저장
             video_name = Path(video_path).stem
 
-            # JSON용 프레임 데이터 변환 (FramePoses → dict)
-            frames_data = []
-            for frame_poses in all_frames_poses:
-                frame_data = {
-                    'frame_idx': frame_poses.frame_idx,
-                    'persons': []
-                }
-                if frame_poses.persons:
-                    for person in frame_poses.persons:
-                        person_data = {
-                            'person_id': person.person_id,
-                            'track_id': getattr(person, 'track_id', None),
-                            'bbox': person.bbox,
-                            'keypoints': person.keypoints,
-                            'score': person.score
+            # 서비스별 결과 저장
+            output_files = {}
+
+            # 활성화된 서비스가 1개인 경우 (단일 서비스 모드)
+            if len(self.services) == 1:
+                service_name = self.services[0]
+
+                # 서비스별 분류 결과 분리
+                service_classifications = []
+                for classification in classification_results:
+                    service_result = classification['services'].get(service_name, {})
+                    if service_result:
+                        # 기존 구조와 호환되도록 변환
+                        compatible_result = {
+                            'window_start_frame': classification['window_start_frame'],
+                            'window_end_frame': classification['window_end_frame'],
+                            'predicted_label': service_result.get('predicted_class', 'Unknown'),
+                            'confidence': service_result.get('confidence', 0.0),
+                            'prediction': 1 if service_result.get('predicted_class', 0) == 1 or service_result.get('predicted_class', 'Unknown') == 'Fight' else 0,
+                            'frame_range': f"{classification['window_start_frame']}-{classification['window_end_frame']}"
                         }
-                        frame_data['persons'].append(person_data)
-                frames_data.append(frame_data)
+                        service_classifications.append(compatible_result)
 
-            # JSON 결과 저장
-            json_file = output_path / f"{video_name}_results.json"
-            results_data = {
-                'video_info': {
-                    'path': video_path,
-                    'total_frames': self.frame_idx,
-                    'services': self.services
-                },
-                'frames': frames_data,
-                'classification_results': classification_results  # PKLVisualizer가 기대하는 키명
-            }
+                # JSON용 프레임 데이터 변환 (FramePoses → dict)
+                frames_data = []
+                for frame_poses in all_frames_poses:
+                    frame_data = {
+                        'frame_idx': frame_poses.frame_idx,
+                        'persons': []
+                    }
+                    if frame_poses.persons:
+                        for person in frame_poses.persons:
+                            person_data = {
+                                'person_id': person.person_id,
+                                'track_id': getattr(person, 'track_id', None),
+                                'bbox': person.bbox,
+                                'keypoints': person.keypoints,
+                                'score': person.score
+                            }
+                            frame_data['persons'].append(person_data)
+                    frames_data.append(frame_data)
 
-            # JSON serialization을 위한 numpy 배열 처리
-            def convert_numpy_to_list(obj):
-                """numpy 배열을 리스트로 변환하는 재귀 함수"""
-                if isinstance(obj, np.ndarray):
-                    return obj.tolist()
-                elif isinstance(obj, dict):
-                    return {key: convert_numpy_to_list(value) for key, value in obj.items()}
-                elif isinstance(obj, list):
-                    return [convert_numpy_to_list(item) for item in obj]
-                elif isinstance(obj, tuple):
-                    return tuple(convert_numpy_to_list(item) for item in obj)
-                elif isinstance(obj, (np.int32, np.int64, np.float32, np.float64)):
-                    return obj.item()
-                else:
-                    return obj
+                # 서비스별 JSON 결과 저장
+                json_file = output_path / f"{video_name}_{service_name}_results.json"
+                results_data = {
+                    'video_info': {
+                        'path': video_path,
+                        'total_frames': self.frame_idx,
+                        'service': service_name
+                    },
+                    'frames': frames_data,
+                    'classification_results': service_classifications  # PKLVisualizer가 기대하는 키명
+                }
 
-            # numpy 배열을 리스트로 변환
-            serializable_results = convert_numpy_to_list(results_data)
+                # JSON serialization을 위한 numpy 배열 처리
+                def convert_numpy_to_list(obj):
+                    """numpy 배열을 리스트로 변환하는 재귀 함수"""
+                    if isinstance(obj, np.ndarray):
+                        return obj.tolist()
+                    elif isinstance(obj, dict):
+                        return {key: convert_numpy_to_list(value) for key, value in obj.items()}
+                    elif isinstance(obj, list):
+                        return [convert_numpy_to_list(item) for item in obj]
+                    elif isinstance(obj, tuple):
+                        return tuple(convert_numpy_to_list(item) for item in obj)
+                    elif isinstance(obj, (np.int32, np.int64, np.float32, np.float64)):
+                        return obj.item()
+                    else:
+                        return obj
 
-            with open(json_file, 'w') as f:
-                json.dump(serializable_results, f, indent=2)
+                # numpy 배열을 리스트로 변환
+                serializable_results = convert_numpy_to_list(results_data)
 
-            # PKL 결과 저장 (VisualizationData 객체로 래핑)
-            pkl_file = output_path / f"{video_name}_frame_poses.pkl"
-            visualization_data = VisualizationData(
-                video_name=video_name,
-                frame_data=all_frames_poses,
-                stage_info={'stage': 'inference_analysis', 'services': self.services},
-                poses_with_tracking=all_frames_poses
-            )
-            with open(pkl_file, 'wb') as f:
-                pickle.dump(visualization_data, f)
+                with open(json_file, 'w') as f:
+                    json.dump(serializable_results, f, indent=2)
 
-            # 분류 결과만 따로 저장
-            if classification_results:
-                classification_pkl = output_path / f"{video_name}_classifications.pkl"
-                with open(classification_pkl, 'wb') as f:
-                    pickle.dump(classification_results, f)
+                # 서비스별 PKL 결과 저장 (VisualizationData 객체로 래핑)
+                pkl_file = output_path / f"{video_name}_{service_name}_frame_poses.pkl"
+                visualization_data = VisualizationData(
+                    video_name=video_name,
+                    frame_data=all_frames_poses,
+                    stage_info={'stage': 'inference_analysis', 'service': service_name},
+                    poses_with_tracking=all_frames_poses
+                )
+                with open(pkl_file, 'wb') as f:
+                    pickle.dump(visualization_data, f)
+
+                # 서비스별 분류 결과만 따로 저장
+                if service_classifications:
+                    classification_pkl = output_path / f"{video_name}_{service_name}_classifications.pkl"
+                    with open(classification_pkl, 'wb') as f:
+                        pickle.dump(service_classifications, f)
+
+                output_files[service_name] = {
+                    'json': str(json_file),
+                    'poses_pkl': str(pkl_file),
+                    'classifications_pkl': str(classification_pkl) if service_classifications else None
+                }
+
+            else:
+                # 듀얼 서비스 모드 - 각 서비스별로 별도 저장
+                for service_name in self.services:
+
+                    # 서비스별 분류 결과 분리
+                    service_classifications = []
+                    for classification in classification_results:
+                        service_result = classification['services'].get(service_name, {})
+                        if service_result:
+                            # 기존 구조와 호환되도록 변환
+                            compatible_result = {
+                                'window_start_frame': classification['window_start_frame'],
+                                'window_end_frame': classification['window_end_frame'],
+                                'predicted_label': service_result.get('predicted_class', 'Unknown'),
+                                'confidence': service_result.get('confidence', 0.0),
+                                'prediction': 1 if service_result.get('predicted_class', 0) == 1 or service_result.get('predicted_class', 'Unknown') == 'Fight' else 0,
+                                'frame_range': f"{classification['window_start_frame']}-{classification['window_end_frame']}"
+                            }
+                            service_classifications.append(compatible_result)
+
+                    # JSON용 프레임 데이터 변환 (FramePoses → dict) - 공통
+                    frames_data = []
+                    for frame_poses in all_frames_poses:
+                        frame_data = {
+                            'frame_idx': frame_poses.frame_idx,
+                            'persons': []
+                        }
+                        if frame_poses.persons:
+                            for person in frame_poses.persons:
+                                person_data = {
+                                    'person_id': person.person_id,
+                                    'track_id': getattr(person, 'track_id', None),
+                                    'bbox': person.bbox,
+                                    'keypoints': person.keypoints,
+                                    'score': person.score
+                                }
+                                frame_data['persons'].append(person_data)
+                        frames_data.append(frame_data)
+
+                    # 서비스별 JSON 결과 저장
+                    json_file = output_path / f"{video_name}_{service_name}_results.json"
+                    results_data = {
+                        'video_info': {
+                            'path': video_path,
+                            'total_frames': self.frame_idx,
+                            'service': service_name
+                        },
+                        'frames': frames_data,
+                        'classification_results': service_classifications  # PKLVisualizer가 기대하는 키명
+                    }
+
+                    # JSON serialization을 위한 numpy 배열 처리
+                    def convert_numpy_to_list(obj):
+                        """numpy 배열을 리스트로 변환하는 재귀 함수"""
+                        if isinstance(obj, np.ndarray):
+                            return obj.tolist()
+                        elif isinstance(obj, dict):
+                            return {key: convert_numpy_to_list(value) for key, value in obj.items()}
+                        elif isinstance(obj, list):
+                            return [convert_numpy_to_list(item) for item in obj]
+                        elif isinstance(obj, tuple):
+                            return tuple(convert_numpy_to_list(item) for item in obj)
+                        elif isinstance(obj, (np.int32, np.int64, np.float32, np.float64)):
+                            return obj.item()
+                        else:
+                            return obj
+
+                    # numpy 배열을 리스트로 변환
+                    serializable_results = convert_numpy_to_list(results_data)
+
+                    with open(json_file, 'w') as f:
+                        json.dump(serializable_results, f, indent=2)
+
+                    # 서비스별 PKL 결과 저장 (VisualizationData 객체로 래핑)
+                    pkl_file = output_path / f"{video_name}_{service_name}_frame_poses.pkl"
+                    visualization_data = VisualizationData(
+                        video_name=video_name,
+                        frame_data=all_frames_poses,
+                        stage_info={'stage': 'inference_analysis', 'service': service_name},
+                        poses_with_tracking=all_frames_poses
+                    )
+                    with open(pkl_file, 'wb') as f:
+                        pickle.dump(visualization_data, f)
+
+                    # 서비스별 분류 결과만 따로 저장
+                    if service_classifications:
+                        classification_pkl = output_path / f"{video_name}_{service_name}_classifications.pkl"
+                        with open(classification_pkl, 'wb') as f:
+                            pickle.dump(service_classifications, f)
+
+                    output_files[service_name] = {
+                        'json': str(json_file),
+                        'poses_pkl': str(pkl_file),
+                        'classifications_pkl': str(classification_pkl) if service_classifications else None
+                    }
 
             logging.info(f"Analysis completed for {video_name}: {self.frame_idx} frames processed")
             logging.info(f"Results saved to {output_dir}")
@@ -998,11 +1123,8 @@ class DualServicePipeline(BasePipeline):
                 'success': True,
                 'frames_processed': self.frame_idx,
                 'classifications_count': len(classification_results),
-                'output_files': {
-                    'json': str(json_file),
-                    'poses_pkl': str(pkl_file),
-                    'classifications_pkl': str(classification_pkl) if classification_results else None
-                }
+                'services': self.services,
+                'output_files': output_files
             }
 
         except Exception as e:

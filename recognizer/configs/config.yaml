@@ -1,19 +1,19 @@
 # mode: inference.analysis
 # mode: inference.visualize
 # mode: inference.realtime
-# mode: annotation.stage3
+mode: annotation.stage3
 # mode: annotation.visualize
 
 # 듀얼 서비스 설정
 dual_service:
-  enabled: true                          # 듀얼 서비스 활성화
-  # enabled: false                           # 단일 서비스 모드
+  # enabled: true                            # 듀얼 서비스 활성화
+  enabled: false                         # 단일 서비스 모드
   services:
-    - fight                              # Fight 탐지 서비스
-    - falldown                             # Falldown 탐지 서비스
+    # - fight                              # Fight 탐지 서비스
+    - falldown                           # Falldown 탐지 서비스
 
 annotation:
-  input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
+  input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup
   output_dir: output
   pipeline_mode: true
 
@@ -22,7 +22,7 @@ annotation:
     # Stage1 전용 멀티 프로세스 설정
     multi_process:
       enabled: true                     # Stage1 멀티프로세스 활성화
-      num_processes: 6                  # 프로세스 수
+      num_processes: 16                  # 프로세스 수
       gpus: [0, 1]                      # 사용할 GPU 목록 (라운드 로빈 할당)
       chunk_strategy: video_split       # 비디오 단위로 분할
   stage2:
@@ -42,7 +42,7 @@ annotation:
 
 inference:
   analysis:
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo/fight/F_20_1_1_0_0.mp4
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
     output_dir: output
 
     # 성능평가 설정
@@ -66,9 +66,9 @@ inference:
     overlay_mode: skeleton_only  # full, skeleton_only, raw
 
   visualize:
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo/fight/F_20_1_1_0_0.mp4
-    results_dir: /workspace/recognizer/output/UBI_demo/F_20_1_1_0_0
-    save_dir: /workspace/recognizer/output/UBI_demo/F_20_1_1_0_0
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
+    results_dir: /workspace/recognizer/output/UBI_demo
+    save_dir: /workspace/recognizer/output/UBI_demo
     save_mode: true
 
 

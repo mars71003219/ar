@@ -17,13 +17,19 @@ class ResultSaver:
     """분석 결과 저장 공용 클래스"""
     
     @staticmethod
-    def save_analysis_results(input_file: str, output_dir: str, result_dict: Dict[str, Any]) -> bool:
-        """분석 결과를 JSON, PKL 파일로 저장"""
+    def save_analysis_results(input_file: str, output_dir: str, result_dict: Dict[str, Any], service_name: str = None) -> bool:
+        """분석 결과를 JSON, PKL 파일로 저장 (서비스별 파일명 지원)"""
         try:
             video_path = Path(input_file)
             video_name = video_path.stem
             output_path = Path(output_dir)
             output_path.mkdir(parents=True, exist_ok=True)
+
+            # 서비스명이 지정된 경우 파일명에 포함
+            if service_name:
+                file_prefix = f"{video_name}_{service_name}"
+            else:
+                file_prefix = video_name
             
             # 윈도우 프레임 범위 정보 추가
             classifications_with_frames = []
@@ -70,22 +76,22 @@ class ResultSaver:
                 'timestamp': time.time()
             }
             
-            # JSON 파일 저장
-            json_file = output_path / f"{video_name}_results.json"
+            # JSON 파일 저장 (서비스별 파일명 적용)
+            json_file = output_path / f"{file_prefix}_results.json"
             with open(json_file, 'w', encoding='utf-8') as f:
                 json.dump(json_result, f, indent=2, ensure_ascii=False)
-            
-            # PKL 파일들 저장
+
+            # PKL 파일들 저장 (서비스별 파일명 적용)
             if 'raw_pose_results' in result_dict:
                 # 1. 포즈추정 PKL 파일 (원본 포즈 데이터)
-                rtmo_poses_file = output_path / f"{video_name}_rtmo_poses.pkl"
+                rtmo_poses_file = output_path / f"{file_prefix}_rtmo_poses.pkl"
                 with open(rtmo_poses_file, 'wb') as f:
                     pickle.dump(result_dict['raw_pose_results'], f)
                 logger.info(f"Raw pose results saved to: {rtmo_poses_file}")
-            
+
             if 'processed_frame_poses' in result_dict:
                 # 2. 트래킹+복합점수 계산 후 정렬된 PKL 파일
-                frame_poses_file = output_path / f"{video_name}_frame_poses.pkl"
+                frame_poses_file = output_path / f"{file_prefix}_frame_poses.pkl"
                 with open(frame_poses_file, 'wb') as f:
                     pickle.dump(result_dict['processed_frame_poses'], f)
                 logger.info(f"Processed frame poses saved to: {frame_poses_file}")

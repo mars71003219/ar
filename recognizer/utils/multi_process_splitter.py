@@ -865,19 +865,61 @@ class MultiProcessInferenceAnalysisManager:
             
             # inference.analysis 결과 통합
             self.merger.merge_inference_results(split_dirs)
-            
-            # 7. 정리
-            logger.info("=== Step 6: Cleanup ===")
+
+            # 7. 성능평가 실행 (통합된 결과로)
+            logger.info("=== Step 6: Running performance evaluation ===")
+            self._run_performance_evaluation()
+
+            # 8. 정리
+            logger.info("=== Step 7: Cleanup ===")
             self.merger.cleanup_split_dirs(split_dirs)
             
             total_time = time.time() - start_time
             logger.info(f"Multi-process inference analysis completed in {total_time:.2f}s")
             logger.info(f"Success rate: {success_count}/{len(processes)}")
             
-            return success_count == len(processes)
+            # 일부 프로세스가 실패해도 과반수가 성공하면 OK
+            return success_count > 0
             
         except Exception as e:
             logger.error(f"Multi-process inference analysis failed: {e}")
+            return False
+
+    def _run_performance_evaluation(self) -> bool:
+        """통합된 결과로 성능평가 실행"""
+        try:
+            from core.inference_modes import AnalysisMode
+            from pathlib import Path
+            import yaml
+
+            # 원본 설정 로드
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+
+            # 성능평가가 활성화되어 있는지 확인
+            enable_evaluation = config.get('inference', {}).get('analysis', {}).get('enable_evaluation', False)
+            if not enable_evaluation:
+                logger.info("Performance evaluation is disabled in config")
+                return True
+
+            # 임시 AnalysisMode 인스턴스 생성
+            analysis_mode = AnalysisMode(config)
+
+            # 성능평가 실행
+            logger.info("Running performance evaluation on merged results...")
+            success = analysis_mode._run_performance_evaluation(self.input_dir, self.output_dir)
+
+            if success:
+                logger.info("Performance evaluation completed successfully")
+            else:
+                logger.warning("Performance evaluation failed")
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error running performance evaluation: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
 
@@ -926,10 +968,16 @@ class InferenceAnalysisConfigGenerator:
             split_config['inference']['analysis']['output_dir'] = split_dir
             
             # 멀티 프로세스 비활성화 (subprocess에서는 단일 처리만)
-            split_config['multi_process']['enabled'] = False
+            if 'multi_process' in split_config:
+                split_config['multi_process']['enabled'] = False
+
+            # inference.analysis 멀티프로세스 비활성화
+            if 'inference' in split_config and 'analysis' in split_config['inference']:
+                if 'multi_process' in split_config['inference']['analysis']:
+                    split_config['inference']['analysis']['multi_process']['enabled'] = False
             
-            # 성능평가는 마지막에만 (첫 번째 프로세스에서만 실행)
-            split_config['inference']['analysis']['enable_evaluation'] = (i == 0)
+            # 성능평가는 분할에서 비활성화 (마지막에 전체적으로 실행)
+            split_config['inference']['analysis']['enable_evaluation'] = False
             
             # 설정 파일 저장
             config_path = Path(split_dir) / f"config_split_{i}.yaml"

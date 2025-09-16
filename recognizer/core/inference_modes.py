@@ -379,75 +379,130 @@ class AnalysisMode(BaseMode):
             from sklearn.metrics import confusion_matrix, precision_recall_fscore_support, average_precision_score
             from utils.evaluation_visualizer import EvaluationVisualizer
             
-            # 출력 디렉토리에서 JSON 결과 파일들 수집
+            # 출력 디렉토리에서 JSON 결과 파일들 수집 (서비스별 파일 포함)
             output_path = Path(output_dir)
             json_files = list(output_path.rglob("*_results.json"))
-            
+
             if not json_files:
                 logger.warning("No JSON result files found for evaluation")
                 return True
-            
+
+            # 서비스별 파일 분류
+            service_files = {}
+            for json_file in json_files:
+                filename = json_file.stem
+                if '_fight_results' in filename:
+                    service_name = 'fight'
+                elif '_falldown_results' in filename:
+                    service_name = 'falldown'
+                else:
+                    # 기존 형식 (서비스명 없음)
+                    service_name = 'unknown'
+
+                if service_name not in service_files:
+                    service_files[service_name] = []
+                service_files[service_name].append(json_file)
+
             logger.info(f"Found {len(json_files)} JSON result files")
-            
-            # 데이터셋 라벨 수집
-            dataset_labels = self._collect_dataset_labels(input_path)
-            
-            # 결과 분석
-            detailed_results = []
-            summary_results = []
+            logger.info(f"Service breakdown: {[(k, len(v)) for k, v in service_files.items()]}")
+
+            # 서비스별 결과 분석
+            service_results = {}
             # events.min_consecutive_detections 사용 (중복 설정 제거)
             consecutive_frames = self.config.get('events', {}).get('min_consecutive_detections', 3)
-            
-            for json_file in json_files:
-                try:
-                    with open(json_file, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                    
-                    # 분류 결과 추출
-                    classifications = data.get('classification_results', data.get('classifications', []))
-                    if not classifications:
-                        logger.warning(f"No classifications found in {json_file}")
-                        continue
-                    
-                    # 비디오 이름으로부터 라벨 추출
-                    video_name = json_file.stem.replace('_results', '')
-                    true_label, class_name = self._get_label_from_dataset(video_name, dataset_labels)
-                    
-                    if true_label is None:
-                        logger.warning(f"Could not determine label for video: {video_name}")
-                        continue
-                    
-                    # 결과 처리 - input_path 추가 전달
-                    self._process_video_results(
-                        json_file, classifications, video_name, true_label, class_name,
-                        consecutive_frames, detailed_results, summary_results, input_path
-                    )
-                
-                except Exception as e:
-                    logger.error(f"Error processing {json_file}: {e}")
+
+            # 각 서비스별로 평가 수행
+            for service_name, files in service_files.items():
+                if not files:
                     continue
-            
-            if not summary_results:
+
+                logger.info(f"=== Evaluating {service_name} service ===")
+
+                # 서비스별 데이터셋 라벨 수집
+                dataset_labels = self._collect_dataset_labels(input_path, service_name)
+
+                detailed_results = []
+                summary_results = []
+
+                for json_file in files:
+                    try:
+                        with open(json_file, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+
+                        # 분류 결과 추출
+                        classifications = data.get('classification_results', data.get('classifications', []))
+                        if not classifications:
+                            logger.warning(f"No classifications found in {json_file}")
+                            continue
+
+                        # 비디오 이름으로부터 라벨 추출 (서비스명 제거)
+                        video_name = json_file.stem.replace('_results', '').replace(f'_{service_name}', '')
+                        true_label, class_name = self._get_label_from_dataset(video_name, dataset_labels)
+
+                        if true_label is None:
+                            logger.warning(f"Could not determine label for video: {video_name}")
+                            continue
+
+                        # 결과 처리 - input_path 추가 전달
+                        self._process_video_results(
+                            json_file, classifications, video_name, true_label, class_name,
+                            consecutive_frames, detailed_results, summary_results, input_path, service_name
+                        )
+
+                    except Exception as e:
+                        logger.error(f"Error processing {json_file}: {e}")
+                        continue
+
+                if summary_results:
+                    service_results[service_name] = {
+                        'detailed_results': detailed_results,
+                        'summary_results': summary_results,
+                        'file_count': len(files)
+                    }
+                    logger.info(f"{service_name} service: {len(summary_results)} videos evaluated")
+                else:
+                    logger.warning(f"No valid results for {service_name} service")
+
+            if not service_results:
                 logger.warning("No valid results for evaluation")
                 return True
             
-            # 결과 저장
+            # 서비스별 결과 저장 및 평가
             eval_output_dir = Path(output_dir) / 'evaluation'
             eval_output_dir.mkdir(exist_ok=True)
-            
-            # CSV 파일 생성
-            self._save_csv_results(detailed_results, summary_results, eval_output_dir)
-            
-            # 성능 지표 계산 및 차트 생성
-            success = self._calculate_and_visualize_metrics(
-                summary_results, detailed_results, eval_output_dir, consecutive_frames
-            )
-            
-            # 최종 분석 보고서 생성
-            if success:
-                self._generate_final_report(eval_output_dir, input_path)
-            
-            return success
+
+            overall_success = True
+
+            for service_name, results in service_results.items():
+                logger.info(f"=== Processing evaluation for {service_name} service ===")
+
+                # 서비스별 평가 디렉토리 생성
+                service_eval_dir = eval_output_dir / service_name
+                service_eval_dir.mkdir(exist_ok=True)
+
+                detailed_results = results['detailed_results']
+                summary_results = results['summary_results']
+
+                # 서비스별 CSV 파일 생성
+                self._save_csv_results(detailed_results, summary_results, service_eval_dir, service_name)
+
+                # 서비스별 성능 지표 계산 및 차트 생성
+                success = self._calculate_and_visualize_metrics(
+                    summary_results, detailed_results, service_eval_dir, consecutive_frames, service_name
+                )
+
+                if not success:
+                    overall_success = False
+
+                # 서비스별 분석 보고서 생성
+                if success:
+                    self._generate_service_report(service_eval_dir, input_path, service_name, results)
+
+            # 전체 요약 보고서 생성
+            if overall_success:
+                self._generate_overall_report(eval_output_dir, input_path, service_results)
+
+            return overall_success
             
         except Exception as e:
             logger.error(f"Error in performance evaluation: {e}")
@@ -455,51 +510,63 @@ class AnalysisMode(BaseMode):
             traceback.print_exc()
             return False
     
-    def _collect_dataset_labels(self, input_path: str) -> Dict[str, Tuple[int, str]]:
-        """데이터셋 라벨 수집 (파일명 기반)"""
+    def _collect_dataset_labels(self, input_path: str, service_name: str = None) -> Dict[str, Tuple[int, str]]:
+        """데이터셋 라벨 수집 (파일명 기반, 서비스별 라벨)"""
         from pathlib import Path
-        
+
         dataset_labels = {}
         input_path_obj = Path(input_path)
-        
+
         if input_path_obj.is_file():
             # 단일 파일인 경우 파일명으로 라벨 결정
             filename = input_path_obj.stem
-            if filename.startswith('F_') or 'fight' in filename.lower() or 'violence' in filename.lower():
-                label, class_name = 1, 'Fight'
-            elif filename.startswith('N_') or 'normal' in filename.lower() or 'nonfight' in filename.lower():
-                label, class_name = 0, 'Normal'
-            else:
-                # 폴더명으로 폴백
-                parent_name = input_path_obj.parent.name.lower()
-                label = 1 if parent_name in ['fight', 'violence'] else 0
-                class_name = 'Fight' if label == 1 else 'Normal'
+            label, class_name = self._determine_label_and_class(filename, input_path_obj.parent.name, service_name)
             dataset_labels[input_path_obj.stem] = (label, class_name)
         else:
             # 폴더인 경우 각 비디오 파일명으로 라벨 결정
             for video_file in input_path_obj.rglob("*.mp4"):
                 filename = video_file.stem
-                if filename.startswith('F_') or 'fight' in filename.lower() or 'violence' in filename.lower():
-                    label, class_name = 1, 'Fight'
-                elif filename.startswith('N_') or 'normal' in filename.lower() or 'nonfight' in filename.lower():
-                    label, class_name = 0, 'Normal'
-                else:
-                    # 폴더명으로 폴백
-                    parent_name = video_file.parent.name.lower()
-                    label = 1 if parent_name in ['fight', 'violence'] else 0
-                    class_name = 'Fight' if label == 1 else 'Normal'
+                label, class_name = self._determine_label_and_class(filename, video_file.parent.name, service_name)
                 dataset_labels[video_file.stem] = (label, class_name)
-        
-        logger.info(f"Dataset labels collected: {len(dataset_labels)} videos")
+
+        logger.info(f"Dataset labels collected for {service_name or 'default'} service: {len(dataset_labels)} videos")
         return dataset_labels
+
+    def _determine_label_and_class(self, filename: str, parent_name: str, service_name: str = None) -> Tuple[int, str]:
+        """파일명과 폴더명으로부터 서비스별 라벨과 클래스명 결정"""
+        filename_lower = filename.lower()
+        parent_lower = parent_name.lower()
+
+        # Fight/Violence 감지
+        is_fight = (filename.startswith('F_') or 'fight' in filename_lower or 'violence' in filename_lower or
+                   parent_lower in ['fight', 'violence'])
+
+        # Falldown 감지 (Falldown 데이터셋의 경우)
+        is_falldown = ('falldown' in filename_lower or 'fall' in filename_lower or
+                      parent_lower in ['falldown', 'fall'])
+
+        # Normal 감지
+        is_normal = (filename.startswith('N_') or 'normal' in filename_lower or 'nonfight' in filename_lower or
+                    parent_lower in ['normal', 'nonfight'])
+
+        if service_name == 'falldown':
+            if is_falldown:
+                return 1, 'Falldown'
+            else:
+                return 0, 'Normal'
+        else:  # fight 또는 기본
+            if is_fight:
+                return 1, 'Fight'
+            else:
+                return 0, 'NonFight'
     
     def _get_label_from_dataset(self, video_name: str, dataset_labels: Dict[str, Tuple[int, str]]) -> Tuple[int, str]:
         """비디오 이름으로부터 라벨 가져오기"""
         return dataset_labels.get(video_name, (None, None))
     
-    def _process_video_results(self, json_file: Path, classifications: List[Dict[str, Any]], 
+    def _process_video_results(self, json_file: Path, classifications: List[Dict[str, Any]],
                               video_name: str, true_label: int, class_name: str,
-                              consecutive_frames: int, detailed_results: List, summary_results: List, input_path: str):
+                              consecutive_frames: int, detailed_results: List, summary_results: List, input_path: str, service_name: str = None):
         """비디오 결과 처리"""
         if not classifications:
             logger.warning(f"No classifications found for {video_name}")
@@ -529,7 +596,7 @@ class AnalysisMode(BaseMode):
                 'video_path': video_input_path,
                 'event_start_frame': i * 50,  # stride=50 기준
                 'window_size': 100,
-                'fight_score': classification.get('confidence', 0.0)
+                f'{service_name}_score' if service_name else 'fight_score': classification.get('confidence', 0.0)
             }
             detailed_results.append(window_result)
         
@@ -544,7 +611,7 @@ class AnalysisMode(BaseMode):
             'event_count': event_count,
             'consecutive_frames_threshold': consecutive_frames,
             'class_label': class_name,
-            'predicted_class': 'Fight' if final_prediction == 1 else 'NonFight',
+            'predicted_class': self._get_predicted_class_name(final_prediction, service_name),
             'confusion_matrix': performance_type,
             'true_label': true_label
         }
@@ -567,6 +634,33 @@ class AnalysisMode(BaseMode):
         
         return event_count, max_consecutive
     
+    def _get_predicted_class_name(self, prediction: int, service_name: str = None) -> str:
+        """서비스별 예측 클래스명 반환"""
+        if service_name == 'falldown':
+            return 'Falldown' if prediction == 1 else 'Normal'
+        else:  # fight 또는 기본
+            return 'Fight' if prediction == 1 else 'NonFight'
+
+    def _get_dataset_info(self, summary_results: List, y_true: List, consecutive_frames: int, service_name: str = None) -> Dict:
+        """서비스별 데이터셋 정보 반환"""
+        positive_count = sum(y_true)
+        negative_count = len(y_true) - positive_count
+
+        if service_name == 'falldown':
+            return {
+                'total_videos': len(summary_results),
+                'falldown_videos': positive_count,
+                'normal_videos': negative_count,
+                'consecutive_frames_threshold': consecutive_frames
+            }
+        else:  # fight 또는 기본
+            return {
+                'total_videos': len(summary_results),
+                'fight_videos': positive_count,
+                'non_fight_videos': negative_count,
+                'consecutive_frames_threshold': consecutive_frames
+            }
+
     def _get_performance_type(self, true_label: int, predicted_label: int) -> str:
         """혼동행렬 타입 계산"""
         if true_label == 1 and predicted_label == 1:
@@ -578,28 +672,33 @@ class AnalysisMode(BaseMode):
         else:  # true_label == 0 and predicted_label == 0
             return 'TN'  # True Negative
     
-    def _save_csv_results(self, detailed_results: List, summary_results: List, output_dir: Path):
+    def _save_csv_results(self, detailed_results: List, summary_results: List, output_dir: Path, service_name: str = None):
         """CSV 결과 저장"""
         try:
             import csv
             
+            # 서비스별 파일명 생성
+            file_suffix = f"_{service_name}" if service_name else ""
+
             # 1. 비디오별 처리 결과 CSV (윈도우별 상세)
-            detailed_file = output_dir / 'detailed_results.csv'
+            detailed_file = output_dir / f'detailed_results{file_suffix}.csv'
             if detailed_results:
+                # 서비스별 스코어 필드명 설정
+                score_field = f'{service_name}_score' if service_name else 'fight_score'
                 fieldnames = [
-                    'window_number', 'video_filename', 'video_path', 
-                    'event_start_frame', 'window_size', 'fight_score'
+                    'window_number', 'video_filename', 'video_path',
+                    'event_start_frame', 'window_size', score_field
                 ]
-                
+
                 with open(detailed_file, 'w', newline='', encoding='utf-8') as csvfile:
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                     writer.writeheader()
                     writer.writerows(detailed_results)
-                
+
                 logger.info(f"Detailed results saved: {detailed_file} ({len(detailed_results)} windows)")
-            
+
             # 2. 통합 결과 CSV
-            summary_file = output_dir / 'summary_results.csv'
+            summary_file = output_dir / f'summary_results{file_suffix}.csv'
             if summary_results:
                 fieldnames = [
                     'video_filename', 'video_path', 'event_count', 
@@ -621,8 +720,8 @@ class AnalysisMode(BaseMode):
         except Exception as e:
             logger.error(f"Error saving CSV results: {e}")
     
-    def _calculate_and_visualize_metrics(self, summary_results: List, detailed_results: List, 
-                                        output_dir: Path, consecutive_frames: int) -> bool:
+    def _calculate_and_visualize_metrics(self, summary_results: List, detailed_results: List,
+                                        output_dir: Path, consecutive_frames: int, service_name: str = None) -> bool:
         """성능 지표 계산 및 시각화"""
         try:
             from sklearn.metrics import confusion_matrix
@@ -678,12 +777,7 @@ class AnalysisMode(BaseMode):
                     'TP': int(tp), 'FP': int(fp),
                     'FN': int(fn), 'TN': int(tn)
                 },
-                'dataset_info': {
-                    'total_videos': len(summary_results),
-                    'fight_videos': sum(y_true),
-                    'non_fight_videos': len(y_true) - sum(y_true),
-                    'consecutive_frames_threshold': consecutive_frames
-                }
+                'dataset_info': self._get_dataset_info(summary_results, y_true, consecutive_frames, service_name)
             }
             
             # 성능 지표 출력
@@ -701,12 +795,16 @@ class AnalysisMode(BaseMode):
             logger.info(f"TP: {tp}, FP: {fp}, FN: {fn}, TN: {tn}")
             logger.info("=====================================")
             
+            # 서비스별 파일명 생성
+            file_suffix = f"_{service_name}" if service_name else ""
+
             # JSON 파일로 성능 지표 저장
-            metrics_file = output_dir / 'performance_metrics.json'
+            metrics_file = output_dir / f'performance_metrics{file_suffix}.json'
             with open(metrics_file, 'w', encoding='utf-8') as f:
                 json.dump(metrics, f, indent=2, ensure_ascii=False)
-            
-            logger.info(f"Performance metrics saved: {metrics_file}")
+
+            service_info = f" for {service_name} service" if service_name else ""
+            logger.info(f"Performance metrics{service_info} saved: {metrics_file}")
             
             # 차트 및 표 생성
             try:
@@ -739,16 +837,27 @@ class AnalysisMode(BaseMode):
             with open(metrics_file, 'r', encoding='utf-8') as f:
                 metrics = json.load(f)
             
+            # 서비스별 비디오 정보 추출
+            dataset_keys = list(metrics['dataset_info'].keys())
+            positive_key = dataset_keys[1] if len(dataset_keys) > 1 else 'positive_videos'
+            negative_key = dataset_keys[2] if len(dataset_keys) > 2 else 'negative_videos'
+
+            positive_label = positive_key.replace('_videos', '').replace('_', ' ').title()
+            negative_label = negative_key.replace('_videos', '').replace('_', ' ').title()
+
+            service_title = service_name.upper() if service_name else 'FIGHT'
+
             # 보고서 생성
-            report_content = f"""# UBI-FIGHTS 데이터셋 분석 보고서
+            report_content = f"""# {service_title} 서비스 데이터셋 분석 보고서
 
 ## 분석 개요
 - **분석 일시**: {datetime.now().strftime('%Y년 %m월 %d일 %H시 %M분')}
 - **데이터셋**: {Path(input_path).name}
 - **분석 모드**: inference.analysis with evaluation
+- **서비스**: {service_title}
 - **총 비디오 수**: {metrics['dataset_info']['total_videos']}개
-- **Fight 비디오**: {metrics['dataset_info']['fight_videos']}개
-- **Normal 비디오**: {metrics['dataset_info']['non_fight_videos']}개
+- **{positive_label} 비디오**: {metrics['dataset_info'][positive_key]}개
+- **{negative_label} 비디오**: {metrics['dataset_info'][negative_key]}개
 
 ## 성능 지표
 
@@ -801,9 +910,9 @@ class AnalysisMode(BaseMode):
 ![Video Performance](charts/video_performance.png)
 
 ## 결론
-UBI-FIGHTS 데이터셋에 대해 완벽한 성능을 달성했습니다. 
-모든 Fight 비디오와 Normal 비디오를 정확하게 분류했으며, 
-오분류(False Positive/Negative)가 전혀 발생하지 않았습니다.
+{service_title} 서비스 데이터셋에 대한 분석이 완료되었습니다.
+모든 {positive_label} 비디오와 {negative_label} 비디오에 대한 성능 평가가 수행되었으며,
+상세한 분석 결과를 확인할 수 있습니다.
 
 ---
 **생성일시**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -819,6 +928,244 @@ UBI-FIGHTS 데이터셋에 대해 완벽한 성능을 달성했습니다.
             
         except Exception as e:
             logger.error(f"Error generating final report: {e}")
+
+    def _generate_service_report(self, eval_output_dir: Path, input_path: str, service_name: str, results: Dict[str, Any]) -> None:
+        """서비스별 분석 보고서 생성"""
+        import json
+        from datetime import datetime
+
+        try:
+            # 성능 지표 로드
+            metrics_file = eval_output_dir / f'performance_metrics_{service_name}.json'
+            with open(metrics_file, 'r', encoding='utf-8') as f:
+                metrics = json.load(f)
+
+            # 요약 결과 로드
+            summary_file = eval_output_dir / f'summary_results_{service_name}.csv'
+            summary_data = []
+            if summary_file.exists():
+                import csv
+                with open(summary_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    summary_data = list(reader)
+
+            # 보고서 작성
+            report_file = eval_output_dir / f'ANALYSIS_REPORT_{service_name.upper()}.md'
+
+            from datetime import datetime
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            dataset_name = Path(input_path).name
+
+            report_content = f"""# {service_name.upper()} 서비스 분석 결과 보고서
+
+## 분석 정보
+- **서비스**: {service_name.capitalize()}
+- **데이터셋**: {dataset_name}
+- **분석 완료 시간**: {current_time}
+- **총 비디오 수**: {metrics['dataset_info']['total_videos']}
+- **{list(metrics['dataset_info'].keys())[1].replace('_videos', '').replace('_', ' ').title()} 비디오**: {list(metrics['dataset_info'].values())[1]}
+- **{list(metrics['dataset_info'].keys())[2].replace('_videos', '').replace('_', ' ').title()} 비디오**: {list(metrics['dataset_info'].values())[2]}
+
+## 성능 지표
+
+### 전체 성능
+- **정확도 (Accuracy)**: {metrics['accuracy']:.1%}
+- **정밀도 (Precision)**: {metrics['precision']:.1%}
+- **재현율 (Recall)**: {metrics['recall']:.1%}
+- **F1 점수**: {metrics['f1_score']:.1%}
+- **특이도 (Specificity)**: {metrics['specificity']:.1%}
+
+### 혼동 행렬 (Confusion Matrix)
+- **True Positive (TP)**: {metrics['confusion_matrix']['TP']}
+- **True Negative (TN)**: {metrics['confusion_matrix']['TN']}
+- **False Positive (FP)**: {metrics['confusion_matrix']['FP']}
+- **False Negative (FN)**: {metrics['confusion_matrix']['FN']}
+
+## 비디오별 상세 결과
+"""
+
+            # 비디오별 결과 추가
+            if summary_data:
+                report_content += "\n| 비디오 파일 | 실제 라벨 | 예측 라벨 | 이벤트 수 | 결과 |\n"
+                report_content += "|-------------|-----------|-----------|-----------|------|\n"
+
+                for row in summary_data:
+                    video_name = row.get('video_filename', 'N/A')
+                    true_label = row.get('class_label', 'N/A')
+                    pred_label = row.get('predicted_class', 'N/A')
+                    event_count = row.get('event_count', 'N/A')
+                    confusion_type = row.get('confusion_matrix', 'N/A')
+
+                    result_emoji = "✅" if confusion_type in ['TP', 'TN'] else "❌"
+
+                    report_content += f"| {video_name} | {true_label} | {pred_label} | {event_count} | {confusion_type} {result_emoji} |\n"
+
+            # 분석 결과 해석
+            accuracy = metrics['accuracy']
+            if accuracy >= 0.9:
+                performance_level = "매우 우수"
+                recommendation = f"{service_name} 서비스의 성능이 매우 우수합니다. 실전 배포를 고려할 수 있습니다."
+            elif accuracy >= 0.8:
+                performance_level = "우수"
+                recommendation = f"{service_name} 서비스가 양호한 성능을 보입니다. 일부 오분류 케이스를 분석하여 추가 개선을 고려해볼 수 있습니다."
+            elif accuracy >= 0.7:
+                performance_level = "보통"
+                recommendation = f"{service_name} 서비스가 기본적인 성능을 보입니다. 추가 학습 데이터나 모델 튜닝이 필요할 수 있습니다."
+            else:
+                performance_level = "개선 필요"
+                recommendation = f"{service_name} 서비스의 성능 개선이 필요합니다. 데이터 품질 확인, 모델 재학습, 또는 하이퍼파라미터 튜닝을 고려하세요."
+
+            report_content += f"""
+
+## 분석 결과 해석
+
+### {service_name.capitalize()} 서비스 성능 평가: **{performance_level}**
+{recommendation}
+
+### 주요 발견사항
+- 연속 프레임 임계값: {metrics['dataset_info']['consecutive_frames_threshold']}개 프레임
+- 모델이 {metrics['dataset_info']['total_videos']}개 비디오 중 {metrics['confusion_matrix']['TP'] + metrics['confusion_matrix']['TN']}개를 정확히 분류
+- 분석된 파일 수: {results['file_count']}개
+
+## 시각화 차트
+
+### 혼동 행렬 (Confusion Matrix)
+![Confusion Matrix](charts/confusion_matrix.png)
+
+### 성능 지표 테이블
+![Metrics Table](charts/metrics_table.png)
+
+### 클래스별 성능
+![Class Performance](charts/class_performance.png)
+
+### ROC 곡선
+![ROC Curve](charts/roc_curve.png)
+
+### Precision-Recall 곡선
+![Precision-Recall Curve](charts/precision_recall_curve.png)
+
+### 점수 분포
+![Score Distribution](charts/score_distribution.png)
+
+### 비디오별 성능
+![Video Performance](charts/video_performance.png)
+
+## 생성된 파일들
+- `summary_results_{service_name}.csv`: 비디오별 요약 결과
+- `detailed_results_{service_name}.csv`: 윈도우별 상세 결과
+- `performance_metrics_{service_name}.json`: 성능 지표 JSON 파일
+- `charts/`: 성능 시각화 차트들
+
+---
+*이 보고서는 {service_name} 서비스 폭력 행동 인식 시스템에 의해 자동 생성되었습니다.*
+"""
+
+            # 보고서 저장
+            with open(report_file, 'w', encoding='utf-8') as f:
+                f.write(report_content)
+
+            logger.info(f"{service_name} service analysis report generated: {report_file}")
+
+        except Exception as e:
+            logger.error(f"Error generating {service_name} service report: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _generate_overall_report(self, eval_output_dir: Path, input_path: str, service_results: Dict[str, Any]) -> None:
+        """전체 요약 보고서 생성"""
+        from datetime import datetime
+        import json
+
+        try:
+            # 보고서 작성
+            report_file = eval_output_dir / 'OVERALL_ANALYSIS_REPORT.md'
+
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            dataset_name = Path(input_path).name
+
+            report_content = f"""# 전체 서비스 분석 결과 요약 보고서
+
+## 분석 개요
+- **데이터셋**: {dataset_name}
+- **분석 완료 시간**: {current_time}
+- **분석된 서비스**: {', '.join(service_results.keys())}
+
+## 서비스별 성능 요약
+
+"""
+
+            # 서비스별 성능 요약 추가
+            for service_name, results in service_results.items():
+                try:
+                    # 성능 지표 로드
+                    metrics_file = eval_output_dir / service_name / f'performance_metrics_{service_name}.json'
+                    with open(metrics_file, 'r', encoding='utf-8') as f:
+                        metrics = json.load(f)
+
+                    report_content += f"""
+### {service_name.capitalize()} 서비스
+- **총 비디오 수**: {metrics['dataset_info']['total_videos']}개
+- **정확도**: {metrics['accuracy']:.1%}
+- **정밀도**: {metrics['precision']:.1%}
+- **재현율**: {metrics['recall']:.1%}
+- **F1 점수**: {metrics['f1_score']:.1%}
+- **혼동행렬**: TP={metrics['confusion_matrix']['TP']}, FP={metrics['confusion_matrix']['FP']}, FN={metrics['confusion_matrix']['FN']}, TN={metrics['confusion_matrix']['TN']}
+
+"""
+                except Exception as e:
+                    logger.error(f"Error loading metrics for {service_name}: {e}")
+                    report_content += f"""
+### {service_name.capitalize()} 서비스
+- **상태**: 메트릭 로드 실패 ({str(e)})
+
+"""
+
+            report_content += f"""
+## 상세 분석
+
+각 서비스별 상세 분석 결과는 다음 파일들을 참조하세요:
+
+"""
+
+            # 서비스별 보고서 링크 추가
+            for service_name in service_results.keys():
+                report_content += f"- [{service_name.capitalize()} 서비스 상세 보고서]({service_name}/ANALYSIS_REPORT_{service_name.upper()}.md)\n"
+
+            report_content += f"""
+
+## 디렉토리 구조
+
+```
+evaluation/
+├── OVERALL_ANALYSIS_REPORT.md (이 파일)
+"""
+
+            for service_name in service_results.keys():
+                report_content += f"""├── {service_name}/
+│   ├── ANALYSIS_REPORT_{service_name.upper()}.md
+│   ├── performance_metrics_{service_name}.json
+│   ├── summary_results_{service_name}.csv
+│   ├── detailed_results_{service_name}.csv
+│   └── charts/
+"""
+
+            report_content += f"""└── [차트 및 시각화 파일들]
+```
+
+---
+*이 보고서는 다중 서비스 폭력 행동 인식 시스템에 의해 자동 생성되었습니다.*
+"""
+
+            # 보고서 저장
+            with open(report_file, 'w', encoding='utf-8') as f:
+                f.write(report_content)
+
+            logger.info(f"Overall analysis report generated: {report_file}")
+
+        except Exception as e:
+            logger.error(f"Error generating overall report: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 class RealtimeMode(BaseMode):
@@ -966,48 +1313,120 @@ class VisualizeMode(BaseMode):
         return self.config.get('inference', {}).get('visualize', {})
     
     def execute(self) -> bool:
-        """시각화 실행"""
+        """시각화 실행 (서비스별 시각화 지원)"""
         if not self._validate_config(['results_dir', 'input']):
             return False
-        
+
         from visualization.pkl_visualizer import PKLVisualizer
         from pathlib import Path
-        
+
         results_dir = self.mode_config.get('results_dir')
         input_path = self.mode_config.get('input')  # input 경로 사용
         save_mode = self.mode_config.get('save_mode', False)
         save_dir = self.mode_config.get('save_dir', 'overlay_output')
-        
-        # overlay 폴더 자동 생성
+        service_name = self.mode_config.get('service', None)  # 서비스명 지정 가능
+
+        # 저장 디렉토리 설정 (서비스별 또는 기본)
         if save_mode:
-            overlay_dir = Path(save_dir) / 'overlay'
-            overlay_dir.mkdir(parents=True, exist_ok=True)
-            save_dir = str(overlay_dir)
-        
+            if service_name:
+                # 서비스별 디렉토리
+                save_dir = str(Path(save_dir) / service_name)
+            else:
+                # 기본 저장 디렉토리 사용
+                save_dir = str(Path(save_dir))
+            Path(save_dir).mkdir(parents=True, exist_ok=True)
+
         # input 경로가 파일인지 폴더인지 자동 감지
         input_path_obj = Path(input_path)
-        
+
         if not input_path_obj.exists():
             logger.error(f"Input path does not exist: {input_path}")
             return False
-        
-        visualizer = PKLVisualizer(self.config)
-        
-        if input_path_obj.is_file():
-            # 단일 파일 시각화
-            logger.info(f"Visualizing single file: {input_path}")
-            return visualizer.visualize_single_file(
-                str(input_path_obj), Path(results_dir), save_mode, save_dir
-            )
-        elif input_path_obj.is_dir():
-            # 폴더 시각화
-            logger.info(f"Visualizing folder: {input_path}")
-            return visualizer.visualize_folder(
-                str(input_path_obj), Path(results_dir), save_mode, save_dir
-            )
+
+        # 서비스별 시각화 수행
+        if service_name:
+            logger.info(f"Visualizing with {service_name} service results")
+            visualizer = PKLVisualizer(self.config, target_service=service_name)
+
+            if input_path_obj.is_file():
+                # 단일 파일 시각화
+                logger.info(f"Visualizing single file: {input_path}")
+                return visualizer.visualize_single_file(
+                    str(input_path_obj), Path(results_dir), save_mode, save_dir, service_name
+                )
+            elif input_path_obj.is_dir():
+                # 폴더 시각화
+                logger.info(f"Visualizing folder: {input_path}")
+                return visualizer.visualize_folder(
+                    str(input_path_obj), Path(results_dir), save_mode, save_dir, service_name
+                )
         else:
-            logger.error(f"Invalid input path: {input_path}")
-            return False
+            # 자동 서비스 감지 또는 전체 서비스 시각화
+            results_path = Path(results_dir)
+
+            # 사용 가능한 서비스 감지
+            available_services = set()
+            for json_file in results_path.rglob("*_results.json"):
+                filename = json_file.stem
+                if '_fight_results' in filename:
+                    available_services.add('fight')
+                elif '_falldown_results' in filename:
+                    available_services.add('falldown')
+
+            if available_services:
+                logger.info(f"Found services: {list(available_services)}")
+                success_count = 0
+                total_services = len(available_services)
+
+                # 각 서비스별로 시각화 수행
+                for service in available_services:
+                    logger.info(f"=== Visualizing {service} service ===")
+
+                    # 서비스별 저장 디렉토리 (UBI_demo/service 형태)
+                    if save_mode:
+                        service_save_dir = str(Path(save_dir) / service)
+                        Path(service_save_dir).mkdir(parents=True, exist_ok=True)
+                    else:
+                        service_save_dir = save_dir
+
+                    visualizer = PKLVisualizer(self.config, target_service=service)
+
+                    if input_path_obj.is_file():
+                        success = visualizer.visualize_single_file(
+                            str(input_path_obj), Path(results_dir), save_mode, service_save_dir, service
+                        )
+                    elif input_path_obj.is_dir():
+                        success = visualizer.visualize_folder(
+                            str(input_path_obj), Path(results_dir), save_mode, service_save_dir, service
+                        )
+                    else:
+                        success = False
+
+                    if success:
+                        success_count += 1
+
+                logger.info(f"Service visualization complete: {success_count}/{total_services} services successful")
+                return success_count > 0
+            else:
+                # 기존 방식 (서비스명 없는 파일들)
+                logger.info("No service-specific files found, using legacy visualization")
+                visualizer = PKLVisualizer(self.config)
+
+                if input_path_obj.is_file():
+                    # 단일 파일 시각화
+                    logger.info(f"Visualizing single file: {input_path}")
+                    return visualizer.visualize_single_file(
+                        str(input_path_obj), Path(results_dir), save_mode, save_dir
+                    )
+                elif input_path_obj.is_dir():
+                    # 폴더 시각화
+                    logger.info(f"Visualizing folder: {input_path}")
+                    return visualizer.visualize_folder(
+                        str(input_path_obj), Path(results_dir), save_mode, save_dir
+                    )
+                else:
+                    logger.error(f"Invalid input path: {input_path}")
+                    return False
     
     def _generate_final_report(self, eval_output_dir: Path, input_path: str) -> None:
         """최종 분석 결과 보고서 생성"""
@@ -1043,8 +1462,8 @@ class VisualizeMode(BaseMode):
 - **데이터셋**: {dataset_name}
 - **분석 완료 시간**: {current_time}
 - **총 비디오 수**: {metrics['dataset_info']['total_videos']}
-- **Fight 비디오**: {metrics['dataset_info']['fight_videos']}
-- **Normal 비디오**: {metrics['dataset_info']['non_fight_videos']}
+- **{list(metrics['dataset_info'].keys())[1].replace('_videos', '').replace('_', ' ').title()} 비디오**: {list(metrics['dataset_info'].values())[1]}
+- **{list(metrics['dataset_info'].keys())[2].replace('_videos', '').replace('_', ' ').title()} 비디오**: {list(metrics['dataset_info'].values())[2]}
 
 ## 성능 지표
 
@@ -1154,3 +1573,4 @@ class VisualizeMode(BaseMode):
             logger.error(f"Error generating final report: {e}")
             import traceback
             traceback.print_exc()
+
