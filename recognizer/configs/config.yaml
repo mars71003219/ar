@@ -1,6 +1,6 @@
 # mode: inference.analysis
-# mode: inference.visualize
-mode: inference.realtime
+mode: inference.visualize
+# mode: inference.realtime
 # mode: annotation.stage3
 # mode: annotation.visualize
 
@@ -9,17 +9,17 @@ dual_service:
   # enabled: true                            # 듀얼 서비스 활성화
   enabled: false                         # 단일 서비스 모드
   services:
-    # - fight                              # Fight 탐지 서비스
-    - falldown                           # Falldown 탐지 서비스
+    - fight                              # Fight 탐지 서비스
+    # - falldown                           # Falldown 탐지 서비스
 
 annotation:
   input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_video
   output_dir: output
-  # pipeline_mode: true
-  pipeline_mode: false
+  pipeline_mode: true
+  # pipeline_mode: false
 
   stage1:
-    enabled: false 
+    enabled: true
     # Stage1 전용 멀티 프로세스 설정
     multi_process:
       enabled: true                     # Stage1 멀티프로세스 활성화
@@ -37,9 +37,9 @@ annotation:
 
   visualize:
     stage: stage2
-    video_dir: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
-    results_dir: /workspace/recognizer/output/falldown_aihub/stage2_tracking/bytetrack_h0.4_l0.1_t0.2
-    save_mode: false
+    video_dir: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_video
+    results_dir: /workspace/recognizer/output/falldown_video/stage2_tracking/bytetrack_h0.4_l0.1_t0.2
+    save_mode: false  # true: 실시간 디스플레이, false: 실시간 디스플레이 화면 없이 오버레이 비디오파일만 생성
 
 inference:
   analysis:
@@ -59,7 +59,7 @@ inference:
   realtime:
     # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
     input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
-    output_path: /workspace/recognizer/output 
+    output_path: /workspace/recognizer/output
     save_output: true
     display_width: 640
     display_height: 480

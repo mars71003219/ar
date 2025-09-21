@@ -1276,7 +1276,7 @@ class RealtimeMode(BaseMode):
                 # 출력 경로 생성 (input 폴더 마지막 폴더명 기반)
                 output_subdir = output_base_dir / relative_path.parent
                 output_subdir.mkdir(parents=True, exist_ok=True)
-                output_path = output_subdir / f"{video_name}_overlay.mp4"
+                output_path = output_subdir / f"{video_name}_overlay.avi"
             else:
                 output_path = None
             

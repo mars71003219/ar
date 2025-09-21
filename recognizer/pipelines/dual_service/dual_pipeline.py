@@ -579,9 +579,14 @@ class DualServicePipeline(BasePipeline):
             # 비디오 작성기 설정
             video_writer = None
             if save_output and output_path:
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                fourcc = cv2.VideoWriter_fourcc(*'XVID')  # 'mp4v' 대신 더 호환성 좋은 코덱 사용
                 video_writer = cv2.VideoWriter(output_path, fourcc, 30.0, (display_width, display_height))
-                logging.info(f"Video writer setup successfully: {output_path}")
+
+                if video_writer.isOpened():
+                    logging.info(f"Video writer setup successfully: {output_path} ({display_width}x{display_height}, XVID codec)")
+                else:
+                    logging.error(f"Failed to open video writer: {output_path}")
+                    video_writer = None
             
             # 시각화 초기화 (단순화)
             logging.info(f"Visualizer initialized: mode=realtime, {display_width}x{display_height}, FPS=30")
@@ -721,6 +726,15 @@ class DualServicePipeline(BasePipeline):
                     
                     # 비디오 저장
                     if video_writer is not None:
+                        # 첫 번째 프레임에서 크기 확인
+                        if hasattr(self, '_first_frame_logged') is False:
+                            self._first_frame_logged = True
+                            logging.info(f"First frame shape: {display_frame.shape}, expected: ({display_height}, {display_width}, 3)")
+
+                        # 프레임 크기 확인 및 조정
+                        if display_frame.shape[:2] != (display_height, display_width):
+                            display_frame = cv2.resize(display_frame, (display_width, display_height))
+
                         video_writer.write(display_frame)
                     
                     # ESC 키로 종료
@@ -741,6 +755,8 @@ class DualServicePipeline(BasePipeline):
                 cv2.destroyAllWindows()
                 if video_writer:
                     video_writer.release()
+                    video_writer = None
+                    logging.info(f"Video writer released: {output_path}")
                 
             logging.info("Dual service realtime display completed")
             return True
