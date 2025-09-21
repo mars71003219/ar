@@ -12,6 +12,15 @@ from pathlib import Path
 
 from .mode_manager import BaseMode
 
+# 파일 상단에서 DualServicePipeline import (모든 메서드에서 사용)
+try:
+    from pipelines.dual_service.dual_pipeline import DualServicePipeline
+    DUAL_PIPELINE_AVAILABLE = True
+except ImportError as e:
+    logger = logging.getLogger(__name__)
+    logger.warning(f"DualServicePipeline import failed: {e}")
+    DUAL_PIPELINE_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -76,8 +85,9 @@ class Stage1Mode(BaseMode):
 
     def _execute_with_dual_pipeline(self, input_path: str, output_dir: str, stage: str) -> bool:
         """DualServicePipeline을 사용한 처리"""
+        # 파일 상단에서 이미 import됨
+
         try:
-            from pipelines.dual_service.dual_pipeline import DualServicePipeline
             from pathlib import Path
 
             # 출력 디렉토리 생성
@@ -233,7 +243,7 @@ class Stage2Mode(BaseMode):
 
     def _execute_with_dual_pipeline(self, pkl_files: List[Path], output_dir: str, stage: str) -> bool:
         """DualServicePipeline을 사용한 처리"""
-        from pipelines.dual_service.dual_pipeline import DualServicePipeline
+        # 파일 상단에서 이미 import됨
 
         # Stage2/Stage3용 설정 생성
         stage_config = self.config.copy()
@@ -319,6 +329,21 @@ class Stage3Mode(BaseMode):
     
     def execute(self) -> bool:
         """Stage 3 실행 - MMAction2 호환 형식으로 생성"""
+
+        # Stage2가 enabled되어 있으면 먼저 실행
+        stage2_config = self.config.get('annotation', {}).get('stage2', {})
+        if stage2_config.get('enabled', False):
+            logger.info("Stage2 is enabled, executing Stage2 first...")
+            from .mode_manager import ModeManager
+            mode_manager = ModeManager(self.config)
+
+            # Stage2 실행
+            stage2_success = mode_manager.execute('annotation.stage2')
+            if not stage2_success:
+                logger.error("Stage2 execution failed, cannot proceed with Stage3")
+                return False
+            logger.info("Stage2 completed successfully, proceeding with Stage3...")
+
         # 경로 관리자 사용
         from utils.annotation_path_manager import create_path_manager
         path_manager = create_path_manager(self.config)
@@ -365,7 +390,7 @@ class Stage3Mode(BaseMode):
 
     def _execute_with_dual_pipeline(self, pkl_files: List[Path], output_dir: str, stage: str) -> bool:
         """DualServicePipeline을 사용한 처리"""
-        from pipelines.dual_service.dual_pipeline import DualServicePipeline
+        # 파일 상단에서 이미 import됨
 
         # Stage2/Stage3용 설정 생성
         stage_config = self.config.copy()
@@ -467,7 +492,20 @@ class Stage3Mode(BaseMode):
 
     def _execute_with_dual_pipeline_stage3_old(self, tracking_files: List[Path], output_dir: str) -> bool:
         """DualServicePipeline을 사용한 Stage3 처리"""
-        from pipelines.dual_service.dual_pipeline import DualServicePipeline
+        import sys
+        import os
+        import importlib.util
+
+        # stage2와 동일한 방식으로 모듈 로드
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        recognizer_dir = os.path.dirname(current_dir)
+        dual_pipeline_path = os.path.join(recognizer_dir, 'pipelines', 'dual_service', 'dual_pipeline.py')
+
+        spec = importlib.util.spec_from_file_location("dual_pipeline", dual_pipeline_path)
+        dual_pipeline_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(dual_pipeline_module)
+
+        DualServicePipeline = dual_pipeline_module.DualServicePipeline
 
         # Stage3용 설정 생성
         stage_config = self.config.copy()

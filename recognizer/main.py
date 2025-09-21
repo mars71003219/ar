@@ -315,9 +315,9 @@ def run_multi_process_annotation(config, args):
         )
         
         if success:
-            logger.info("🎉 Multi-process annotation completed successfully!")
+            logger.info("Multi-process annotation completed successfully!")
         else:
-            logger.error("❌ Multi-process annotation failed!")
+            logger.error("Multi-process annotation failed!")
         
         return success
         
@@ -386,9 +386,9 @@ def run_multi_process_inference_analysis(config, args):
         )
         
         if success:
-            logger.info("🎉 Multi-process inference analysis completed successfully!")
+            logger.info("Multi-process inference analysis completed successfully!")
         else:
-            logger.error("❌ Multi-process inference analysis failed!")
+            logger.error("Multi-process inference analysis failed!")
         
         return success
         

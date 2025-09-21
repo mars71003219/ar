@@ -12,14 +12,15 @@ from pathlib import Path
 import sys
 import pickle
 
-# recognizer 모듈 경로 추가
-recognizer_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(recognizer_root))
+# recognizer 루트 경로를 sys.path에 추가
+recognizer_root = str(Path(__file__).parent.parent.parent)
+if recognizer_root not in sys.path:
+    sys.path.insert(0, recognizer_root)
 
+from pipelines.base import BasePipeline
 from utils.factory import ModuleFactory
 from utils.data_structure import PersonPose, FramePoses, WindowAnnotation, ClassificationResult
 from pipelines.separated.data_structures import VisualizationData
-from pipelines.base import BasePipeline
 from visualization.inference_visualizer import InferenceVisualizer
 
 
@@ -1667,38 +1668,110 @@ class DualServicePipeline(BasePipeline):
             return None
 
     def _extract_label_from_path(self, pkl_path: str) -> int:
-        """경로에서 라벨 추출"""
-        input_path = self.config.get('annotation', {}).get('input', '')
-        if 'falldown' in pkl_path.lower() or 'falldown' in input_path.lower():
-            return 1  # falldown 라벨
-        elif 'fight' in pkl_path.lower() or 'fight' in input_path.lower():
-            return 1  # fight 라벨
-        return 0  # normal 라벨
+        """경로와 파일명에서 라벨 추출 - stage1_poses.py와 동일한 로직 사용"""
+        import os
+
+        # 입력 경로에서 원본 비디오 경로 역추적
+        input_root = self.config.get('annotation', {}).get('input', '')
+
+        # pkl 파일명에서 원본 비디오명 추출
+        video_name = os.path.basename(pkl_path).replace('_tracking.pkl', '').replace('_stage2_poses.pkl', '').replace('_stage1_poses.pkl', '')
+
+        # stage1_poses.py와 동일한 라벨 매핑 규칙 사용
+        label_mapping = {
+            # 기존 RWF-2000 구조
+            '/fight/': 1,       # Fight
+            '/nonfight/': 0,    # NonFight
+            '/normal/': 0,      # Normal
+            # Falldown 데이터셋 구조
+            '/falldown/': 1,    # Falldown (Violence로 분류)
+            # 추가 가능한 매핑
+            '/violence/': 1,    # Violence
+            '/non_violence/': 0, # Non-Violence
+            '/nonviolence/': 0,  # NonViolence
+        }
+
+        # 원본 비디오 파일 찾기 및 경로 기반 라벨 추출
+        try:
+            for folder_pattern, label_value in label_mapping.items():
+                folder_path = os.path.join(input_root, folder_pattern.strip('/'))
+                if os.path.exists(folder_path):
+                    # 해당 폴더에서 비디오 파일 찾기
+                    for file in os.listdir(folder_path):
+                        if file.lower().startswith(video_name.lower()) or video_name.lower() in file.lower():
+                            logging.info(f"Found video {file} in {folder_pattern.strip('/')} -> label {label_value}")
+                            return label_value
+
+                        # 파일명의 첫 부분이 일치하는 경우도 확인 (복제본들 처리)
+                        file_base = file.split('_')[0].split('.')[0]
+                        video_base = video_name.split('_')[0]
+                        if file_base.lower() == video_base.lower():
+                            logging.info(f"Found matching video {file} in {folder_pattern.strip('/')} -> label {label_value}")
+                            return label_value
+
+        except Exception as e:
+            logging.warning(f"Error checking original video directories: {e}")
+
+        # 파일명 기반 fallback (stage1_poses.py와 동일)
+        video_name_lower = video_name.lower()
+        if any(pattern in video_name_lower for pattern in ['fight', 'f_', 'falldown', 'violence']):
+            logging.info(f"Detected label from filename: {video_name} -> 1")
+            return 1  # Fight/Violence
+        else:
+            logging.info(f"Default label assignment: {video_name} -> 0")
+            return 0  # Normal/NonFight
 
     def _create_dataset_entries(self, frame_poses_list, video_name: str, label: int):
-        """FramePoses 리스트에서 데이터셋 엔트리 생성"""
+        """FramePoses 리스트에서 비디오 클립 단위 데이터셋 엔트리 생성"""
 
         dataset_entries = []
 
-        for frame_poses in frame_poses_list:
-            if not hasattr(frame_poses, 'persons') or not frame_poses.persons:
-                continue
+        # STGCN++ 설정에서 clip_len=100 사용
+        clip_len = 100
+        max_persons = 4  # config에서 num_person=4 설정
 
-            for person in frame_poses.persons:
-                if hasattr(person, 'keypoints') and person.keypoints is not None and len(person.keypoints) > 0:
-                    keypoints = person.keypoints
-                    if isinstance(keypoints, np.ndarray) and keypoints.ndim == 2:  # (17, 3) 형태
-                        entry = {
-                            'frame_dir': video_name,
-                            'label': label,
-                            'img_shape': (480, 640),
-                            'original_shape': (480, 640),
-                            'total_frames': 1,
-                            'keypoint': keypoints.reshape(1, 17, 3),  # (1, 17, 3)
-                            'keypoint_score': keypoints[:, 2:3].reshape(1, 17, 1)
-                        }
-                        dataset_entries.append(entry)
+        if len(frame_poses_list) < clip_len:
+            # 프레임이 부족하면 스킵
+            logging.warning(f"Video {video_name} has only {len(frame_poses_list)} frames, skipping (need {clip_len})")
+            return dataset_entries
 
+        # 슬라이딩 윈도우로 클립 생성 (50프레임씩 이동)
+        stride = 50
+        for start_idx in range(0, len(frame_poses_list) - clip_len + 1, stride):
+            end_idx = start_idx + clip_len
+            clip_frames = frame_poses_list[start_idx:end_idx]
+
+            # 클립에서 모든 프레임의 keypoints 수집
+            # (M, T, V, C) 형태로 구성: M=max_persons, T=clip_len, V=17, C=2
+            clip_keypoints = np.zeros((max_persons, clip_len, 17, 2), dtype=np.float32)
+            clip_scores = np.zeros((max_persons, clip_len, 17), dtype=np.float32)
+
+            # 각 프레임에서 person들의 keypoints 추출
+            for frame_idx, frame_poses in enumerate(clip_frames):
+                if hasattr(frame_poses, 'persons') and frame_poses.persons:
+                    # 최대 max_persons 만큼만 사용
+                    for person_idx, person in enumerate(frame_poses.persons[:max_persons]):
+                        if hasattr(person, 'keypoints') and person.keypoints is not None:
+                            keypoints = person.keypoints
+                            if isinstance(keypoints, np.ndarray) and keypoints.ndim == 2 and keypoints.shape[0] == 17:
+                                # x, y 좌표와 confidence 분리
+                                clip_keypoints[person_idx, frame_idx] = keypoints[:, :2]  # (17, 2)
+                                clip_scores[person_idx, frame_idx] = keypoints[:, 2]      # (17,)
+
+            # 유효한 keypoint 데이터가 있는지 확인
+            if np.any(clip_keypoints.sum(axis=(2, 3)) > 0):  # 모든 0이 아닌지 확인
+                entry = {
+                    'frame_dir': f"{video_name}_clip_{start_idx}_{end_idx}",
+                    'label': label,
+                    'img_shape': (480, 640),
+                    'original_shape': (480, 640),
+                    'total_frames': clip_len,
+                    'keypoint': clip_keypoints,     # (M, T, V, C) - (4, 100, 17, 2)
+                    'keypoint_score': clip_scores   # (M, T, V) - (4, 100, 17)
+                }
+                dataset_entries.append(entry)
+
+        logging.info(f"Created {len(dataset_entries)} clips from video {video_name} ({len(frame_poses_list)} frames)")
         return dataset_entries
 
     def _process_stage3_dataset(self, pkl_data: dict, pkl_path: str, output_dir: str) -> Dict[str, Any]:
@@ -1764,14 +1837,18 @@ class DualServicePipeline(BasePipeline):
                     if hasattr(person, 'keypoints') and person.keypoints is not None and len(person.keypoints) > 0:
                         keypoints = person.keypoints
                         if isinstance(keypoints, np.ndarray) and keypoints.ndim == 2:  # (17, 3) 형태
+                            # MMAction2 호환성: 2D keypoint + separate score
+                            xy_coords = keypoints[:, :2]  # x, y 좌표만 (17, 2)
+                            scores = keypoints[:, 2]      # confidence scores (17,)
+
                             entry = {
                                 'frame_dir': video_name,
                                 'label': label,  # 폴더명 기반 라벨
                                 'img_shape': (480, 640),
                                 'original_shape': (480, 640),
                                 'total_frames': 1,
-                                'keypoint': keypoints.reshape(1, 17, 3),  # (1, 17, 3)
-                                'keypoint_score': keypoints[:, 2:3].reshape(1, 17, 1)
+                                'keypoint': xy_coords.reshape(1, 1, 17, 2),     # MMAction2 형식: (M, T, V, C)
+                                'keypoint_score': scores.reshape(1, 1, 17)       # MMAction2 형식: (M, T, V)
                             }
                             dataset_entries.append(entry)
 

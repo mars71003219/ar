@@ -1,7 +1,7 @@
 # mode: inference.analysis
 # mode: inference.visualize
-# mode: inference.realtime
-mode: annotation.stage3
+mode: inference.realtime
+# mode: annotation.stage3
 # mode: annotation.visualize
 
 # 듀얼 서비스 설정
@@ -13,16 +13,17 @@ dual_service:
     - falldown                           # Falldown 탐지 서비스
 
 annotation:
-  input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub_backup
+  input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_video
   output_dir: output
-  pipeline_mode: true
+  # pipeline_mode: true
+  pipeline_mode: false
 
   stage1:
-    enabled: true
+    enabled: false 
     # Stage1 전용 멀티 프로세스 설정
     multi_process:
       enabled: true                     # Stage1 멀티프로세스 활성화
-      num_processes: 16                  # 프로세스 수
+      num_processes: 16                 # 프로세스 수 (GPU 2개 * 8 = 16)
       gpus: [0, 1]                      # 사용할 GPU 목록 (라운드 로빈 할당)
       chunk_strategy: video_split       # 비디오 단위로 분할
   stage2:
@@ -56,8 +57,8 @@ inference:
       chunk_strategy: video_split    # 비디오 단위로 분할
 
   realtime:
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
-    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
+    # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
+    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
     output_path: /workspace/recognizer/output 
     save_output: true
     display_width: 640
@@ -93,7 +94,7 @@ models:
 
   # Falldown 탐지 모델
   falldown_classification:
-    checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_2.pth
+    checkpoint_path: /workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable/best_acc_top1_epoch_24.pth
     class_names:
     - Normal
     - Falldown
@@ -126,7 +127,7 @@ models:
       enable_cpu_mem_arena: true
       enable_mem_pattern: true
       execution_mode: ORT_SEQUENTIAL
-      gpu_mem_limit_gb: 8
+      gpu_mem_limit_gb: 1.5
       graph_optimization_level: ORT_ENABLE_ALL
       keypoint_threshold: 0.3
       max_detections: 100

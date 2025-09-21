@@ -274,18 +274,17 @@ class MultiProcessRunner:
                 thread.start()
                 monitor_threads.append(thread)
             
-            # 모든 결과 수집 (타임아웃 포함)
+            # 모든 결과 수집 (무제한 대기 - 대용량 데이터셋 대응)
             collected_results = 0
-            timeout_per_result = 300  # 각 결과당 5분 타임아웃
-            
+
             while collected_results < len(processes):
                 try:
-                    i, return_code = result_queue.get(timeout=timeout_per_result)
+                    i, return_code = result_queue.get()  # 타임아웃 제거 - 무제한 대기
                     results[i] = return_code
                     collected_results += 1
                     logger.info(f"Collected result for split {i}: return_code={return_code}")
-                except queue.Empty:
-                    logger.error("Timeout waiting for process results")
+                except Exception as e:
+                    logger.error(f"Error collecting results: {e}")
                     break
             
             # 남은 프로세스들 강제 종료

@@ -25,7 +25,7 @@ model = dict(
         dropout=0.3,     # 0.5 -> 0.3로 감소 (과적합 방지)
         loss_cls=dict(
             type='CrossEntropyLoss',
-            class_weight=[1.2, 1.0]  # NonFight:Fight = 45.4:54.6 분포에 맞춰 조정
+            class_weight=[1.0, 1.0]
         )
     )
 )
@@ -35,9 +35,9 @@ model = dict(
 # ============================================================================
 dataset_type = 'PoseDataset'
 data_root = '/workspace/recognizer/test_data'
-ann_file_train = '/workspace/recognizer/output/falldown_aihub/stage3_dataset/unknown_s0.2_n0.65_bytetrack_h0.3_l0.1_t0.2_split0.7-0.2-0.1/train.pkl'
-ann_file_val = '/workspace/recognizer/output/falldown_aihub/stage3_dataset/unknown_s0.2_n0.65_bytetrack_h0.3_l0.1_t0.2_split0.7-0.2-0.1/val.pkl'
-ann_file_test = '/workspace/recognizer/output/falldown_aihub/stage3_dataset/unknown_s0.2_n0.65_bytetrack_h0.3_l0.1_t0.2_split0.7-0.2-0.1/test.pkl'
+ann_file_train = '/workspace/recognizer/output/falldown_video/stage3_dataset/unknown_s0.2_n0.65_bytetrack_h0.4_l0.1_t0.2_split0.7-0.2-0.1/train.pkl'
+ann_file_val = '/workspace/recognizer/output/falldown_video/stage3_dataset/unknown_s0.2_n0.65_bytetrack_h0.4_l0.1_t0.2_split0.7-0.2-0.1/val.pkl'
+ann_file_test = '/workspace/recognizer/output/falldown_video/stage3_dataset/unknown_s0.2_n0.65_bytetrack_h0.4_l0.1_t0.2_split0.7-0.2-0.1/test.pkl'
 
 # ============================================================================
 # Pipeline Configuration
