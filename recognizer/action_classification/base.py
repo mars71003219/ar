@@ -270,7 +270,8 @@ class BaseActionClassifier(ABC):
                 'keypoint': keypoint,  # (M, T, V, C) 형태 - 스코어 순으로 정렬됨
                 'keypoint_score': keypoint_score,  # (M, T, V) 형태  
                 'total_frames': self.window_size,
-                'img_shape': (640, 640),  # 기본값
+                # config에서 기본 이미지 크기 가져오기
+                'img_shape': tuple(getattr(self.config, 'default_img_shape', [640, 640])),
                 'start_index': 0,
                 'modality': 'Pose',
                 'label': -1  # inference 시에는 더미 값

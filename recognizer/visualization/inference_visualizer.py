@@ -537,13 +537,15 @@ class InferenceVisualizer:
             # 윈도우 번호 추출 (메타데이터에서)
             window_number = classification.get('window_number', 1)
             
-            # Fight 정보
+            # Fight 정보 - 예측된 클래스와 해당 신뢰도 표시
             fight_confidence = classification.get('fight_confidence', 0.0)
-            fight_text = f"Window {window_number}: Fight {fight_confidence:.3f}"
-            
-            # Falldown 정보  
+            fight_predicted_class = classification.get('fight_predicted_class', 'Unknown')
+            fight_text = f"Window {window_number}: {fight_predicted_class} {fight_confidence:.3f}"
+
+            # Falldown 정보 - 예측된 클래스와 해당 신뢰도 표시
             falldown_confidence = classification.get('falldown_confidence', 0.0)
-            falldown_text = f"Window {window_number}: Falldown {falldown_confidence:.3f}"
+            falldown_predicted_class = classification.get('falldown_predicted_class', 'Unknown')
+            falldown_text = f"Window {window_number}: {falldown_predicted_class} {falldown_confidence:.3f}"
         else:
             fight_text = "Window -: Fight 0.000"
             falldown_text = "Window -: Falldown 0.000"

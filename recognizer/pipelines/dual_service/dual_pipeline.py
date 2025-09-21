@@ -435,8 +435,14 @@ class DualServicePipeline(BasePipeline):
         fight_result = service_results.get('fight')
         if fight_result:
             fight_class = 'Fight' if fight_result.prediction == 1 else 'NonFight'
-            # Fight 스코어는 항상 probabilities[1] (Fight 클래스 확률) 사용
-            fight_confidence = fight_result.probabilities[1] if len(fight_result.probabilities) > 1 else fight_result.confidence
+            # Fight 스코어는 예측된 클래스의 확률을 사용
+            if len(fight_result.probabilities) > 1:
+                if fight_result.prediction == 1:  # Fight 예측
+                    fight_confidence = fight_result.probabilities[1]  # Fight 확률
+                else:  # NonFight 예측
+                    fight_confidence = fight_result.probabilities[0]  # NonFight 확률
+            else:
+                fight_confidence = fight_result.confidence
             logging.info(f"Fight result - class: {fight_class}, confidence: {fight_confidence:.3f}, probabilities: {fight_result.probabilities}")
         else:
             fight_class = 'NonFight'
@@ -446,8 +452,14 @@ class DualServicePipeline(BasePipeline):
         falldown_result = service_results.get('falldown')
         if falldown_result:
             falldown_class = 'Falldown' if falldown_result.prediction == 1 else 'Normal'
-            # Falldown 스코어는 항상 probabilities[1] (Falldown 클래스 확률) 사용
-            falldown_confidence = falldown_result.probabilities[1] if len(falldown_result.probabilities) > 1 else falldown_result.confidence
+            # Falldown 스코어는 예측된 클래스의 확률을 사용
+            if len(falldown_result.probabilities) > 1:
+                if falldown_result.prediction == 1:  # Falldown 예측
+                    falldown_confidence = falldown_result.probabilities[1]  # Falldown 확률
+                else:  # Normal 예측
+                    falldown_confidence = falldown_result.probabilities[0]  # Normal 확률
+            else:
+                falldown_confidence = falldown_result.confidence
         else:
             falldown_class = 'Normal'
             falldown_confidence = 0.0
@@ -580,7 +592,10 @@ class DualServicePipeline(BasePipeline):
             video_writer = None
             if save_output and output_path:
                 fourcc = cv2.VideoWriter_fourcc(*'XVID')  # 'mp4v' 대신 더 호환성 좋은 코덱 사용
-                video_writer = cv2.VideoWriter(output_path, fourcc, 30.0, (display_width, display_height))
+                # config에서 FPS 설정 가져오기
+                realtime_config = self.config.get('inference', {}).get('realtime', {})
+                fps = realtime_config.get('default_fps', 30.0)
+                video_writer = cv2.VideoWriter(output_path, fourcc, fps, (display_width, display_height))
 
                 if video_writer.isOpened():
                     logging.info(f"Video writer setup successfully: {output_path} ({display_width}x{display_height}, XVID codec)")
@@ -1330,10 +1345,15 @@ class DualServicePipeline(BasePipeline):
                         temporal_weight=weights.get('temporal', 0.1)
                     )
 
+                    # config에서 이미지 크기 설정 가져오기
+                    realtime_config = self.config.get('inference', {}).get('realtime', {})
+                    img_width = realtime_config.get('scorer_img_width', 640)
+                    img_height = realtime_config.get('scorer_img_height', 480)
+
                     scorer = MotionBasedScorer(
                         scoring_cfg,
-                        img_width=640,
-                        img_height=480
+                        img_width=img_width,
+                        img_height=img_height
                     )
                 elif service == 'falldown':
                     from scoring.motion_based import FalldownScorer
@@ -1358,10 +1378,15 @@ class DualServicePipeline(BasePipeline):
                         temporal_weight=weights.get('persistence', 0.15)
                     )
 
+                    # config에서 이미지 크기 설정 가져오기
+                    realtime_config = self.config.get('inference', {}).get('realtime', {})
+                    img_width = realtime_config.get('scorer_img_width', 640)
+                    img_height = realtime_config.get('scorer_img_height', 480)
+
                     scorer = FalldownScorer(
                         scoring_cfg,
-                        img_width=640,
-                        img_height=480
+                        img_width=img_width,
+                        img_height=img_height
                     )
                 else:
                     logging.warning(f"Unknown service: {service}")
@@ -1776,11 +1801,16 @@ class DualServicePipeline(BasePipeline):
 
             # 유효한 keypoint 데이터가 있는지 확인
             if np.any(clip_keypoints.sum(axis=(2, 3)) > 0):  # 모든 0이 아닌지 확인
+                # config에서 이미지 크기 설정 가져오기
+                realtime_config = self.config.get('inference', {}).get('realtime', {})
+                img_height = realtime_config.get('default_img_height', 480)
+                img_width = realtime_config.get('default_img_width', 640)
+
                 entry = {
                     'frame_dir': f"{video_name}_clip_{start_idx}_{end_idx}",
                     'label': label,
-                    'img_shape': (480, 640),
-                    'original_shape': (480, 640),
+                    'img_shape': (img_height, img_width),
+                    'original_shape': (img_height, img_width),
                     'total_frames': clip_len,
                     'keypoint': clip_keypoints,     # (M, T, V, C) - (4, 100, 17, 2)
                     'keypoint_score': clip_scores   # (M, T, V) - (4, 100, 17)
@@ -1857,11 +1887,16 @@ class DualServicePipeline(BasePipeline):
                             xy_coords = keypoints[:, :2]  # x, y 좌표만 (17, 2)
                             scores = keypoints[:, 2]      # confidence scores (17,)
 
+                            # config에서 이미지 크기 설정 가져오기
+                            realtime_config = self.config.get('inference', {}).get('realtime', {})
+                            img_height = realtime_config.get('default_img_height', 480)
+                            img_width = realtime_config.get('default_img_width', 640)
+
                             entry = {
                                 'frame_dir': video_name,
                                 'label': label,  # 폴더명 기반 라벨
-                                'img_shape': (480, 640),
-                                'original_shape': (480, 640),
+                                'img_shape': (img_height, img_width),
+                                'original_shape': (img_height, img_width),
                                 'total_frames': 1,
                                 'keypoint': xy_coords.reshape(1, 1, 17, 2),     # MMAction2 형식: (M, T, V, C)
                                 'keypoint_score': scores.reshape(1, 1, 17)       # MMAction2 형식: (M, T, V)

@@ -659,6 +659,7 @@ def process_pose_data(pose_data):
     if isinstance(pose_data, dict) and 'keypoints' in pose_data:
         keypoints = pose_data['keypoints']
         # 간단한 정규화
+        # TODO: config.yaml의 performance.normalize_img_width/height 사용하도록 수정 필요
         normalized = [[x/640, y/640, conf] for x, y, conf in keypoints]
         pose_data['keypoints'] = normalized
     return pose_data

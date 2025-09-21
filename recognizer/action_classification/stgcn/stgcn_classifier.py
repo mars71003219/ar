@@ -144,8 +144,9 @@ class STGCNActionClassifier(BaseActionClassifier):
                         'keypoint': np.random.randn(4, 100, 17, 2).astype(np.float32),  # (M, T, V, C)
                         'keypoint_score': np.random.rand(4, 100, 17).astype(np.float32),  # (M, T, V)
                         'total_frames': 100,
-                        'img_shape': (640, 640),
-                        'original_shape': (640, 640),
+                        # config에서 기본 이미지 크기 가져오기
+                        'img_shape': tuple(getattr(self.config, 'default_img_shape', [640, 640])),
+                        'original_shape': tuple(getattr(self.config, 'default_img_shape', [640, 640])),
                         'label': 0
                     }
                     
@@ -226,8 +227,9 @@ class STGCNActionClassifier(BaseActionClassifier):
                     'keypoint': np.random.randn(4, 100, 17, 2).astype(np.float32),
                     'keypoint_score': np.random.rand(4, 100, 17).astype(np.float32),
                     'total_frames': 100,
-                    'img_shape': (640, 640),
-                    'original_shape': (640, 640),
+                    # config에서 기본 이미지 크기 가져오기
+                    'img_shape': tuple(getattr(self.config, 'default_img_shape', [640, 640])),
+                    'original_shape': tuple(getattr(self.config, 'default_img_shape', [640, 640])),
                     'label': 0
                 }
                 
@@ -249,8 +251,9 @@ class STGCNActionClassifier(BaseActionClassifier):
                                     'keypoint': np.random.randn(4, 100, 17, 2).astype(np.float32),
                                     'keypoint_score': np.random.rand(4, 100, 17).astype(np.float32),
                                     'total_frames': 100,
-                                    'img_shape': (640, 640),
-                                    'original_shape': (640, 640),
+                                    # config에서 기본 이미지 크기 가져오기
+                                    'img_shape': tuple(getattr(self.config, 'default_img_shape', [640, 640])),
+                                    'original_shape': tuple(getattr(self.config, 'default_img_shape', [640, 640])),
                                     'label': 0
                                 }
                                 result = inference_recognizer(self.recognizer, test_data)
@@ -461,8 +464,9 @@ class STGCNActionClassifier(BaseActionClassifier):
         return {
             'keypoint': stgcn_data,  # 이미 (1, C, T, V, M) 형태
             'total_frames': T,
-            'img_shape': (640, 640),  # 기본값
-            'original_shape': (640, 640),
+            # config에서 기본 이미지 크기 가져오기
+            'img_shape': tuple(getattr(self.config, 'default_img_shape', [640, 640])),
+            'original_shape': tuple(getattr(self.config, 'default_img_shape', [640, 640])),
             'label': 0
         }
     

@@ -423,19 +423,26 @@ class PKLVisualizer:
             event_text = "Event: Normal"  # None 대신 Normal
             event_color = self.colors['text']  # 흰색
 
-        # 3. Inference 라인 - target_service에 따라 해당 서비스만 표시
+        # 3. Inference 라인 - 예측된 클래스와 해당 신뢰도 표시
         y_inference = y_event + line_height
         if self.target_service == 'fight':
-            fight_score = self.latest_scores['fight']['confidence']
-            inference_text = f"Inference: Fight({fight_score:.2f})"
+            fight_confidence = self.latest_scores['fight']['confidence']
+            fight_label = self.latest_scores['fight']['label']
+            inference_text = f"Inference: {fight_label}({fight_confidence:.2f})"
         elif self.target_service == 'falldown':
-            falldown_score = self.latest_scores['falldown']['confidence']
-            inference_text = f"Inference: Falldown({falldown_score:.2f})"
+            falldown_confidence = self.latest_scores['falldown']['confidence']
+            falldown_label = self.latest_scores['falldown']['label']
+            inference_text = f"Inference: {falldown_label}({falldown_confidence:.2f})"
         else:
             # 전체 서비스 표시
-            fight_score = self.latest_scores['fight']['confidence']
-            falldown_score = self.latest_scores['falldown']['confidence']
-            inference_text = f"Inference: Fight({fight_score:.2f}) | Falldown({falldown_score:.2f})"
+            fight_confidence = self.latest_scores['fight']['confidence']
+            fight_label = self.latest_scores['fight']['label']
+            falldown_confidence = self.latest_scores['falldown']['confidence']
+            falldown_label = self.latest_scores['falldown']['label']
+
+            fight_text = f"{fight_label}({fight_confidence:.2f})"
+            falldown_text = f"{falldown_label}({falldown_confidence:.2f})"
+            inference_text = f"Inference: {fight_text} | {falldown_text}"
 
         # 텍스트 크기 계산
         texts = [service_text, event_text, inference_text]
