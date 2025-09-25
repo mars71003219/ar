@@ -1,6 +1,6 @@
 # Enhanced STGCN++ Configuration for Custom RTMO Fight Detection (Stable)
 
-_base_ = 'stgcnpp_8xb16-joint-u100-80e_ntu60-xsub-keypoint-2d.py'
+_base_ = 'stgcnpp_8xb16-bone-u100-80e_ntu60-xsub-keypoint-2d.py'
 
 # ============================================================================
 # Model Configuration (Stable Fight Detection)
@@ -193,7 +193,7 @@ visualizer = dict(
 )
 
 load_from = '/workspace/mmaction2/checkpoints/stgcnpp_8xb16-bone-u100-80e_ntu60-xsub-keypoint-2d_20221228-cd11a691.pth'
-work_dir = '/workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_falldown_aihub_stable'
+work_dir = '/workspace/mmaction2/work_dirs/stgcnpp-bone-ntu60_rtmo-l_bcfg_bone_falldown_aihub_stable'
 resume = False
 randomness = dict(seed=42, deterministic=False)
 env_cfg = dict(

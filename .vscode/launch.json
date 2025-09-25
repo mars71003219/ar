@@ -11,8 +11,8 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--config",
-                "/workspace/recognizer/configs/config.yaml"
+                // "--config",
+                // "/workspace/recognizer/configs/config.yaml"
             ]
         }
     ]

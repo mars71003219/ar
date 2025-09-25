@@ -13,7 +13,6 @@
 **/*.avi
 
 **/.claude
-**/CLAUDE.md
 **/mmlabs.code-workspace
 /.gradio
 **/.gradio

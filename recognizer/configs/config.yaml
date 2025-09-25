@@ -6,15 +6,15 @@ mode: inference.realtime
 
 # 듀얼 서비스 설정
 dual_service:
-  enabled: true                            # 듀얼 서비스 활성화
-  # enabled: false                         # 단일 서비스 모드
+  # enabled: true                            # 듀얼 서비스 활성화
+  enabled: false                         # 단일 서비스 모드
   services:
-    - fight                              # Fight 탐지 서비스
+    # - fight                              # Fight 탐지 서비스
     - falldown                           # Falldown 탐지 서비스
 
 annotation:
-  input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_video
-  output_dir: output
+  input: /aivanas/cleaned/survelliance/falldown/action_recognition/aihub_cropped_16_9_sample
+  output_dir: output/train
   pipeline_mode: true
   # pipeline_mode: false
 
@@ -58,7 +58,7 @@ inference:
 
   realtime:
     # input: /aivanas/raw/surveillance/action/violence/action_recognition/data/UBI_demo
-    input: /aivanas/raw/surveillance/action/violence/action_recognition/data/falldown_aihub
+    input: /aivanas/cleaned/survelliance/falldown/action_recognition/youtube_split_videos/crop
     output_path: /workspace/recognizer/output
     save_output: true
     display_width: 640

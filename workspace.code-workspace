@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "../aivanas/raw/surveillance/action/violence/action_recognition/data"
+		},
+		{
+			"path": "../aivanas/cleaned/survelliance/falldown/action_recognition"
 		}
 	],
 	"settings": {
